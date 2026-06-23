@@ -23,11 +23,13 @@ export type ConversationAction =
   | { type: 'select_model'; model: string | null }
   | {
       type: 'start_generation';
+      conversationId?: string;
       requestId: string;
       userMessage: ChatMessage;
       assistantMessage: ChatMessage;
     }
   | { type: 'stream_event'; event: LocalChatEvent }
+  | { type: 'load_session'; conversationId: string; messages: ChatMessage[] }
   | { type: 'clear_session' };
 
 export function createConversationSession(id = createId('conversation')): ConversationSession {
@@ -72,6 +74,7 @@ export function conversationReducer(
       }
       return {
         ...session,
+        id: action.conversationId ?? session.id,
         messages: [...session.messages, action.userMessage, action.assistantMessage],
         activeRequestId: action.requestId,
         status: 'generating',
@@ -81,6 +84,17 @@ export function conversationReducer(
       };
     case 'stream_event':
       return reduceStreamEvent(session, action.event);
+    case 'load_session':
+      return {
+        ...session,
+        id: action.conversationId,
+        messages: action.messages,
+        activeRequestId: null,
+        status: session.selectedModel ? 'ready' : 'idle',
+        error: null,
+        thinkingReceived: false,
+        metrics: null,
+      };
     case 'clear_session':
       return {
         ...createConversationSession(createId('conversation')),

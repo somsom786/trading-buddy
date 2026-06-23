@@ -19,6 +19,15 @@ export function BuddyLab(props: BuddyLabProps) {
     <details className="buddy-lab">
       <summary>Buddy Lab · development only</summary>
       <div className="buddy-lab__content">
+        <figure className="buddy-concept">
+          <img
+            src="/design/buddy-concept-beta-v0.1.png"
+            alt="Buddy BETA v0.1 pixel-art design reference with multiple poses and expressions"
+          />
+          <figcaption>
+            Buddy design direction · BETA v0.1 concept reference, not production artwork
+          </figcaption>
+        </figure>
         <div className="buddy-lab__states">
           {BUDDY_STATES.map((state) => (
             <button

@@ -19,7 +19,7 @@ export function MainView(props: MainViewProps) {
           <span className="brand__mark">TB</span>
           <div>
             <strong>Trading Buddy</strong>
-            <small>Local companion</small>
+            <small>BETA v0.1 · Local companion</small>
           </div>
         </div>
 

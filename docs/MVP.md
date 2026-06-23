@@ -7,8 +7,8 @@ minimal interruption.
 
 ## Candidate MVP scope
 
-- Local chat-style workspace with clearly bounded assistant behavior. The first streaming Ollama
-  implementation is complete, while conversation persistence remains deferred.
+- Local chat-style workspace with clearly bounded assistant behavior, local Ollama streaming, and
+  privacy-first local conversation persistence.
 - Local trading journal with structured entries.
 - Review workflow for decisions and outcomes.
 - Read-only market or exchange context after a separate security review.
@@ -37,5 +37,13 @@ minimal interruption.
 - Detect local Ollama and list installed models.
 - Stream a selected local model response through a typed native channel.
 - Cancel active generation safely.
-- Keep the conversation in memory only.
+- Persist saved conversations locally while supporting explicit temporary chats.
 - Drive buddy visuals from deterministic application lifecycle events.
+
+## Local conversation storage milestone
+
+- Store conversations, messages, model preference, and privacy settings in Rust-owned SQLite.
+- Keep hidden thinking, system prompts, raw Ollama responses, secrets, and technical traces out of
+  saved conversation content.
+- Provide rename, archive, restore, delete, delete-all, retention, and export controls.
+- Document that the database is local but not application-level encrypted yet.

@@ -13,6 +13,9 @@ React views
         -> native window/tray/filesystem behavior
         -> Rust local-model service
           -> Ollama native API on loopback
+        -> Rust storage service
+          -> repository interfaces
+            -> SQLite in app-local data directory
 ```
 
 ## Frontend boundaries
@@ -60,13 +63,71 @@ ignored, preventing late content from reaching a replaced or cancelled conversat
 
 ## Conversation session
 
-The conversation reducer owns messages, selected model, active request ID, status, typed error,
-metrics, and whether separate thinking data was received. User and assistant placeholder messages
-are created together when generation starts. Stream deltas append only to the active assistant
-message.
+The conversation reducer owns visible messages, selected model, active request ID, status, typed
+error, metrics, and whether separate thinking data was received. User and assistant placeholder
+messages are created together when generation starts. Stream deltas append only to the active
+assistant message.
 
-Conversation data is intentionally memory-only for this milestone. Persistence is deferred until a
-storage design can define retention, deletion, migrations, and privacy guarantees deliberately.
+Persistent conversations are stored by Rust in SQLite. React calls narrow typed Tauri commands; it
+does not execute SQL and does not receive unrestricted database access. Domain/command DTOs are
+kept separate from SQL row mapping code.
+
+The database is `trading-buddy.db` in Tauri's application-specific local data directory. Startup
+creates the directory if needed, opens a single managed SQLite connection, applies explicit numbered
+migrations, enables foreign keys, WAL, busy timeout, secure delete, and `synchronous=NORMAL`, then
+marks any leftover `streaming` assistant messages as `interrupted`.
+
+The initial schema contains:
+
+- `conversations` with deterministic local titles, timestamps, archive state, and latest activity.
+- `messages` with user/assistant roles, completed/streaming/cancelled/failed/interrupted statuses,
+  model/request metadata, timestamps, and typed error code.
+- `app_settings` with selected local model, ambient animation preference, retention policy, and
+  last opened conversation.
+- `storage_metadata` with schema version, app-created timestamp, and last migration timestamp.
+
+## Persistent message lifecycle
+
+When a persistent user message is submitted, Rust first ensures a conversation exists and writes the
+user message plus a streaming assistant placeholder in one storage operation. If that write fails,
+the Ollama request is not started.
+
+Assistant content is not written token-by-token. The frontend buffers visible content and sends
+checkpoint writes after a character threshold or a short interval, then sends a final write on
+completion, cancellation, or failure. Updates include request ID and assistant message ID so stale
+events cannot update a different conversation.
+
+Cancellation and failure preserve visible partial content. Failure stores a typed error code but not
+raw internal traces. Hidden thinking chunks are never rendered as normal chat and are never sent to
+storage. System prompts are included only in provider requests and are not inserted into the
+messages table.
+
+Switching conversations during active generation is prevented with a visible notice. The user must
+stop the current generation first.
+
+## Temporary chats
+
+Temporary chat is an explicit mode and is disabled by default. It uses the same Ollama and buddy
+state pipeline but keeps messages only in memory. Switching into or out of temporary chat starts a
+fresh session; temporary content is not converted into a saved conversation.
+
+## Retention, export, and deletion
+
+Retention cleanup runs at startup and when the retention policy changes. Policies are based on UTC
+latest conversation activity and apply to active and archived conversations.
+
+Exports are versioned UTF-8 JSON with format `trading-buddy-conversations`. A native save-file
+dialog supplies the destination path; React does not pass arbitrary filesystem paths. Exports
+include visible conversation/message data only and exclude system prompts, hidden thinking,
+request IDs, database paths, secrets, Ollama internals, and technical error traces.
+
+Delete-all runs through the Rust storage service, clears conversations/messages and the last-opened
+setting, checkpoints the WAL, and vacuums. SQLite `secure_delete` is enabled, but deletion is not a
+forensic erasure guarantee because SSD behavior, OS caches, backups, and snapshots can retain data.
+
+Long-term memories, journals, ratings, and trading integrations are future domains. This storage
+milestone persists conversations and settings only; it does not implement semantic memory,
+embeddings, journal entries, trades, crypto integrations, or cloud sync.
 
 ## Companion state and cross-window contracts
 

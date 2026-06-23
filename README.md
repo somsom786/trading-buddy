@@ -1,8 +1,13 @@
-# Trading Buddy
+# Trading Buddy — BETA v0.1
 
 A local-first desktop companion for crypto traders. The application connects only to a locally
-running Ollama service for session-only companion chat. It has no cloud inference, account, API
-token, exchange, wallet, authentication, telemetry, or trading functionality.
+running Ollama service for companion chat. Conversations are stored in a local SQLite database
+owned by the Rust/Tauri layer. It has no cloud inference, account, API token, exchange, wallet,
+authentication, telemetry, or trading functionality.
+
+This repository is currently labeled **BETA v0.1** while the product direction and companion
+experience are under active development. Milestone notes are recorded in
+[`docs/PROGRESS.md`](docs/PROGRESS.md).
 
 ## Prerequisites
 
@@ -81,8 +86,38 @@ Native Ollama requests require the Tauri desktop application.
 5. Type a message and press Enter. Use Shift+Enter for a newline.
 6. Use **Stop generation** to cancel the active local request.
 
-Messages are held in memory only and disappear when the session or application is closed.
-Conversation persistence is not implemented.
+Saved conversations persist across restarts. User messages are saved before generation starts;
+assistant responses are checkpointed during streaming and finalized as completed, cancelled, or
+failed. Hidden thinking content and system prompts are not stored as conversation messages.
+
+Use **Temporary chat** for an in-memory session. Temporary chat content is not written to SQLite and
+is gone after the application closes or the session is reset.
+
+## Local data and privacy controls
+
+The database filename is `trading-buddy.db` and is created in Tauri's application-specific local
+data directory. The exact path is displayed in **Privacy and storage** inside the Chat view.
+
+Conversation storage is local and transparent, but it is **not application-level encrypted yet**.
+Operating-system disk encryption may provide separate protection. Do not store wallet private keys,
+seed phrases, exchange secrets, or other credentials in chat.
+
+Privacy controls currently include:
+
+- Retention: keep until deleted, delete after 30 days, or delete after 90 days.
+- Local JSON export through a native save-file dialog.
+- Delete one conversation.
+- Delete all saved conversation data with a strong confirmation.
+
+Deletion uses SQLite `secure_delete`, a WAL checkpoint, and vacuuming to reduce recoverability, but
+it is not a forensic erasure guarantee. SSD behavior, OS caches, backups, filesystem snapshots, and
+external backup tools may still retain historical data.
+
+To reset development data safely, use **Privacy and storage → Delete all conversation data**. If the
+database itself must be removed during development, close the app first, then delete only the
+displayed app-local `trading-buddy.db` file and its adjacent SQLite WAL/SHM files.
+
+Automated storage tests use temporary in-memory databases and do not modify real user data.
 
 ## Buddy Lab
 
@@ -146,20 +181,29 @@ src/
   services/     Narrow adapters to native Tauri capabilities
   views/        Window-level React views
 src-tauri/
-  src/          Native window, tray, and persistence behavior
+  src/          Native window, tray, local AI, and SQLite persistence behavior
 docs/           Product and engineering documentation
 ```
 
 The `main` and `buddy` windows load the same frontend bundle with different query parameters. The
 buddy is transparent, always on top, and excluded from the taskbar. Its physical screen position is
-stored locally in the operating system application config directory.
+stored locally in the operating system application config directory. Conversations are stored
+separately in the app-local SQLite database.
 
 ## Known limitations
 
-- Conversations are session-only and are not stored.
 - Only Ollama's native local API is implemented.
 - Exactly one generation may run per conversation.
 - Model installation and Ollama startup remain manual.
 - Thinking content is never rendered as normal chat output.
+- The conversation database is not application-level encrypted yet.
 - Journal, Reviews, and Settings remain placeholders.
 - The buddy artwork and animations are development placeholders.
+
+## Buddy design direction
+
+The current visual reference is stored at
+[`public/design/buddy-concept-beta-v0.1.png`](public/design/buddy-concept-beta-v0.1.png). It is a
+development concept board for proportions, poses, expressions, antennae, and the glowing chest
+core. The live buddy remains CSS-based until production-ready sprite assets and usage rights are
+finalized.

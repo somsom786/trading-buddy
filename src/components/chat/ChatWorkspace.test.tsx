@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { CompanionService } from '../../services/tauri/companionService';
 import type { LocalAiService } from '../../services/tauri/localAiService';
+import type { StorageService } from '../../services/tauri/storageService';
 import type { WindowService } from '../../services/windowService';
 import { ChatWorkspace } from './ChatWorkspace';
 
@@ -24,9 +25,91 @@ const windowService: WindowService = {
   controlBuddy: vi.fn().mockResolvedValue(undefined),
 };
 
+function createStorageService(): {
+  service: StorageService;
+  prepareGeneration: ReturnType<typeof vi.fn>;
+  completeAssistant: ReturnType<typeof vi.fn>;
+} {
+  const prepareGeneration = vi.fn((request) => {
+    const now = '2026-06-23T00:00:00Z';
+    return Promise.resolve({
+      conversation: {
+        id: 'conversation-1',
+        title: request.userContent,
+        createdAt: now,
+        updatedAt: now,
+        lastMessageAt: now,
+        lastMessagePreview: request.userContent,
+        messageCount: 2,
+      },
+      userMessage: {
+        id: 'message-user',
+        conversationId: 'conversation-1',
+        role: 'user' as const,
+        content: request.userContent,
+        status: 'completed' as const,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: now,
+      },
+      assistantMessage: {
+        id: 'message-assistant',
+        conversationId: 'conversation-1',
+        role: 'assistant' as const,
+        content: '',
+        status: 'streaming' as const,
+        modelName: request.modelName,
+        requestId: request.requestId,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  });
+  const completeAssistant = vi.fn().mockResolvedValue(undefined);
+  const service: StorageService = {
+    status: vi.fn().mockResolvedValue({
+      available: true,
+      databasePath: 'C:\\Users\\trader\\AppData\\Local\\Trading Buddy\\trading-buddy.db',
+      schemaVersion: 1,
+    }),
+    getSettings: vi.fn().mockResolvedValue({
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+    }),
+    setSelectedModel: vi.fn().mockResolvedValue({
+      selectedLocalModel: 'qwen3:4b',
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+    }),
+    setRetentionPolicy: vi.fn().mockResolvedValue({ removedConversations: 0 }),
+    applyRetentionCleanup: vi.fn().mockResolvedValue({ removedConversations: 0 }),
+    listConversations: vi.fn().mockResolvedValue([]),
+    getConversation: vi.fn(),
+    setLastOpenedConversation: vi.fn().mockResolvedValue(undefined),
+    getLastOpenedConversation: vi.fn().mockResolvedValue(null),
+    prepareGeneration,
+    checkpointAssistant: vi.fn().mockResolvedValue(undefined),
+    completeAssistant,
+    cancelAssistant: vi.fn().mockResolvedValue(undefined),
+    failAssistant: vi.fn().mockResolvedValue(undefined),
+    renameConversation: vi.fn(),
+    archiveConversation: vi.fn(),
+    restoreConversation: vi.fn(),
+    deleteConversation: vi.fn().mockResolvedValue(undefined),
+    deleteAllConversationData: vi.fn().mockResolvedValue({ deletedConversations: 0 }),
+    exportConversations: vi.fn().mockResolvedValue(null),
+  };
+  return { service, prepareGeneration, completeAssistant };
+}
+
 describe('ChatWorkspace', () => {
   it('lists models and streams a response into the assistant placeholder', async () => {
     const user = userEvent.setup();
+    const {
+      service: storageService,
+      prepareGeneration,
+      completeAssistant,
+    } = createStorageService();
     const streamChat = vi.fn((request, onEvent) => {
       onEvent({ type: 'started', requestId: request.requestId });
       onEvent({ type: 'content_delta', requestId: request.requestId, content: 'Local hello' });
@@ -41,6 +124,7 @@ describe('ChatWorkspace', () => {
     render(
       <ChatWorkspace
         localAiService={service}
+        storageService={storageService}
         companionService={companionService}
         windowService={windowService}
       />,
@@ -54,11 +138,14 @@ describe('ChatWorkspace', () => {
 
     await screen.findByText('Local hello');
     expect(streamChat).toHaveBeenCalledOnce();
+    expect(prepareGeneration).toHaveBeenCalledOnce();
+    expect(completeAssistant).toHaveBeenCalledOnce();
     expect(screen.getByText('Hello')).toBeInTheDocument();
   });
 
   it('prevents duplicate submission while a request is active', async () => {
     const user = userEvent.setup();
+    const { service: storageService } = createStorageService();
     let release: (() => void) | undefined;
     const streamChat = vi.fn(
       () =>
@@ -74,6 +161,7 @@ describe('ChatWorkspace', () => {
     render(
       <ChatWorkspace
         localAiService={service}
+        storageService={storageService}
         companionService={companionService}
         windowService={windowService}
       />,
@@ -89,6 +177,7 @@ describe('ChatWorkspace', () => {
   });
 
   it('shows an offline state without exposing a raw error as the heading', async () => {
+    const { service: storageService } = createStorageService();
     const service: LocalAiService = {
       listModels: vi.fn().mockRejectedValue({
         code: 'ollama_not_running',
@@ -102,6 +191,7 @@ describe('ChatWorkspace', () => {
     render(
       <ChatWorkspace
         localAiService={service}
+        storageService={storageService}
         companionService={companionService}
         windowService={windowService}
       />,
@@ -114,6 +204,7 @@ describe('ChatWorkspace', () => {
 
   it('runs the Buddy Lab mock stream without Ollama or a selected model', async () => {
     const user = userEvent.setup();
+    const { service: storageService } = createStorageService();
     const streamChat = vi.fn();
     const service: LocalAiService = {
       listModels: vi.fn().mockRejectedValue({
@@ -127,6 +218,7 @@ describe('ChatWorkspace', () => {
     render(
       <ChatWorkspace
         localAiService={service}
+        storageService={storageService}
         companionService={companionService}
         windowService={windowService}
       />,

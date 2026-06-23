@@ -36,3 +36,14 @@ cargo test --manifest-path src-tauri/Cargo.toml
 ```
 
 For native changes, also run a Tauri build or development smoke test.
+
+## Task handoff journal
+
+- At the end of each implementation task, create a concise report for the external task author to
+  read. Store task reports under `docs/reports/`.
+- Link each completed task report from `docs/PROGRESS.md` so GitHub becomes the durable project
+  journal.
+- Include what changed, key architecture decisions, commands run, verification results, what could
+  not be verified, known limitations, and the recommended next task.
+- Push completed task updates to GitHub after the report and journal entry are created, unless the
+  user explicitly asks not to push.
