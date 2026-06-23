@@ -112,6 +112,25 @@ pub struct StorageStatus {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct StorageDiagnostics {
+    pub available: bool,
+    pub database_file_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database_location_summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<i64>,
+    pub conversation_count: u32,
+    pub active_conversation_count: u32,
+    pub archived_conversation_count: u32,
+    pub message_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_successful_retention_cleanup_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<super::errors::StorageError>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageMetadata {
     pub schema_version: i64,
     pub application_created_at: String,
@@ -223,6 +242,14 @@ pub struct DeleteAllResult {
 pub struct ExportResult {
     pub exported_conversations: u32,
     pub file_path: String,
+    pub file_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DevelopmentFixtureResult {
+    pub conversation_id: String,
+    pub assistant_message_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

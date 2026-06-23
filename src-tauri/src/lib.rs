@@ -49,6 +49,7 @@ pub fn run() {
             commands::local_ai::stream_local_chat,
             commands::local_ai::cancel_local_chat,
             commands::storage::get_storage_status,
+            commands::storage::get_storage_diagnostics,
             commands::storage::get_app_settings,
             commands::storage::set_selected_local_model,
             commands::storage::set_conversation_retention_policy,
@@ -67,7 +68,8 @@ pub fn run() {
             commands::storage::restore_conversation,
             commands::storage::delete_conversation,
             commands::storage::delete_all_conversation_data,
-            commands::storage::export_conversations
+            commands::storage::export_conversations,
+            commands::storage::create_development_interrupted_fixture
         ])
         .run(tauri::generate_context!())
         .expect("error while running Trading Buddy");

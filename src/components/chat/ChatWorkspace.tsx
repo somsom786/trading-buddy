@@ -26,9 +26,15 @@ import {
   type ConversationSummary,
   type ExportResult,
   type RetentionPolicy,
+  type StorageDiagnostics,
   type StorageError,
   type StorageStatus,
 } from '../../domain/storage/types';
+import {
+  readableConversationTime,
+  summarizeDatabaseLocation,
+  summarizeExportDestination,
+} from '../../domain/storage/display';
 import {
   tauriCompanionService,
   type CompanionService,
@@ -37,6 +43,7 @@ import { tauriLocalAiService, type LocalAiService } from '../../services/tauri/l
 import { tauriStorageService, type StorageService } from '../../services/tauri/storageService';
 import { tauriWindowService, type WindowService } from '../../services/windowService';
 import { BuddyLab } from '../local-ai/BuddyLab';
+import { StorageLab } from '../local-ai/StorageLab';
 import { ChatComposer } from './ChatComposer';
 import { LocalAiStatusPanel } from './LocalAiStatusPanel';
 import { MessageList } from './MessageList';
@@ -73,6 +80,7 @@ export function ChatWorkspace({
   );
   const [providerStatus, setProviderStatus] = useState<LocalAiStatus>({ status: 'checking' });
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
+  const [storageDiagnostics, setStorageDiagnostics] = useState<StorageDiagnostics | null>(null);
   const [storageError, setStorageError] = useState<StorageError | null>(null);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -86,6 +94,8 @@ export function ChatWorkspace({
   const [buddyState, setBuddyStateValue] = useState<BuddyState>('idle');
   const [retentionPolicy, setRetentionPolicyState] = useState<RetentionPolicy>('keep_until_delete');
   const [lastExport, setLastExport] = useState<ExportResult | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const activeRequestRef = useRef<string | null>(null);
   const selectedModelRef = useRef<string | null>(null);
   const requestKindRef = useRef<'real' | 'mock' | null>(null);
@@ -107,6 +117,21 @@ export function ChatWorkspace({
     [companionService],
   );
 
+  const refreshDiagnostics = useCallback(async () => {
+    try {
+      const diagnostics = await storageService.diagnostics();
+      setStorageDiagnostics(diagnostics);
+      if (diagnostics.error) {
+        setStorageError(diagnostics.error);
+      }
+      return diagnostics;
+    } catch (error) {
+      const normalized = normalizeStorageError(error);
+      setStorageError(normalized);
+      return null;
+    }
+  }, [storageService]);
+
   const refreshConversationLists = useCallback(async () => {
     const [active, archived] = await Promise.all([
       storageService.listConversations({ archived: false, limit: 50 }),
@@ -114,13 +139,29 @@ export function ChatWorkspace({
     ]);
     setConversations(active);
     setArchivedConversations(archived);
+    void refreshDiagnostics();
     return { active, archived };
-  }, [storageService]);
+  }, [refreshDiagnostics, storageService]);
+
+  const confirmLeavingTemporary = useCallback(
+    (nextModeLabel: string) => {
+      if (mode !== 'temporary' || session.messages.length === 0) {
+        return true;
+      }
+      return window.confirm(
+        `Leave temporary chat for ${nextModeLabel}? Temporary messages are not saved and will be cleared.`,
+      );
+    },
+    [mode, session.messages.length],
+  );
 
   const loadConversation = useCallback(
     async (conversationId: string) => {
       if (activeRequestRef.current) {
         setStorageNotice('Stop the current generation before switching conversations.');
+        return;
+      }
+      if (!confirmLeavingTemporary('this saved conversation')) {
         return;
       }
       try {
@@ -139,7 +180,7 @@ export function ChatWorkspace({
         setStorageError(normalizeStorageError(error));
       }
     },
-    [storageService],
+    [confirmLeavingTemporary, storageService],
   );
 
   useEffect(() => {
@@ -503,6 +544,9 @@ export function ChatWorkspace({
       setStorageNotice('Stop the current generation before starting a new chat.');
       return;
     }
+    if (!confirmLeavingTemporary('a saved chat')) {
+      return;
+    }
     setMode('persistent');
     setActiveConversationId(null);
     dispatch({ type: 'clear_session' });
@@ -514,10 +558,28 @@ export function ChatWorkspace({
       setStorageNotice('Stop the current generation before switching to temporary chat.');
       return;
     }
+    if (mode === 'temporary') {
+      setStorageNotice('Temporary chat is already on. Messages here are not saved.');
+      return;
+    }
     setMode('temporary');
     setActiveConversationId(null);
     dispatch({ type: 'clear_session' });
     setStorageNotice('Temporary chat is on. Conversation content will not be written to disk.');
+  };
+
+  const exitTemporaryChat = () => {
+    if (activeRequestRef.current) {
+      setStorageNotice('Stop the current generation before leaving temporary chat.');
+      return;
+    }
+    if (!confirmLeavingTemporary('saved chats')) {
+      return;
+    }
+    setMode('persistent');
+    setActiveConversationId(null);
+    dispatch({ type: 'clear_session' });
+    setStorageNotice('Temporary chat cleared. New saved chat is ready.');
   };
 
   const clear = () => {
@@ -555,21 +617,28 @@ export function ChatWorkspace({
       conversations.find((conversation) => conversation.id === activeConversationId)?.title ??
       'New conversation';
     const title = window.prompt('Rename conversation', currentTitle);
-    if (!title) {
+    if (title === null) {
+      return;
+    }
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setStorageNotice('Conversation title cannot be empty.');
       return;
     }
     try {
-      await storageService.renameConversation(activeConversationId, title);
+      await storageService.renameConversation(activeConversationId, trimmedTitle);
       await refreshConversationLists();
+      setStorageNotice('Conversation renamed.');
     } catch (error) {
       setStorageError(normalizeStorageError(error));
     }
   };
 
   const archiveActiveConversation = async () => {
-    if (!activeConversationId || !window.confirm('Archive this conversation?')) {
+    if (busyAction || !activeConversationId || !window.confirm('Archive this conversation?')) {
       return;
     }
+    setBusyAction('archive');
     try {
       await stop();
       await storageService.archiveConversation(activeConversationId);
@@ -579,13 +648,20 @@ export function ChatWorkspace({
       setStorageNotice('Conversation archived.');
     } catch (error) {
       setStorageError(normalizeStorageError(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const deleteActiveConversation = async () => {
-    if (!activeConversationId || !window.confirm('Permanently delete this conversation?')) {
+    if (
+      busyAction ||
+      !activeConversationId ||
+      !window.confirm('Permanently delete this conversation?')
+    ) {
       return;
     }
+    setBusyAction('delete');
     try {
       await stop();
       await storageService.deleteConversation(activeConversationId);
@@ -598,10 +674,16 @@ export function ChatWorkspace({
       setStorageNotice('Conversation deleted.');
     } catch (error) {
       setStorageError(normalizeStorageError(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const restoreConversation = async (conversationId: string) => {
+    if (busyAction) {
+      return;
+    }
+    setBusyAction(`restore:${conversationId}`);
     try {
       await storageService.restoreConversation(conversationId);
       await refreshConversationLists();
@@ -609,10 +691,15 @@ export function ChatWorkspace({
       await loadConversation(conversationId);
     } catch (error) {
       setStorageError(normalizeStorageError(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
   const clearAllData = async () => {
+    if (busyAction) {
+      return;
+    }
     const confirmation = window.prompt(
       'Type DELETE to permanently delete all saved conversations.',
       '',
@@ -620,6 +707,7 @@ export function ChatWorkspace({
     if (confirmation !== 'DELETE') {
       return;
     }
+    setBusyAction('delete-all');
     try {
       await stop();
       const result = await storageService.deleteAllConversationData();
@@ -629,6 +717,8 @@ export function ChatWorkspace({
       setStorageNotice(`Deleted ${String(result.deletedConversations)} saved conversation(s).`);
     } catch (error) {
       setStorageError(normalizeStorageError(error));
+    } finally {
+      setBusyAction(null);
     }
   };
 
@@ -645,15 +735,72 @@ export function ChatWorkspace({
     }
   };
 
+  const retryStorage = async () => {
+    setStorageError(null);
+    setLoadingStorage(true);
+    try {
+      const status = await storageService.status();
+      setStorageStatus(status);
+      if (!status.available) {
+        setStorageError(status.error ?? normalizeStorageError('Storage unavailable.'));
+        return;
+      }
+      await refreshDiagnostics();
+      await refreshConversationLists();
+      setStorageNotice('Storage rechecked.');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    } finally {
+      setLoadingStorage(false);
+    }
+  };
+
+  const runRetentionCleanup = async () => {
+    try {
+      const result = await storageService.applyRetentionCleanup();
+      await refreshConversationLists();
+      setStorageNotice(
+        `Retention cleanup removed ${String(result.removedConversations)} conversation(s).`,
+      );
+      return result;
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+      return null;
+    }
+  };
+
+  const simulateInterruptedMessage = async () => {
+    try {
+      const result = await storageService.createDevelopmentInterruptedFixture();
+      await refreshConversationLists();
+      await refreshDiagnostics();
+      setStorageNotice(
+        `Created interrupted-message fixture in conversation ${result.conversationId}. Restart to verify recovery.`,
+      );
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
   const exportConversations = async () => {
+    if (exporting) {
+      return;
+    }
+    setExporting(true);
     try {
       const result = await storageService.exportConversations();
       if (result) {
         setLastExport(result);
-        setStorageNotice(`Exported ${String(result.exportedConversations)} conversation(s).`);
+        setStorageNotice(
+          `Exported ${String(result.exportedConversations)} conversation(s) to ${result.fileName}.`,
+        );
+      } else {
+        setStorageNotice('Export cancelled. No file was written.');
       }
     } catch (error) {
       setStorageError(normalizeStorageError(error));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -664,16 +811,26 @@ export function ChatWorkspace({
   const activeConversation = conversations.find(
     (conversation) => conversation.id === activeConversationId,
   );
+  const visibleConversations = showArchived ? archivedConversations : conversations;
+  const storageLocationSummary = summarizeDatabaseLocation(storageDiagnostics);
+  const exportDestinationSummary = summarizeExportDestination(lastExport);
+  const storageAvailable = storageStatus?.available === true;
 
   return (
     <div className="chat-shell">
       <aside className="conversation-sidebar" aria-label="Conversations">
         <div className="conversation-sidebar__actions">
-          <button type="button" onClick={startNewPersistentChat}>
+          <button type="button" onClick={startNewPersistentChat} disabled={busyAction !== null}>
             New chat
           </button>
-          <button type="button" className="secondary-button" onClick={startTemporaryChat}>
-            Temporary chat
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={mode === 'temporary' ? exitTemporaryChat : startTemporaryChat}
+            aria-pressed={mode === 'temporary'}
+            disabled={busyAction !== null}
+          >
+            {mode === 'temporary' ? 'Exit temporary' : 'Temporary chat'}
           </button>
         </div>
         <button
@@ -685,28 +842,42 @@ export function ChatWorkspace({
         >
           {showArchived ? 'Show active' : 'Show archived'}
         </button>
-        <div className="conversation-list">
+        <div className="conversation-list" aria-live="polite">
           {loadingStorage ? <p className="muted">Loading conversations…</p> : null}
-          {(showArchived ? archivedConversations : conversations).length === 0 &&
-          !loadingStorage ? (
+          {!storageAvailable && !loadingStorage ? (
+            <p className="muted">Saved conversation list is unavailable.</p>
+          ) : null}
+          {visibleConversations.length === 0 && !loadingStorage ? (
             <p className="muted">
               {showArchived ? 'No archived conversations.' : 'No saved chats yet.'}
             </p>
           ) : null}
-          {(showArchived ? archivedConversations : conversations).map((conversation) => (
+          {visibleConversations.map((conversation) => (
             <button
               key={conversation.id}
               type="button"
               className={`conversation-list__item${
                 conversation.id === activeConversationId ? ' conversation-list__item--active' : ''
               }`}
+              aria-current={conversation.id === activeConversationId ? 'page' : undefined}
+              aria-label={
+                showArchived
+                  ? `Restore ${conversation.title}`
+                  : `Open ${conversation.title}, ${readableConversationTime(conversation)}`
+              }
+              disabled={busyAction !== null}
               onClick={() =>
                 showArchived
                   ? void restoreConversation(conversation.id)
                   : void loadConversation(conversation.id)
               }
             >
-              <strong>{conversation.title}</strong>
+              <span className="conversation-list__item-heading">
+                <strong>{conversation.title}</strong>
+                <time dateTime={conversation.lastMessageAt ?? conversation.updatedAt}>
+                  {readableConversationTime(conversation)}
+                </time>
+              </span>
               <span>{conversation.lastMessagePreview ?? 'No message preview yet'}</span>
               {showArchived ? <em>Click to restore</em> : null}
             </button>
@@ -725,6 +896,12 @@ export function ChatWorkspace({
                 ? 'Temporary chat'
                 : (activeConversation?.title ?? 'New conversation')}
             </h2>
+            {mode === 'temporary' ? (
+              <p className="temporary-explainer">
+                Temporary mode is in-memory only. Messages here are not written to the local
+                database and will disappear when you leave this mode or quit the app.
+              </p>
+            ) : null}
           </div>
           {mode === 'persistent' ? (
             <div className="button-row">
@@ -732,7 +909,7 @@ export function ChatWorkspace({
                 type="button"
                 className="secondary-button"
                 onClick={() => void renameActiveConversation()}
-                disabled={!activeConversationId}
+                disabled={!activeConversationId || busyAction !== null}
               >
                 Rename
               </button>
@@ -740,7 +917,7 @@ export function ChatWorkspace({
                 type="button"
                 className="secondary-button"
                 onClick={() => void archiveActiveConversation()}
-                disabled={!activeConversationId}
+                disabled={!activeConversationId || busyAction !== null}
               >
                 Archive
               </button>
@@ -748,13 +925,18 @@ export function ChatWorkspace({
                 type="button"
                 className="stop-button"
                 onClick={() => void deleteActiveConversation()}
-                disabled={!activeConversationId}
+                disabled={!activeConversationId || busyAction !== null}
               >
                 Delete
               </button>
             </div>
           ) : (
-            <span className="temporary-pill">Not saved</span>
+            <div className="button-row temporary-actions">
+              <span className="temporary-pill">Not saved</span>
+              <button type="button" className="secondary-button" onClick={exitTemporaryChat}>
+                Exit temporary
+              </button>
+            </div>
           )}
         </div>
 
@@ -781,6 +963,15 @@ export function ChatWorkspace({
           <div className="chat-error storage-error" role="alert">
             <strong>Storage issue</strong>
             <span>{storageError.userMessage}</span>
+            {storageError.retryable ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void retryStorage()}
+              >
+                Retry storage
+              </button>
+            ) : null}
             {import.meta.env.DEV && storageError.technicalMessage ? (
               <details>
                 <summary>Technical details</summary>
@@ -829,13 +1020,36 @@ export function ChatWorkspace({
             not yet application-level encrypted; operating-system disk encryption may provide
             separate protection.
           </p>
+          <p>
+            Exports are local JSON files. They stay on this computer unless you choose to share or
+            move them.
+          </p>
           <dl>
-            <dt>Database location</dt>
-            <dd>{storageStatus?.databasePath ?? 'Unavailable'}</dd>
+            <dt>Storage status</dt>
+            <dd>{storageAvailable ? 'Available' : 'Unavailable'}</dd>
+            <dt>Database</dt>
+            <dd>{storageLocationSummary}</dd>
+            <dt>Schema</dt>
+            <dd>
+              {storageDiagnostics?.schemaVersion ?? storageStatus?.schemaVersion ?? 'Unknown'}
+            </dd>
+            <dt>Saved conversations</dt>
+            <dd>
+              {storageDiagnostics
+                ? `${String(storageDiagnostics.activeConversationCount)} active, ${String(
+                    storageDiagnostics.archivedConversationCount,
+                  )} archived`
+                : 'Unknown'}
+            </dd>
+            <dt>Saved messages</dt>
+            <dd>{storageDiagnostics?.messageCount ?? 'Unknown'}</dd>
+            <dt>Encryption</dt>
+            <dd>Not application-level encrypted yet</dd>
             <dt>Retention</dt>
             <dd>
               <select
                 value={retentionPolicy}
+                disabled={!storageAvailable}
                 onChange={(event) =>
                   void updateRetentionPolicy(event.currentTarget.value as RetentionPolicy)
                 }
@@ -845,20 +1059,30 @@ export function ChatWorkspace({
                 <option value="delete_after_90_days">Delete after 90 days</option>
               </select>
             </dd>
+            <dt>Last cleanup</dt>
+            <dd>{storageDiagnostics?.lastSuccessfulRetentionCleanupAt ?? 'Not recorded yet'}</dd>
+            <dt>Temporary chat</dt>
+            <dd>{mode === 'temporary' ? 'On - not saved' : 'Off'}</dd>
           </dl>
           <div className="button-row">
             <button
               type="button"
               className="secondary-button"
               onClick={() => void exportConversations()}
+              disabled={!storageAvailable || exporting}
             >
-              Export conversations
+              {exporting ? 'Exporting…' : 'Export conversations'}
             </button>
-            <button type="button" className="stop-button" onClick={() => void clearAllData()}>
+            <button
+              type="button"
+              className="stop-button"
+              onClick={() => void clearAllData()}
+              disabled={!storageAvailable || busyAction !== null}
+            >
               Delete all conversation data
             </button>
           </div>
-          {lastExport ? <p className="muted">Last export: {lastExport.filePath}</p> : null}
+          <p className="muted">Last export: {exportDestinationSummary}</p>
           <p className="muted">
             Deletion reduces recoverability with SQLite secure delete, WAL checkpointing, and
             vacuuming, but SSD behavior, OS caches, backups, and filesystem snapshots may still
@@ -867,31 +1091,50 @@ export function ChatWorkspace({
         </details>
 
         {import.meta.env.DEV ? (
-          <BuddyLab
-            buddyState={buddyState}
-            activeRequestId={session.activeRequestId}
-            providerStatus={providerStatus}
-            selectedModel={session.selectedModel}
-            onState={setBuddyState}
-            onWindowAction={(action) => void companionService.send({ type: action })}
-            onOpenMain={() => void windowService.openMainWindow()}
-            onMockStream={() => void startGeneration('Test the mock companion stream.', 'mock')}
-            onMockError={() => {
-              const requestId = session.activeRequestId ?? createId('request');
-              if (!session.activeRequestId) {
-                const userMessage = createChatMessage('user', 'Simulate a provider error.');
-                const assistantMessage = createChatMessage('assistant', '');
-                activeRequestRef.current = requestId;
-                dispatch({ type: 'start_generation', requestId, userMessage, assistantMessage });
-              }
-              handleStreamEvent({
-                type: 'failed',
-                requestId,
-                error: simulatedError(),
-              });
-            }}
-            onMockCancel={() => void stop()}
-          />
+          <>
+            <StorageLab
+              diagnostics={storageDiagnostics}
+              activeConversationId={activeConversationId}
+              activeRequestId={session.activeRequestId}
+              retentionPolicy={retentionPolicy}
+              storageError={storageError}
+              onRefresh={() => {
+                void refreshDiagnostics();
+              }}
+              onRunRetention={runRetentionCleanup}
+              onSimulateInterrupted={simulateInterruptedMessage}
+            />
+            <BuddyLab
+              buddyState={buddyState}
+              activeRequestId={session.activeRequestId}
+              providerStatus={providerStatus}
+              selectedModel={session.selectedModel}
+              onState={setBuddyState}
+              onWindowAction={(action) => void companionService.send({ type: action })}
+              onOpenMain={() => void windowService.openMainWindow()}
+              onMockStream={() => void startGeneration('Test the mock companion stream.', 'mock')}
+              onMockError={() => {
+                const requestId = session.activeRequestId ?? createId('request');
+                if (!session.activeRequestId) {
+                  const userMessage = createChatMessage('user', 'Simulate a provider error.');
+                  const assistantMessage = createChatMessage('assistant', '');
+                  activeRequestRef.current = requestId;
+                  dispatch({
+                    type: 'start_generation',
+                    requestId,
+                    userMessage,
+                    assistantMessage,
+                  });
+                }
+                handleStreamEvent({
+                  type: 'failed',
+                  requestId,
+                  error: simulatedError(),
+                });
+              }}
+              onMockCancel={() => void stop()}
+            />
+          </>
         ) : null}
       </section>
     </div>

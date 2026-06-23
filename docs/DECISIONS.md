@@ -197,3 +197,20 @@ Conversation export uses a native save-file dialog via `rfd` so the frontend nev
 arbitrary filesystem paths. The extra dependency is limited to user-selected local file export;
 alternatives were delaying export or exposing a path-taking command, which would weaken the current
 security boundary.
+
+## 027 - Filename-only export feedback
+
+**Status:** Accepted
+
+The native export command still receives the user-selected filesystem path, but the normal React UI
+reports the export by filename only. This keeps export confirmation useful while avoiding unnecessary
+display of private directory names in the chat workspace.
+
+## 028 - Debug-only storage diagnostics and fixtures
+
+**Status:** Accepted
+
+Storage diagnostics expose counts, schema version, safe database summary, retention metadata, and
+availability state without raw SQL or message contents. The interrupted-generation fixture is guarded
+to debug builds because it intentionally creates test data and should not be available as a release
+feature.

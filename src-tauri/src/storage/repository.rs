@@ -8,10 +8,10 @@ use super::{
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, ConversationDetail,
         ConversationExport, ConversationExportFile, ConversationRetentionPolicy,
-        ConversationSummary, DeleteAllResult, MessageExport, PrepareGenerationRequest,
-        PrepareGenerationResponse, RetentionCleanupResult, StorageMetadata, StoredMessage,
-        StoredMessageRole, StoredMessageStatus, MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH,
-        MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        ConversationSummary, DeleteAllResult, DevelopmentFixtureResult, MessageExport,
+        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
+        StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole, StoredMessageStatus,
+        MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -33,6 +33,36 @@ pub fn metadata(connection: &Connection) -> Result<StorageMetadata, StorageError
         schema_version: migrations::schema_version(connection)?,
         application_created_at: metadata_value(connection, "application_created_at")?,
         last_successful_migration_at: metadata_value(connection, "last_successful_migration_at")?,
+    })
+}
+
+pub fn diagnostics(
+    connection: &Connection,
+    database_file_name: String,
+    database_location_summary: Option<String>,
+) -> Result<StorageDiagnostics, StorageError> {
+    Ok(StorageDiagnostics {
+        available: true,
+        database_file_name,
+        database_location_summary,
+        schema_version: Some(migrations::schema_version(connection)?),
+        conversation_count: count_rows(connection, "conversations", None)?,
+        active_conversation_count: count_rows(
+            connection,
+            "conversations",
+            Some("archived_at IS NULL"),
+        )?,
+        archived_conversation_count: count_rows(
+            connection,
+            "conversations",
+            Some("archived_at IS NOT NULL"),
+        )?,
+        message_count: count_rows(connection, "messages", None)?,
+        last_successful_retention_cleanup_at: optional_metadata_value(
+            connection,
+            "last_successful_retention_cleanup_at",
+        )?,
+        error: None,
     })
 }
 
@@ -387,6 +417,7 @@ pub fn delete_all_conversations(
 pub fn cleanup_retention(connection: &Connection) -> Result<RetentionCleanupResult, StorageError> {
     let policy = settings(connection)?.conversation_retention_policy;
     let Some(days) = policy.max_age_days() else {
+        record_retention_cleanup(connection)?;
         return Ok(RetentionCleanupResult {
             removed_conversations: 0,
         });
@@ -399,6 +430,7 @@ pub fn cleanup_retention(connection: &Connection) -> Result<RetentionCleanupResu
             params![cutoff],
         )
         .map_err(|error| StorageError::retention_failed(error.to_string()))?;
+    record_retention_cleanup(connection)?;
     Ok(RetentionCleanupResult {
         removed_conversations: removed as u32,
     })
@@ -411,6 +443,41 @@ pub fn export_file(connection: &Connection) -> Result<ConversationExportFile, St
         version: 1,
         exported_at: timestamp(),
         conversations,
+    })
+}
+
+pub fn create_development_interrupted_fixture(
+    connection: &mut Connection,
+) -> Result<DevelopmentFixtureResult, StorageError> {
+    let prepared = prepare_generation(
+        connection,
+        PrepareGenerationRequest {
+            conversation_id: None,
+            request_id: generate_id("request"),
+            user_content: "Development fixture: interrupted generation recovery.".to_owned(),
+            model_name: "qwen3:8b".to_owned(),
+        },
+    )?;
+    checkpoint_assistant(
+        connection,
+        AssistantMessageUpdate {
+            message_id: prepared.assistant_message.id.clone(),
+            request_id: prepared
+                .assistant_message
+                .request_id
+                .clone()
+                .ok_or_else(|| {
+                    StorageError::invalid_stored_data(
+                        "Fixture assistant message has no request ID.",
+                    )
+                })?,
+            content: "Visible checkpoint from a development interrupted-generation fixture."
+                .to_owned(),
+        },
+    )?;
+    Ok(DevelopmentFixtureResult {
+        conversation_id: prepared.conversation.id,
+        assistant_message_id: prepared.assistant_message.id,
     })
 }
 
@@ -680,6 +747,49 @@ fn metadata_value(connection: &Connection, key: &str) -> Result<String, StorageE
             |row| row.get(0),
         )
         .map_err(StorageError::from_sql_read)
+}
+
+fn optional_metadata_value(
+    connection: &Connection,
+    key: &str,
+) -> Result<Option<String>, StorageError> {
+    connection
+        .query_row(
+            "SELECT value FROM storage_metadata WHERE key = ?1",
+            params![key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)
+}
+
+fn record_retention_cleanup(connection: &Connection) -> Result<(), StorageError> {
+    connection
+        .execute(
+            "INSERT INTO storage_metadata (key, value)
+             VALUES ('last_successful_retention_cleanup_at', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![timestamp()],
+        )
+        .map_err(|error| StorageError::retention_failed(error.to_string()))?;
+    Ok(())
+}
+
+fn count_rows(
+    connection: &Connection,
+    table: &str,
+    where_clause: Option<&str>,
+) -> Result<u32, StorageError> {
+    let sql = match where_clause {
+        Some(clause) => format!("SELECT COUNT(*) FROM {table} WHERE {clause}"),
+        None => format!("SELECT COUNT(*) FROM {table}"),
+    };
+    let count: i64 = connection
+        .query_row(&sql, [], |row| row.get(0))
+        .map_err(StorageError::from_sql_read)?;
+    count
+        .try_into()
+        .map_err(|_| StorageError::invalid_stored_data("Row count overflow."))
 }
 
 pub fn derive_conversation_title(content: &str) -> String {
@@ -959,6 +1069,17 @@ mod tests {
         prepare_generation(&mut connection, generation("Hello")).expect("prepare");
         let cleanup = cleanup_retention(&connection).expect("cleanup");
         assert_eq!(cleanup.removed_conversations, 0);
+        let diagnostics = diagnostics(
+            &connection,
+            "trading-buddy.db".to_owned(),
+            Some("com.tradingbuddy.desktop\\trading-buddy.db".to_owned()),
+        )
+        .expect("diagnostics");
+        assert_eq!(diagnostics.conversation_count, 1);
+        assert_eq!(diagnostics.active_conversation_count, 1);
+        assert_eq!(diagnostics.archived_conversation_count, 0);
+        assert_eq!(diagnostics.message_count, 2);
+        assert!(diagnostics.last_successful_retention_cleanup_at.is_some());
     }
 
     #[test]
@@ -990,6 +1111,53 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn diagnostics_counts_active_archived_and_messages() {
+        let mut connection = database();
+        let active = prepare_generation(&mut connection, generation("Active")).expect("active");
+        let archived = prepare_generation(
+            &mut connection,
+            PrepareGenerationRequest {
+                conversation_id: None,
+                request_id: "request-2".to_owned(),
+                user_content: "Archived".to_owned(),
+                model_name: "qwen3:4b".to_owned(),
+            },
+        )
+        .expect("archived");
+        archive_conversation(&connection, &archived.conversation.id).expect("archive");
+
+        let result =
+            diagnostics(&connection, "trading-buddy.db".to_owned(), None).expect("diagnostics");
+        assert!(result.available);
+        assert_eq!(result.database_file_name, "trading-buddy.db");
+        assert_eq!(result.conversation_count, 2);
+        assert_eq!(result.active_conversation_count, 1);
+        assert_eq!(result.archived_conversation_count, 1);
+        assert_eq!(result.message_count, 4);
+        assert_eq!(active.conversation.title, "Active");
+    }
+
+    #[test]
+    fn development_interrupted_fixture_recovers_on_startup() {
+        let mut connection = database();
+        let fixture = create_development_interrupted_fixture(&mut connection).expect("fixture");
+        let before = message(&connection, &fixture.assistant_message_id).expect("before");
+        assert_eq!(before.status, StoredMessageStatus::Streaming);
+        assert_eq!(
+            before.content,
+            "Visible checkpoint from a development interrupted-generation fixture."
+        );
+        assert!(before.request_id.is_some());
+
+        let changed = recover_interrupted_streams(&connection).expect("recover");
+        assert_eq!(changed, 1);
+        let after = message(&connection, &fixture.assistant_message_id).expect("after");
+        assert_eq!(after.status, StoredMessageStatus::Interrupted);
+        assert_eq!(after.content, before.content);
+        assert!(after.request_id.is_none());
     }
 
     #[test]

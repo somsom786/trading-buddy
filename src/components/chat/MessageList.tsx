@@ -34,9 +34,19 @@ export function MessageList({ messages, generating }: MessageListProps) {
         </div>
       ) : (
         messages.map((message) => (
-          <article key={message.id} className={`message message--${message.role}`}>
+          <article
+            key={message.id}
+            className={`message message--${message.role} message--${message.status ?? 'live'}`}
+          >
             <header>
-              <strong>{message.role === 'user' ? 'You' : 'Buddy'}</strong>
+              <div className="message__heading">
+                <strong>{message.role === 'user' ? 'You' : 'Buddy'}</strong>
+                {message.status && message.status !== 'completed' ? (
+                  <span className="message-status" data-status={message.status}>
+                    {message.status}
+                  </span>
+                ) : null}
+              </div>
               <button
                 type="button"
                 className="copy-message"
@@ -47,6 +57,9 @@ export function MessageList({ messages, generating }: MessageListProps) {
               </button>
             </header>
             <p>{message.content || (generating ? 'Thinking…' : '')}</p>
+            {message.statusNote ? (
+              <p className="message__status-note">{message.statusNote}</p>
+            ) : null}
           </article>
         ))
       )}

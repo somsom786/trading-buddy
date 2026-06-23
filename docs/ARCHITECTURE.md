@@ -109,7 +109,9 @@ stop the current generation first.
 
 Temporary chat is an explicit mode and is disabled by default. It uses the same Ollama and buddy
 state pipeline but keeps messages only in memory. Switching into or out of temporary chat starts a
-fresh session; temporary content is not converted into a saved conversation.
+fresh session; temporary content is not converted into a saved conversation. If temporary messages
+exist, transitions back to saved conversations require user confirmation because those messages will
+be discarded.
 
 ## Retention, export, and deletion
 
@@ -120,6 +122,12 @@ Exports are versioned UTF-8 JSON with format `trading-buddy-conversations`. A na
 dialog supplies the destination path; React does not pass arbitrary filesystem paths. Exports
 include visible conversation/message data only and exclude system prompts, hidden thinking,
 request IDs, database paths, secrets, Ollama internals, and technical error traces.
+
+Storage diagnostics expose database availability, schema version, safe database filename/location
+summary, conversation counts, message counts, and the last retention-cleanup timestamp. Normal UI
+uses these diagnostics instead of rendering the full private filesystem path. A debug-only Storage
+Lab can refresh diagnostics, trigger retention cleanup, and create an interrupted-generation
+fixture for restart QA.
 
 Delete-all runs through the Rust storage service, clears conversations/messages and the last-opened
 setting, checkpoints the WAL, and vacuums. SQLite `secure_delete` is enabled, but deletion is not a
@@ -166,6 +174,8 @@ destroying it, allowing the buddy and tray to reopen the existing session.
 
 Vitest and React Testing Library cover the reducer, validation, model selection, prompt boundaries,
 buddy lifecycle, drag/click behavior, event payloads, listener cleanup, provider states, and mock
-stream interaction. Rust tests cover endpoint and model validation, model-list parsing, error
-mapping, cancellation, position serialization, and incremental NDJSON parsing. Platform window,
-tray, and WebView behavior still require native smoke tests.
+stream interaction, plus storage display helpers, temporary chat storage behavior, and filename-only
+export reporting. Rust tests cover endpoint and model validation, model-list parsing, error mapping,
+cancellation, position serialization, incremental NDJSON parsing, SQLite migrations, repository
+lifecycle behavior, diagnostics, retention cleanup, export boundaries, deletion, and interrupted
+message recovery. Platform window, tray, and WebView behavior still require native smoke tests.

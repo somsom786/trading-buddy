@@ -39,6 +39,8 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   createdAt: string;
+  status?: 'completed' | 'streaming' | 'cancelled' | 'failed' | 'interrupted';
+  statusNote?: string;
 }
 
 export interface LocalChatRequest {

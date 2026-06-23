@@ -91,12 +91,14 @@ assistant responses are checkpointed during streaming and finalized as completed
 failed. Hidden thinking content and system prompts are not stored as conversation messages.
 
 Use **Temporary chat** for an in-memory session. Temporary chat content is not written to SQLite and
-is gone after the application closes or the session is reset.
+is gone after the application closes, you leave temporary mode, or the session is reset. Temporary
+mode is visibly labeled in the chat toolbar before you send messages.
 
 ## Local data and privacy controls
 
 The database filename is `trading-buddy.db` and is created in Tauri's application-specific local
-data directory. The exact path is displayed in **Privacy and storage** inside the Chat view.
+data directory. **Privacy and storage** shows a safe app-local database summary and storage
+statistics without unnecessarily exposing the user's full private filesystem path.
 
 Conversation storage is local and transparent, but it is **not application-level encrypted yet**.
 Operating-system disk encryption may provide separate protection. Do not store wallet private keys,
@@ -113,9 +115,10 @@ Deletion uses SQLite `secure_delete`, a WAL checkpoint, and vacuuming to reduce 
 it is not a forensic erasure guarantee. SSD behavior, OS caches, backups, filesystem snapshots, and
 external backup tools may still retain historical data.
 
-To reset development data safely, use **Privacy and storage → Delete all conversation data**. If the
-database itself must be removed during development, close the app first, then delete only the
-displayed app-local `trading-buddy.db` file and its adjacent SQLite WAL/SHM files.
+To reset development data safely, use **Privacy and storage -> Delete all conversation data**. If
+the database itself must be removed during development, close the app first, then delete only the
+app-local `trading-buddy.db` file and its adjacent SQLite WAL/SHM files. On Windows development
+builds this is under `%LOCALAPPDATA%\com.tradingbuddy.desktop`.
 
 Automated storage tests use temporary in-memory databases and do not modify real user data.
 
@@ -129,6 +132,18 @@ Buddy Lab is shown at the bottom of the main Chat view in development builds onl
 - Simulate cancellation and provider errors.
 - Inspect the current provider, model, request, and buddy state.
 
+## Storage Lab
+
+Storage Lab is also shown in development builds only. It exposes storage diagnostics that are safe
+for QA:
+
+- Database filename and safe app-local summary.
+- Schema version, conversation counts, message counts, and last retention-cleanup time.
+- A manual retention cleanup trigger.
+- A fixture that creates an interrupted assistant message so restart recovery can be checked.
+
+Storage Lab does not show raw SQL or conversation contents.
+
 ## Quality checks
 
 ```powershell
@@ -137,6 +152,8 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm check
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 ```
 
 Apply formatting:

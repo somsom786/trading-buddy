@@ -27,6 +27,19 @@ export interface StorageStatus {
   error?: StorageError;
 }
 
+export interface StorageDiagnostics {
+  available: boolean;
+  databaseFileName: string;
+  databaseLocationSummary?: string;
+  schemaVersion?: number;
+  conversationCount: number;
+  activeConversationCount: number;
+  archivedConversationCount: number;
+  messageCount: number;
+  lastSuccessfulRetentionCleanupAt?: string;
+  error?: StorageError;
+}
+
 export type RetentionPolicy = 'keep_until_delete' | 'delete_after_30_days' | 'delete_after_90_days';
 
 export interface AppSettings {
@@ -107,31 +120,48 @@ export interface DeleteAllResult {
 export interface ExportResult {
   exportedConversations: number;
   filePath: string;
+  fileName: string;
+}
+
+export interface DevelopmentFixtureResult {
+  conversationId: string;
+  assistantMessageId: string;
 }
 
 export function storedMessageToChatMessage(message: StoredMessage): ChatMessage {
+  const statusNote = messageStatusNote(message);
   return {
     id: message.id,
     role: message.role,
-    content: decorateStoredMessageContent(message),
+    content: message.content,
     createdAt: message.createdAt,
+    status: message.status,
+    ...(statusNote ? { statusNote } : {}),
   };
 }
 
 export function decorateStoredMessageContent(message: StoredMessage): string {
-  if (message.role !== 'assistant') {
-    return message.content;
-  }
-  if (message.status === 'cancelled') {
-    return message.content ? `${message.content}\n\n[Cancelled]` : '[Cancelled]';
-  }
-  if (message.status === 'failed') {
-    return message.content ? `${message.content}\n\n[Failed]` : '[Failed]';
-  }
-  if (message.status === 'interrupted') {
-    return message.content ? `${message.content}\n\n[Interrupted]` : '[Interrupted]';
-  }
   return message.content;
+}
+
+export function messageStatusNote(
+  message: Pick<StoredMessage, 'role' | 'status'>,
+): string | undefined {
+  if (message.role !== 'assistant') {
+    return undefined;
+  }
+  switch (message.status) {
+    case 'streaming':
+      return 'Generation is still in progress.';
+    case 'cancelled':
+      return 'You stopped this generation.';
+    case 'failed':
+      return 'Generation failed. Technical details are not shown in the conversation.';
+    case 'interrupted':
+      return 'The app closed or generation stopped unexpectedly.';
+    case 'completed':
+      return undefined;
+  }
 }
 
 export function normalizeStorageError(value: unknown): StorageError {
@@ -210,6 +240,22 @@ export function isStorageStatus(value: unknown): value is StorageStatus {
   );
 }
 
+export function isStorageDiagnostics(value: unknown): value is StorageDiagnostics {
+  return (
+    isRecord(value) &&
+    typeof value.available === 'boolean' &&
+    typeof value.databaseFileName === 'string' &&
+    optionalString(value.databaseLocationSummary) &&
+    (value.schemaVersion === undefined || typeof value.schemaVersion === 'number') &&
+    typeof value.conversationCount === 'number' &&
+    typeof value.activeConversationCount === 'number' &&
+    typeof value.archivedConversationCount === 'number' &&
+    typeof value.messageCount === 'number' &&
+    optionalString(value.lastSuccessfulRetentionCleanupAt) &&
+    (value.error === undefined || isStorageError(value.error))
+  );
+}
+
 export function isPrepareGenerationResponse(value: unknown): value is PrepareGenerationResponse {
   return (
     isRecord(value) &&
@@ -231,7 +277,16 @@ export function isExportResult(value: unknown): value is ExportResult {
   return (
     isRecord(value) &&
     typeof value.exportedConversations === 'number' &&
-    typeof value.filePath === 'string'
+    typeof value.filePath === 'string' &&
+    typeof value.fileName === 'string'
+  );
+}
+
+export function isDevelopmentFixtureResult(value: unknown): value is DevelopmentFixtureResult {
+  return (
+    isRecord(value) &&
+    typeof value.conversationId === 'string' &&
+    typeof value.assistantMessageId === 'string'
   );
 }
 

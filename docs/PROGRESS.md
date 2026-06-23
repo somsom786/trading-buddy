@@ -6,6 +6,18 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 23, 2026 - Desktop QA and storage UX hardening
+
+- Added a Task 4 manual QA plan and QA journal for release-readiness work.
+- Smoke-launched the real desktop app and verified app-local SQLite database creation.
+- Added safe storage diagnostics and development-only Storage Lab controls.
+- Hardened temporary chat mode, filename-only export feedback, retryable storage errors, and
+  non-completed assistant message status display.
+- Added frontend and Rust tests for storage diagnostics, display helpers, temporary chat behavior,
+  filename-only export feedback, and interrupted-message recovery fixtures.
+- Detailed handoff report:
+  [`docs/reports/TASK-004-desktop-qa-storage-ux-hardening.md`](reports/TASK-004-desktop-qa-storage-ux-hardening.md)
+
 ### June 23, 2026 - Privacy-first local conversation storage
 
 - Added Rust-owned SQLite persistence for saved conversations, visible messages, selected model,

@@ -29,6 +29,7 @@ function createStorageService(): {
   service: StorageService;
   prepareGeneration: ReturnType<typeof vi.fn>;
   completeAssistant: ReturnType<typeof vi.fn>;
+  exportConversations: ReturnType<typeof vi.fn>;
 } {
   const prepareGeneration = vi.fn((request) => {
     const now = '2026-06-23T00:00:00Z';
@@ -66,11 +67,22 @@ function createStorageService(): {
     });
   });
   const completeAssistant = vi.fn().mockResolvedValue(undefined);
+  const exportConversations = vi.fn().mockResolvedValue(null);
   const service: StorageService = {
     status: vi.fn().mockResolvedValue({
       available: true,
       databasePath: 'C:\\Users\\trader\\AppData\\Local\\Trading Buddy\\trading-buddy.db',
       schemaVersion: 1,
+    }),
+    diagnostics: vi.fn().mockResolvedValue({
+      available: true,
+      databaseFileName: 'trading-buddy.db',
+      databaseLocationSummary: 'Trading Buddy\\trading-buddy.db',
+      schemaVersion: 1,
+      conversationCount: 0,
+      activeConversationCount: 0,
+      archivedConversationCount: 0,
+      messageCount: 0,
     }),
     getSettings: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
@@ -97,9 +109,13 @@ function createStorageService(): {
     restoreConversation: vi.fn(),
     deleteConversation: vi.fn().mockResolvedValue(undefined),
     deleteAllConversationData: vi.fn().mockResolvedValue({ deletedConversations: 0 }),
-    exportConversations: vi.fn().mockResolvedValue(null),
+    exportConversations,
+    createDevelopmentInterruptedFixture: vi.fn().mockResolvedValue({
+      conversationId: 'conversation-fixture',
+      assistantMessageId: 'message-fixture',
+    }),
   };
-  return { service, prepareGeneration, completeAssistant };
+  return { service, prepareGeneration, completeAssistant, exportConversations };
 }
 
 describe('ChatWorkspace', () => {
@@ -229,5 +245,72 @@ describe('ChatWorkspace', () => {
       timeout: 2_000,
     });
     expect(streamChat).not.toHaveBeenCalled();
+  });
+
+  it('keeps temporary chat out of persistent storage', async () => {
+    const user = userEvent.setup();
+    const { service: storageService, prepareGeneration } = createStorageService();
+    const streamChat = vi.fn((request, onEvent) => {
+      onEvent({ type: 'started', requestId: request.requestId });
+      onEvent({ type: 'content_delta', requestId: request.requestId, content: 'Temporary hello' });
+      onEvent({ type: 'completed', requestId: request.requestId });
+      return Promise.resolve();
+    });
+    const service: LocalAiService = {
+      listModels: vi.fn().mockResolvedValue([{ name: 'qwen3:4b' }]),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      streamChat,
+    };
+    render(
+      <ChatWorkspace
+        localAiService={service}
+        storageService={storageService}
+        companionService={companionService}
+        windowService={windowService}
+      />,
+    );
+
+    await screen.findByText('Ollama connected');
+    await user.click(screen.getByRole('button', { name: 'Temporary chat' }));
+    expect(screen.getByText(/Temporary mode is in-memory only/)).toBeInTheDocument();
+    await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Do not save this');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    await screen.findByText('Temporary hello');
+    expect(streamChat).toHaveBeenCalledOnce();
+    expect(prepareGeneration).not.toHaveBeenCalled();
+  });
+
+  it('reports exports by filename instead of exposing the full private path', async () => {
+    const user = userEvent.setup();
+    const { service: storageService, exportConversations } = createStorageService();
+    exportConversations.mockResolvedValueOnce({
+      exportedConversations: 2,
+      filePath: 'C:\\Users\\trader\\Desktop\\private-folder\\buddy-export.json',
+      fileName: 'buddy-export.json',
+    });
+    const service: LocalAiService = {
+      listModels: vi.fn().mockResolvedValue([{ name: 'qwen3:4b' }]),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      streamChat: vi.fn(),
+    };
+    render(
+      <ChatWorkspace
+        localAiService={service}
+        storageService={storageService}
+        companionService={companionService}
+        windowService={windowService}
+      />,
+    );
+
+    await screen.findByText('Ollama connected');
+    await user.click(screen.getByText('Privacy and storage'));
+    await user.click(screen.getByRole('button', { name: 'Export conversations' }));
+
+    expect(
+      await screen.findByText(/Exported 2 conversation\(s\) to buddy-export\.json\./),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Last export: buddy-export.json')).toBeInTheDocument();
+    expect(screen.queryByText(/private-folder/)).not.toBeInTheDocument();
   });
 });

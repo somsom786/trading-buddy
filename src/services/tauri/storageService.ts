@@ -5,8 +5,10 @@ import {
   isConversationSummary,
   isDeleteAllResult,
   isExportResult,
+  isDevelopmentFixtureResult,
   isPrepareGenerationResponse,
   isRetentionCleanupResult,
+  isStorageDiagnostics,
   isStorageStatus,
   normalizeStorageError,
   StorageException,
@@ -16,16 +18,19 @@ import {
   type ConversationDetail,
   type ConversationSummary,
   type DeleteAllResult,
+  type DevelopmentFixtureResult,
   type ExportResult,
   type PrepareGenerationRequest,
   type PrepareGenerationResponse,
   type RetentionCleanupResult,
   type RetentionPolicy,
   type StorageStatus,
+  type StorageDiagnostics,
 } from '../../domain/storage/types';
 
 export interface StorageService {
   status(): Promise<StorageStatus>;
+  diagnostics(): Promise<StorageDiagnostics>;
   getSettings(): Promise<AppSettings>;
   setSelectedModel(modelName: string | null): Promise<AppSettings>;
   setRetentionPolicy(policy: RetentionPolicy): Promise<RetentionCleanupResult>;
@@ -49,11 +54,16 @@ export interface StorageService {
   deleteConversation(conversationId: string): Promise<void>;
   deleteAllConversationData(): Promise<DeleteAllResult>;
   exportConversations(): Promise<ExportResult | null>;
+  createDevelopmentInterruptedFixture(): Promise<DevelopmentFixtureResult>;
 }
 
 export const tauriStorageService: StorageService = {
   async status() {
     return invokeChecked('get_storage_status', undefined, isStorageStatus);
+  },
+
+  async diagnostics() {
+    return invokeChecked('get_storage_diagnostics', undefined, isStorageDiagnostics);
   },
 
   async getSettings() {
@@ -143,6 +153,14 @@ export const tauriStorageService: StorageService = {
       return value;
     }
     throw new StorageException(normalizeStorageError('Invalid export response.'));
+  },
+
+  async createDevelopmentInterruptedFixture() {
+    return invokeChecked(
+      'create_development_interrupted_fixture',
+      undefined,
+      isDevelopmentFixtureResult,
+    );
   },
 };
 

@@ -78,6 +78,30 @@ Unresolved limitations:
 - Journal, memory, trading, crypto integrations, authentication, sync, and autonomous trading remain
   out of scope.
 
+## Task 4 - Desktop QA, Storage UX Hardening, and Release Readiness
+
+- [x] Create a manual desktop QA plan before implementation.
+- [x] Run baseline automated validation before hardening changes.
+- [x] Smoke-launch the real desktop app and verify the app-local SQLite database is created.
+- [x] Add storage diagnostics for schema version, safe database summary, conversation counts,
+      message counts, and last retention cleanup.
+- [x] Add development-only Storage Lab controls for diagnostics, retention cleanup, and
+      interrupted-generation recovery fixtures.
+- [x] Harden temporary chat UX with explicit not-saved labeling and exit/transition confirmation.
+- [x] Report export success by filename rather than full private path.
+- [x] Keep non-completed assistant status metadata separate from stored message content.
+- [x] Add frontend tests for storage display helpers, temporary chat persistence behavior, and
+      filename-only export feedback.
+- [x] Add Rust tests for diagnostics and interrupted-generation recovery fixtures.
+- [ ] Complete the full manual desktop QA checklist with direct user-visible interaction.
+- [ ] Manually click all tray menu items.
+- [ ] Manually verify native save-dialog export content in the real desktop app.
+
+Task 4 automated checks and release-readiness hardening are complete. The real desktop smoke test
+verified launch and database creation, but the full desktop checklist remains partially unverified
+because WebView content and tray overflow interactions were not reliably controllable through the
+available automation.
+
 ## Next — requires separate product approval
 
 - [ ] Design a local persistence schema for journal and settings data.

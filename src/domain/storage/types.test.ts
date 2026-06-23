@@ -3,7 +3,10 @@ import {
   decorateStoredMessageContent,
   isAppSettings,
   isConversationDetail,
+  isDevelopmentFixtureResult,
   isStorageError,
+  isStorageDiagnostics,
+  messageStatusNote,
   storedMessageToChatMessage,
   type StoredMessage,
 } from './types';
@@ -67,15 +70,18 @@ describe('storage frontend types', () => {
     ).toBe(true);
   });
 
-  it('decorates non-completed assistant messages without changing stored content', () => {
-    expect(decorateStoredMessageContent({ ...baseMessage, status: 'cancelled' })).toContain(
-      '[Cancelled]',
+  it('keeps stored content raw and exposes status notes separately', () => {
+    expect(decorateStoredMessageContent({ ...baseMessage, status: 'cancelled' })).toBe(
+      'Visible partial',
     );
-    expect(decorateStoredMessageContent({ ...baseMessage, status: 'failed' })).toContain(
-      '[Failed]',
+    expect(messageStatusNote({ ...baseMessage, status: 'cancelled' })).toBe(
+      'You stopped this generation.',
     );
-    expect(decorateStoredMessageContent({ ...baseMessage, status: 'interrupted' })).toContain(
-      '[Interrupted]',
+    expect(messageStatusNote({ ...baseMessage, status: 'failed' })).toBe(
+      'Generation failed. Technical details are not shown in the conversation.',
+    );
+    expect(messageStatusNote({ ...baseMessage, status: 'interrupted' })).toBe(
+      'The app closed or generation stopped unexpectedly.',
     );
     expect(baseMessage.content).toBe('Visible partial');
   });
@@ -91,6 +97,38 @@ describe('storage frontend types', () => {
       role: 'user',
       content: 'Hello buddy',
       createdAt: '2026-06-23T00:00:00Z',
+      status: 'completed',
     });
+  });
+
+  it('validates storage diagnostics and development fixture responses', () => {
+    expect(
+      isStorageDiagnostics({
+        available: true,
+        databaseFileName: 'trading-buddy.db',
+        databaseLocationSummary: 'com.tradingbuddy.desktop\\trading-buddy.db',
+        schemaVersion: 1,
+        conversationCount: 2,
+        activeConversationCount: 1,
+        archivedConversationCount: 1,
+        messageCount: 4,
+      }),
+    ).toBe(true);
+    expect(
+      isStorageDiagnostics({
+        available: true,
+        databaseFileName: 'trading-buddy.db',
+        conversationCount: '2',
+        activeConversationCount: 1,
+        archivedConversationCount: 1,
+        messageCount: 4,
+      }),
+    ).toBe(false);
+    expect(
+      isDevelopmentFixtureResult({
+        conversationId: 'conversation-1',
+        assistantMessageId: 'message-1',
+      }),
+    ).toBe(true);
   });
 });
