@@ -6,6 +6,8 @@ pub const MAX_TITLE_LENGTH: usize = 80;
 pub const MAX_MESSAGE_CONTENT_LENGTH: usize = 120_000;
 pub const MAX_MODEL_NAME_LENGTH: usize = 128;
 pub const MAX_PAGE_LIMIT: u32 = 100;
+pub const MAX_MEMORY_CONTENT_LENGTH: usize = 600;
+pub const MAX_MEMORY_SEARCH_LENGTH: usize = 200;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -22,6 +24,203 @@ pub enum CompanionPlacementMode {
     DockLeft,
     DockRight,
     TaskbarPerch,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryCategory {
+    Preference,
+    Goal,
+    PersonalRule,
+    CommunicationStyle,
+    Routine,
+    Project,
+    TradingProfile,
+    RiskRule,
+    EmotionalTrigger,
+    ImportantContext,
+    TemporaryContext,
+    Other,
+}
+
+impl MemoryCategory {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "preference" => Ok(Self::Preference),
+            "goal" => Ok(Self::Goal),
+            "personal_rule" => Ok(Self::PersonalRule),
+            "communication_style" => Ok(Self::CommunicationStyle),
+            "routine" => Ok(Self::Routine),
+            "project" => Ok(Self::Project),
+            "trading_profile" => Ok(Self::TradingProfile),
+            "risk_rule" => Ok(Self::RiskRule),
+            "emotional_trigger" => Ok(Self::EmotionalTrigger),
+            "important_context" => Ok(Self::ImportantContext),
+            "temporary_context" => Ok(Self::TemporaryContext),
+            "other" => Ok(Self::Other),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported memory category: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Preference => "preference",
+            Self::Goal => "goal",
+            Self::PersonalRule => "personal_rule",
+            Self::CommunicationStyle => "communication_style",
+            Self::Routine => "routine",
+            Self::Project => "project",
+            Self::TradingProfile => "trading_profile",
+            Self::RiskRule => "risk_rule",
+            Self::EmotionalTrigger => "emotional_trigger",
+            Self::ImportantContext => "important_context",
+            Self::TemporaryContext => "temporary_context",
+            Self::Other => "other",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryStatus {
+    Proposed,
+    Confirmed,
+    Rejected,
+    Expired,
+    Superseded,
+}
+
+impl MemoryStatus {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "proposed" => Ok(Self::Proposed),
+            "confirmed" => Ok(Self::Confirmed),
+            "rejected" => Ok(Self::Rejected),
+            "expired" => Ok(Self::Expired),
+            "superseded" => Ok(Self::Superseded),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported memory status: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Confirmed => "confirmed",
+            Self::Rejected => "rejected",
+            Self::Expired => "expired",
+            Self::Superseded => "superseded",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemorySourceKind {
+    UserExplicit,
+    ModelProposed,
+    UserCreated,
+    SystemObservation,
+}
+
+impl MemorySourceKind {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "user_explicit" => Ok(Self::UserExplicit),
+            "model_proposed" => Ok(Self::ModelProposed),
+            "user_created" => Ok(Self::UserCreated),
+            "system_observation" => Ok(Self::SystemObservation),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported memory source kind: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::UserExplicit => "user_explicit",
+            Self::ModelProposed => "model_proposed",
+            Self::UserCreated => "user_created",
+            Self::SystemObservation => "system_observation",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemorySensitivity {
+    Ordinary,
+    Personal,
+    Sensitive,
+    Prohibited,
+}
+
+impl MemorySensitivity {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "ordinary" => Ok(Self::Ordinary),
+            "personal" => Ok(Self::Personal),
+            "sensitive" => Ok(Self::Sensitive),
+            "prohibited" => Ok(Self::Prohibited),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported memory sensitivity: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Ordinary => "ordinary",
+            Self::Personal => "personal",
+            Self::Sensitive => "sensitive",
+            Self::Prohibited => "prohibited",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MemoryApprovalMode {
+    AskEveryTime,
+    AutoSaveOrdinary,
+    ManualOnly,
+}
+
+impl MemoryApprovalMode {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "ask_every_time" => Ok(Self::AskEveryTime),
+            "auto_save_ordinary" => Ok(Self::AutoSaveOrdinary),
+            "manual_only" => Ok(Self::ManualOnly),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported memory approval mode: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::AskEveryTime => "ask_every_time",
+            Self::AutoSaveOrdinary => "auto_save_ordinary",
+            Self::ManualOnly => "manual_only",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryPreferences {
+    pub memory_enabled: bool,
+    pub memory_approval_mode: MemoryApprovalMode,
+    pub allow_personal_memories: bool,
+    pub allow_sensitive_memories: bool,
+    pub show_memory_used_indicator: bool,
+    pub memory_candidate_notifications: bool,
+    pub temporary_memory_default_expiry_days: u32,
+    pub use_memories_in_temporary_chat: bool,
 }
 
 impl CompanionPlacementMode {
@@ -209,6 +408,127 @@ pub struct AppSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_opened_conversation_id: Option<String>,
     pub companion_preferences: CompanionPreferences,
+    pub memory_preferences: MemoryPreferences,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Memory {
+    pub id: String,
+    pub category: MemoryCategory,
+    pub content: String,
+    pub normalized_content: String,
+    pub status: MemoryStatus,
+    pub source_kind: MemorySourceKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_message_id: Option<String>,
+    pub confidence: f64,
+    pub importance: f64,
+    pub sensitivity: MemorySensitivity,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confirmed_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_used_at: Option<String>,
+    pub use_count: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes_memory_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryDraft {
+    pub category: MemoryCategory,
+    pub content: String,
+    pub status: MemoryStatus,
+    pub source_kind: MemorySourceKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_message_id: Option<String>,
+    pub confidence: f64,
+    pub importance: f64,
+    pub sensitivity: MemorySensitivity,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supersedes_memory_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryListOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<MemoryStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub category: Option<MemoryCategory>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sensitivity: Option<MemorySensitivity>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    pub limit: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RetrievedMemory {
+    pub id: String,
+    pub category: MemoryCategory,
+    pub content: String,
+    pub sensitivity: MemorySensitivity,
+    pub score: f64,
+    pub match_reasons: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryUsageRecord {
+    pub id: String,
+    pub memory_id: String,
+    pub conversation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assistant_message_id: Option<String>,
+    pub used_at: String,
+    pub reason_code: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryUsageRequest {
+    pub memory_ids: Vec<String>,
+    pub conversation_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assistant_message_id: Option<String>,
+    pub reason_code: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteAllMemoriesResult {
+    pub deleted_memories: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryExportResult {
+    pub exported_memories: u32,
+    pub file_path: String,
+    pub file_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct MemoryExportFile {
+    pub format: String,
+    pub version: u32,
+    #[serde(rename = "exportedAt")]
+    pub exported_at: String,
+    pub settings: MemoryPreferences,
+    pub memories: Vec<Memory>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

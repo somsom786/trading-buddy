@@ -8,11 +8,15 @@ use super::{
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
         CompanionPlacementMode, CompanionPreferences, ConversationDetail, ConversationExport,
-        ConversationExportFile, ConversationRetentionPolicy, ConversationSummary, DeleteAllResult,
-        DevelopmentFixtureResult, MessageExport, PrepareGenerationRequest,
-        PrepareGenerationResponse, RetentionCleanupResult, StorageDiagnostics, StorageMetadata,
-        StoredMessage, StoredMessageRole, StoredMessageStatus, MAX_MESSAGE_CONTENT_LENGTH,
-        MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        ConversationExportFile, ConversationRetentionPolicy, ConversationSummary,
+        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult, Memory,
+        MemoryApprovalMode, MemoryCategory, MemoryDraft, MemoryExportFile, MemoryListOptions,
+        MemoryPreferences, MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord,
+        MemoryUsageRequest, MessageExport, PrepareGenerationRequest, PrepareGenerationResponse,
+        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageMetadata,
+        StoredMessage, StoredMessageRole, StoredMessageStatus, MAX_MEMORY_CONTENT_LENGTH,
+        MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH,
+        MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -90,7 +94,15 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     global_shortcut_enabled,
                     launch_at_login,
                     open_companion_home_at_startup,
-                    bubble_width
+                    bubble_width,
+                    memory_enabled,
+                    memory_approval_mode,
+                    allow_personal_memories,
+                    allow_sensitive_memories,
+                    show_memory_used_indicator,
+                    memory_candidate_notifications,
+                    temporary_memory_default_expiry_days,
+                    use_memories_in_temporary_chat
              FROM app_settings WHERE id = 1",
             [],
             |row| {
@@ -120,6 +132,14 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     row.get::<_, i64>(18)?,
                     row.get::<_, i64>(19)?,
                     row.get::<_, i64>(20)?,
+                    row.get::<_, i64>(21)?,
+                    row.get::<_, String>(22)?,
+                    row.get::<_, i64>(23)?,
+                    row.get::<_, i64>(24)?,
+                    row.get::<_, i64>(25)?,
+                    row.get::<_, i64>(26)?,
+                    row.get::<_, i64>(27)?,
+                    row.get::<_, i64>(28)?,
                 ))
             },
         )
@@ -147,6 +167,14 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                 launch_at_login,
                 open_companion_home_at_startup,
                 bubble_width,
+                memory_enabled,
+                memory_approval_mode,
+                allow_personal_memories,
+                allow_sensitive_memories,
+                show_memory_used_indicator,
+                memory_candidate_notifications,
+                temporary_memory_default_expiry_days,
+                use_memories_in_temporary_chat,
             )| {
                 let companion_preferences = CompanionPreferences {
                     buddy_visible: buddy_visible == 1,
@@ -174,12 +202,27 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     bubble_width: bounded_u32(bubble_width, "bubble width setting")?,
                 };
                 validate_companion_preferences(&companion_preferences)?;
+                let memory_preferences = MemoryPreferences {
+                    memory_enabled: memory_enabled == 1,
+                    memory_approval_mode: MemoryApprovalMode::from_db(&memory_approval_mode)?,
+                    allow_personal_memories: allow_personal_memories == 1,
+                    allow_sensitive_memories: allow_sensitive_memories == 1,
+                    show_memory_used_indicator: show_memory_used_indicator == 1,
+                    memory_candidate_notifications: memory_candidate_notifications == 1,
+                    temporary_memory_default_expiry_days: bounded_u32(
+                        temporary_memory_default_expiry_days,
+                        "temporary memory expiry setting",
+                    )?,
+                    use_memories_in_temporary_chat: use_memories_in_temporary_chat == 1,
+                };
+                validate_memory_preferences(&memory_preferences)?;
                 Ok(AppSettings {
                     selected_local_model,
                     ambient_animations_enabled: animations == 1,
                     conversation_retention_policy: ConversationRetentionPolicy::from_db(&policy)?,
                     last_opened_conversation_id,
                     companion_preferences,
+                    memory_preferences,
                 })
             },
         )
@@ -264,6 +307,38 @@ pub fn set_companion_preferences(
                 bool_to_db(preferences.launch_at_login),
                 bool_to_db(preferences.open_companion_home_at_startup),
                 preferences.bubble_width,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    settings(connection)
+}
+
+pub fn set_memory_preferences(
+    connection: &Connection,
+    preferences: MemoryPreferences,
+) -> Result<AppSettings, StorageError> {
+    validate_memory_preferences(&preferences)?;
+    connection
+        .execute(
+            "UPDATE app_settings
+             SET memory_enabled = ?1,
+                 memory_approval_mode = ?2,
+                 allow_personal_memories = ?3,
+                 allow_sensitive_memories = ?4,
+                 show_memory_used_indicator = ?5,
+                 memory_candidate_notifications = ?6,
+                 temporary_memory_default_expiry_days = ?7,
+                 use_memories_in_temporary_chat = ?8
+             WHERE id = 1",
+            params![
+                bool_to_db(preferences.memory_enabled),
+                preferences.memory_approval_mode.as_db(),
+                bool_to_db(preferences.allow_personal_memories),
+                bool_to_db(preferences.allow_sensitive_memories),
+                bool_to_db(preferences.show_memory_used_indicator),
+                bool_to_db(preferences.memory_candidate_notifications),
+                preferences.temporary_memory_default_expiry_days,
+                bool_to_db(preferences.use_memories_in_temporary_chat),
             ],
         )
         .map_err(StorageError::from_sql_write)?;
@@ -589,6 +664,379 @@ pub fn export_file(connection: &Connection) -> Result<ConversationExportFile, St
     })
 }
 
+pub fn create_memory(connection: &Connection, draft: MemoryDraft) -> Result<Memory, StorageError> {
+    validate_memory_draft(&draft)?;
+    let now = timestamp();
+    let id = generate_id("memory");
+    let normalized = normalize_memory_content(&draft.content);
+    let confirmed_at = if draft.status == MemoryStatus::Confirmed {
+        Some(now.clone())
+    } else {
+        None
+    };
+    connection
+        .execute(
+            "INSERT INTO memories (
+                id, category, content, normalized_content, status, source_kind,
+                source_conversation_id, source_message_id, confidence, importance, sensitivity,
+                created_at, updated_at, confirmed_at, expires_at, supersedes_memory_id
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            params![
+                id,
+                draft.category.as_db(),
+                draft.content.trim(),
+                normalized,
+                draft.status.as_db(),
+                draft.source_kind.as_db(),
+                draft.source_conversation_id,
+                draft.source_message_id,
+                draft.confidence.clamp(0.0, 1.0),
+                draft.importance.clamp(0.0, 1.0),
+                draft.sensitivity.as_db(),
+                now,
+                now,
+                confirmed_at,
+                draft.expires_at,
+                draft.supersedes_memory_id,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    get_memory(connection, &id)
+}
+
+pub fn get_memory(connection: &Connection, memory_id: &str) -> Result<Memory, StorageError> {
+    validate_identifier(memory_id, "memory ID")?;
+    connection
+        .query_row(
+            "SELECT id, category, content, normalized_content, status, source_kind,
+                    source_conversation_id, source_message_id, confidence, importance, sensitivity,
+                    created_at, updated_at, confirmed_at, last_used_at, use_count, expires_at,
+                    supersedes_memory_id
+             FROM memories WHERE id = ?1",
+            params![memory_id],
+            map_memory,
+        )
+        .map_err(|error| match error {
+            rusqlite::Error::QueryReturnedNoRows => {
+                StorageError::invalid_request("Memory was not found.")
+            }
+            other => StorageError::from_sql_read(other),
+        })
+}
+
+pub fn list_memories(
+    connection: &Connection,
+    options: MemoryListOptions,
+) -> Result<Vec<Memory>, StorageError> {
+    let limit = options.limit.clamp(1, MAX_PAGE_LIMIT);
+    if let Some(query) = &options.query {
+        validate_memory_search(query)?;
+    }
+    let mut statement = connection
+        .prepare(
+            "SELECT id, category, content, normalized_content, status, source_kind,
+                    source_conversation_id, source_message_id, confidence, importance, sensitivity,
+                    created_at, updated_at, confirmed_at, last_used_at, use_count, expires_at,
+                    supersedes_memory_id
+             FROM memories
+             ORDER BY updated_at DESC, id ASC",
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let mut memories = collect_rows(
+        statement
+            .query_map([], map_memory)
+            .map_err(StorageError::from_sql_read)?,
+    )?;
+    memories.retain(|memory| {
+        options
+            .status
+            .as_ref()
+            .map_or(true, |status| memory.status == *status)
+            && options
+                .category
+                .as_ref()
+                .map_or(true, |category| memory.category == *category)
+            && options
+                .sensitivity
+                .as_ref()
+                .map_or(true, |sensitivity| memory.sensitivity == *sensitivity)
+            && options.query.as_ref().map_or(true, |query| {
+                memory
+                    .normalized_content
+                    .contains(&normalize_memory_content(query))
+            })
+    });
+    memories.truncate(limit as usize);
+    Ok(memories)
+}
+
+pub fn confirm_memory(connection: &Connection, memory_id: &str) -> Result<Memory, StorageError> {
+    update_memory_status(connection, memory_id, MemoryStatus::Confirmed)
+}
+
+pub fn reject_memory(connection: &Connection, memory_id: &str) -> Result<Memory, StorageError> {
+    update_memory_status(connection, memory_id, MemoryStatus::Rejected)
+}
+
+pub fn update_memory_content(
+    connection: &Connection,
+    memory_id: &str,
+    content: String,
+    category: MemoryCategory,
+    sensitivity: MemorySensitivity,
+    expires_at: Option<String>,
+) -> Result<Memory, StorageError> {
+    validate_identifier(memory_id, "memory ID")?;
+    validate_memory_content(&content)?;
+    if sensitivity == MemorySensitivity::Prohibited {
+        return Err(StorageError::invalid_request(
+            "Secrets and prohibited content cannot be stored in memory.",
+        ));
+    }
+    let now = timestamp();
+    connection
+        .execute(
+            "UPDATE memories
+             SET content = ?1,
+                 normalized_content = ?2,
+                 category = ?3,
+                 sensitivity = ?4,
+                 expires_at = ?5,
+                 updated_at = ?6
+             WHERE id = ?7",
+            params![
+                content.trim(),
+                normalize_memory_content(&content),
+                category.as_db(),
+                sensitivity.as_db(),
+                expires_at,
+                now,
+                memory_id,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    get_memory(connection, memory_id)
+}
+
+pub fn delete_memory(connection: &Connection, memory_id: &str) -> Result<(), StorageError> {
+    validate_identifier(memory_id, "memory ID")?;
+    let changed = connection
+        .execute("DELETE FROM memories WHERE id = ?1", params![memory_id])
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request("Memory was not found."));
+    }
+    Ok(())
+}
+
+pub fn delete_all_memories(
+    connection: &mut Connection,
+) -> Result<DeleteAllMemoriesResult, StorageError> {
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let deleted = transaction
+        .execute("DELETE FROM memories", [])
+        .map_err(StorageError::from_sql_write)? as u32;
+    transaction
+        .execute("DELETE FROM memory_usage_records", [])
+        .map_err(StorageError::from_sql_write)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    Ok(DeleteAllMemoriesResult {
+        deleted_memories: deleted,
+    })
+}
+
+pub fn cleanup_expired_memories(connection: &Connection) -> Result<u32, StorageError> {
+    let now = timestamp();
+    let changed = connection
+        .execute(
+            "UPDATE memories
+             SET status = 'expired', updated_at = ?1
+             WHERE status IN ('proposed', 'confirmed')
+               AND expires_at IS NOT NULL
+               AND expires_at <= ?1",
+            params![now],
+        )
+        .map_err(StorageError::from_sql_write)? as u32;
+    Ok(changed)
+}
+
+pub fn retrieve_memories(
+    connection: &Connection,
+    query: &str,
+    limit: u32,
+    include_sensitive: bool,
+) -> Result<Vec<RetrievedMemory>, StorageError> {
+    validate_memory_search(query)?;
+    let normalized_query = normalize_memory_content(query);
+    let tokens = memory_query_tokens(&normalized_query);
+    if tokens.is_empty() {
+        return Ok(Vec::new());
+    }
+    let now = timestamp();
+    let fts_query = tokens
+        .iter()
+        .map(|token| format!("{token}*"))
+        .collect::<Vec<_>>()
+        .join(" OR ");
+    let mut statement = connection
+        .prepare(
+            "SELECT m.id, m.category, m.content, m.normalized_content, m.status, m.source_kind,
+                    m.source_conversation_id, m.source_message_id, m.confidence, m.importance,
+                    m.sensitivity, m.created_at, m.updated_at, m.confirmed_at, m.last_used_at,
+                    m.use_count, m.expires_at, m.supersedes_memory_id
+             FROM memory_fts
+             JOIN memories m ON m.id = memory_fts.memory_id
+             WHERE memory_fts MATCH ?1
+               AND m.status = 'confirmed'
+               AND (m.expires_at IS NULL OR m.expires_at > ?2)
+               AND (?3 = 1 OR m.sensitivity != 'sensitive')",
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let memories = collect_rows(
+        statement
+            .query_map(
+                params![fts_query, now, bool_to_db(include_sensitive)],
+                map_memory,
+            )
+            .map_err(StorageError::from_sql_read)?,
+    )?;
+    let mut retrieved: Vec<RetrievedMemory> = memories
+        .into_iter()
+        .filter_map(|memory| {
+            let reasons: Vec<String> = tokens
+                .iter()
+                .filter(|token| memory.normalized_content.contains(token.as_str()))
+                .map(|token| format!("keyword:{token}"))
+                .collect();
+            if reasons.is_empty() {
+                return None;
+            }
+            let score = reasons.len() as f64
+                + memory.importance
+                + (memory.use_count as f64 * 0.02).min(0.2);
+            Some(RetrievedMemory {
+                id: memory.id,
+                category: memory.category,
+                content: memory.content,
+                sensitivity: memory.sensitivity,
+                score,
+                match_reasons: reasons,
+            })
+        })
+        .collect();
+    retrieved.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| a.id.cmp(&b.id))
+    });
+    retrieved.truncate(limit.clamp(1, 8) as usize);
+    Ok(retrieved)
+}
+
+pub fn record_memory_usage(
+    connection: &Connection,
+    request: MemoryUsageRequest,
+) -> Result<(), StorageError> {
+    validate_identifier(&request.conversation_id, "conversation ID")?;
+    for memory_id in &request.memory_ids {
+        validate_identifier(memory_id, "memory ID")?;
+    }
+    let now = timestamp();
+    for memory_id in request.memory_ids {
+        let usage_id = generate_id("memory_usage");
+        connection
+            .execute(
+                "INSERT INTO memory_usage_records (
+                    id, memory_id, conversation_id, assistant_message_id, used_at, reason_code
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    usage_id,
+                    memory_id,
+                    request.conversation_id.as_str(),
+                    request.assistant_message_id.as_deref(),
+                    now,
+                    truncate_chars(&request.reason_code, 80),
+                ],
+            )
+            .map_err(StorageError::from_sql_write)?;
+        connection
+            .execute(
+                "UPDATE memories
+                 SET last_used_at = ?1, use_count = use_count + 1
+                 WHERE id = ?2",
+                params![now, memory_id],
+            )
+            .map_err(StorageError::from_sql_write)?;
+    }
+    Ok(())
+}
+
+pub fn list_memory_usage_records(
+    connection: &Connection,
+    memory_id: Option<String>,
+    limit: u32,
+) -> Result<Vec<MemoryUsageRecord>, StorageError> {
+    if let Some(id) = &memory_id {
+        validate_identifier(id, "memory ID")?;
+    }
+    let limit = limit.clamp(1, MAX_PAGE_LIMIT);
+    let mut statement = connection
+        .prepare(
+            "SELECT id, memory_id, conversation_id, assistant_message_id, used_at, reason_code
+             FROM memory_usage_records
+             WHERE (?1 IS NULL OR memory_id = ?1)
+             ORDER BY used_at DESC, id ASC
+             LIMIT ?2",
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let usage_records = collect_rows(
+        statement
+            .query_map(params![memory_id, limit], |row| {
+                Ok(MemoryUsageRecord {
+                    id: row.get(0)?,
+                    memory_id: row.get(1)?,
+                    conversation_id: row.get(2)?,
+                    assistant_message_id: row.get(3)?,
+                    used_at: row.get(4)?,
+                    reason_code: row.get(5)?,
+                })
+            })
+            .map_err(StorageError::from_sql_read)?,
+    )?;
+    Ok(usage_records)
+}
+
+pub fn export_memory_file(
+    connection: &Connection,
+    include_sensitive: bool,
+) -> Result<MemoryExportFile, StorageError> {
+    let settings = settings(connection)?;
+    let mut memories = list_memories(
+        connection,
+        MemoryListOptions {
+            status: Some(MemoryStatus::Confirmed),
+            category: None,
+            sensitivity: None,
+            query: None,
+            limit: MAX_PAGE_LIMIT,
+        },
+    )?;
+    memories.retain(|memory| {
+        memory.sensitivity != MemorySensitivity::Prohibited
+            && (include_sensitive || memory.sensitivity != MemorySensitivity::Sensitive)
+    });
+    Ok(MemoryExportFile {
+        format: "trading-buddy-memories".to_owned(),
+        version: 1,
+        exported_at: timestamp(),
+        settings: settings.memory_preferences,
+        memories,
+    })
+}
+
 pub fn create_development_interrupted_fixture(
     connection: &mut Connection,
 ) -> Result<DevelopmentFixtureResult, StorageError> {
@@ -871,6 +1319,62 @@ fn map_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredMessage> {
     })
 }
 
+fn map_memory(row: &rusqlite::Row<'_>) -> rusqlite::Result<Memory> {
+    let category: String = row.get(1)?;
+    let status: String = row.get(4)?;
+    let source_kind: String = row.get(5)?;
+    let sensitivity: String = row.get(10)?;
+    let use_count: i64 = row.get(15)?;
+    Ok(Memory {
+        id: row.get(0)?,
+        category: MemoryCategory::from_db(&category).map_err(to_sql_conversion_error)?,
+        content: row.get(2)?,
+        normalized_content: row.get(3)?,
+        status: MemoryStatus::from_db(&status).map_err(to_sql_conversion_error)?,
+        source_kind: MemorySourceKind::from_db(&source_kind).map_err(to_sql_conversion_error)?,
+        source_conversation_id: row.get(6)?,
+        source_message_id: row.get(7)?,
+        confidence: row.get(8)?,
+        importance: row.get(9)?,
+        sensitivity: MemorySensitivity::from_db(&sensitivity).map_err(to_sql_conversion_error)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+        confirmed_at: row.get(13)?,
+        last_used_at: row.get(14)?,
+        use_count: bounded_u32(use_count, "memory use count").map_err(to_sql_conversion_error)?,
+        expires_at: row.get(16)?,
+        supersedes_memory_id: row.get(17)?,
+    })
+}
+
+fn update_memory_status(
+    connection: &Connection,
+    memory_id: &str,
+    status: MemoryStatus,
+) -> Result<Memory, StorageError> {
+    validate_identifier(memory_id, "memory ID")?;
+    let now = timestamp();
+    let confirmed_at = if status == MemoryStatus::Confirmed {
+        Some(now.clone())
+    } else {
+        None
+    };
+    let changed = connection
+        .execute(
+            "UPDATE memories
+             SET status = ?1,
+                 updated_at = ?2,
+                 confirmed_at = COALESCE(?3, confirmed_at)
+             WHERE id = ?4",
+            params![status.as_db(), now, confirmed_at, memory_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request("Memory was not found."));
+    }
+    get_memory(connection, memory_id)
+}
+
 fn collect_rows<T>(
     rows: rusqlite::MappedRows<'_, impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>,
 ) -> Result<Vec<T>, StorageError> {
@@ -975,6 +1479,117 @@ fn validate_companion_preferences(preferences: &CompanionPreferences) -> Result<
     validate_clock_time(&preferences.quiet_hours_start)?;
     validate_clock_time(&preferences.quiet_hours_end)?;
     Ok(())
+}
+
+fn validate_memory_preferences(preferences: &MemoryPreferences) -> Result<(), StorageError> {
+    if !(1..=365).contains(&preferences.temporary_memory_default_expiry_days) {
+        return Err(StorageError::invalid_request(
+            "Temporary memory expiry must be between 1 and 365 days.",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_memory_draft(draft: &MemoryDraft) -> Result<(), StorageError> {
+    if draft.source_kind == MemorySourceKind::SystemObservation {
+        return Err(StorageError::invalid_request(
+            "System-observation memories are reserved for a future explicit feature.",
+        ));
+    }
+    validate_memory_content(&draft.content)?;
+    if draft.sensitivity == MemorySensitivity::Prohibited {
+        return Err(StorageError::invalid_request(
+            "Secrets and prohibited content cannot be stored in memory.",
+        ));
+    }
+    if !(0.0..=1.0).contains(&draft.confidence) || !(0.0..=1.0).contains(&draft.importance) {
+        return Err(StorageError::invalid_request(
+            "Memory confidence and importance must be between 0 and 1.",
+        ));
+    }
+    if let Some(id) = &draft.source_conversation_id {
+        validate_identifier(id, "source conversation ID")?;
+    }
+    if let Some(id) = &draft.source_message_id {
+        validate_identifier(id, "source message ID")?;
+    }
+    if let Some(id) = &draft.supersedes_memory_id {
+        validate_identifier(id, "superseded memory ID")?;
+    }
+    Ok(())
+}
+
+fn validate_memory_content(content: &str) -> Result<(), StorageError> {
+    let trimmed = content.trim();
+    if trimmed.is_empty() {
+        return Err(StorageError::invalid_request(
+            "Memory content cannot be empty.",
+        ));
+    }
+    if trimmed.chars().count() > MAX_MEMORY_CONTENT_LENGTH {
+        return Err(StorageError::invalid_request(
+            "Memory content is too long for local companion memory.",
+        ));
+    }
+    if looks_like_secret(trimmed) {
+        return Err(StorageError::invalid_request(
+            "Secrets should not be saved in companion memory.",
+        ));
+    }
+    let normalized = normalize_memory_content(trimmed);
+    if normalized.contains("ignore previous instructions")
+        || normalized.contains("system prompt")
+        || normalized.contains("developer message")
+    {
+        return Err(StorageError::invalid_request(
+            "Memory content cannot contain assistant-control instructions.",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_memory_search(query: &str) -> Result<(), StorageError> {
+    if query.chars().count() > MAX_MEMORY_SEARCH_LENGTH {
+        return Err(StorageError::invalid_request(
+            "Memory search query is too long.",
+        ));
+    }
+    Ok(())
+}
+
+fn looks_like_secret(content: &str) -> bool {
+    let lower = content.to_ascii_lowercase();
+    [
+        "seed phrase",
+        "private key",
+        "api key",
+        "password",
+        "recovery code",
+        "auth token",
+        "authentication token",
+        "bearer ",
+        "sk-",
+    ]
+    .iter()
+    .any(|needle| lower.contains(needle))
+}
+
+fn normalize_memory_content(content: &str) -> String {
+    content
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn memory_query_tokens(query: &str) -> Vec<String> {
+    query
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| token.chars().count() >= 3)
+        .take(12)
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 fn validate_clock_time(value: &str) -> Result<(), StorageError> {
@@ -1310,6 +1925,193 @@ mod tests {
         );
         assert!(updated.companion_preferences.do_not_disturb);
         assert_eq!(updated.companion_preferences.bubble_width, 360);
+    }
+
+    fn memory_draft(content: &str, status: MemoryStatus) -> MemoryDraft {
+        MemoryDraft {
+            category: MemoryCategory::RiskRule,
+            content: content.to_owned(),
+            status,
+            source_kind: MemorySourceKind::UserExplicit,
+            source_conversation_id: None,
+            source_message_id: None,
+            confidence: 0.9,
+            importance: 0.8,
+            sensitivity: MemorySensitivity::Personal,
+            expires_at: None,
+            supersedes_memory_id: None,
+        }
+    }
+
+    #[test]
+    fn persists_memory_preferences() {
+        let connection = database();
+        let mut preferences = settings(&connection).expect("settings").memory_preferences;
+        assert!(preferences.memory_enabled);
+        assert_eq!(
+            preferences.memory_approval_mode,
+            MemoryApprovalMode::AskEveryTime
+        );
+        assert!(!preferences.allow_sensitive_memories);
+        assert!(!preferences.use_memories_in_temporary_chat);
+
+        preferences.memory_approval_mode = MemoryApprovalMode::ManualOnly;
+        preferences.memory_candidate_notifications = false;
+        preferences.use_memories_in_temporary_chat = true;
+        let updated = set_memory_preferences(&connection, preferences).expect("update");
+        assert_eq!(
+            updated.memory_preferences.memory_approval_mode,
+            MemoryApprovalMode::ManualOnly
+        );
+        assert!(!updated.memory_preferences.memory_candidate_notifications);
+        assert!(updated.memory_preferences.use_memories_in_temporary_chat);
+    }
+
+    #[test]
+    fn manages_memory_lifecycle_and_retrieval() {
+        let connection = database();
+        let proposed = create_memory(
+            &connection,
+            memory_draft("User caps risk at 1% per trade.", MemoryStatus::Proposed),
+        )
+        .expect("create proposed");
+        assert_eq!(proposed.status, MemoryStatus::Proposed);
+        assert!(retrieve_memories(&connection, "risk trade", 5, false)
+            .expect("retrieve")
+            .is_empty());
+
+        let confirmed = confirm_memory(&connection, &proposed.id).expect("confirm");
+        assert_eq!(confirmed.status, MemoryStatus::Confirmed);
+        let retrieved = retrieve_memories(&connection, "risk trade", 5, false).expect("retrieve");
+        assert_eq!(retrieved.len(), 1);
+        assert_eq!(retrieved[0].id, proposed.id);
+
+        let edited = update_memory_content(
+            &connection,
+            &proposed.id,
+            "User caps risk at 0.5% per trade.".to_owned(),
+            MemoryCategory::RiskRule,
+            MemorySensitivity::Personal,
+            None,
+        )
+        .expect("edit");
+        assert!(edited.content.contains("0.5%"));
+        reject_memory(&connection, &proposed.id).expect("reject");
+        assert!(retrieve_memories(&connection, "risk trade", 5, false)
+            .expect("retrieve rejected")
+            .is_empty());
+        delete_memory(&connection, &proposed.id).expect("delete");
+        assert!(get_memory(&connection, &proposed.id).is_err());
+    }
+
+    #[test]
+    fn excludes_sensitive_expired_and_superseded_memories_from_default_retrieval() {
+        let connection = database();
+        let ordinary = create_memory(
+            &connection,
+            memory_draft(
+                "User prefers direct feedback after losses.",
+                MemoryStatus::Confirmed,
+            ),
+        )
+        .expect("ordinary");
+        let mut sensitive = memory_draft(
+            "User has a sensitive medical appointment next week.",
+            MemoryStatus::Confirmed,
+        );
+        sensitive.category = MemoryCategory::ImportantContext;
+        sensitive.sensitivity = MemorySensitivity::Sensitive;
+        create_memory(&connection, sensitive).expect("sensitive");
+        let mut expired = memory_draft(
+            "User is temporarily testing a challenge this week.",
+            MemoryStatus::Confirmed,
+        );
+        expired.category = MemoryCategory::TemporaryContext;
+        expired.expires_at = Some("2020-01-01T00:00:00Z".to_owned());
+        create_memory(&connection, expired).expect("expired");
+        let superseded = create_memory(
+            &connection,
+            memory_draft("User prefers very long replies.", MemoryStatus::Superseded),
+        )
+        .expect("superseded");
+
+        let retrieved =
+            retrieve_memories(&connection, "user prefers feedback week replies", 8, false)
+                .expect("retrieve");
+        assert_eq!(retrieved.len(), 1);
+        assert_eq!(retrieved[0].id, ordinary.id);
+        assert_ne!(retrieved[0].id, superseded.id);
+
+        let with_sensitive =
+            retrieve_memories(&connection, "medical appointment", 8, true).expect("sensitive");
+        assert_eq!(with_sensitive.len(), 1);
+        assert_eq!(with_sensitive[0].sensitivity, MemorySensitivity::Sensitive);
+    }
+
+    #[test]
+    fn rejects_secret_shaped_memory_content() {
+        let connection = database();
+        let result = create_memory(
+            &connection,
+            memory_draft("password: fake-password-123", MemoryStatus::Proposed),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn records_usage_and_detaches_deleted_conversation_sources() {
+        let mut connection = database();
+        let prepared =
+            prepare_generation(&mut connection, generation("Remember risk")).expect("prepare");
+        let mut draft = memory_draft("User caps risk at 1% per trade.", MemoryStatus::Confirmed);
+        draft.source_conversation_id = Some(prepared.conversation.id.clone());
+        draft.source_message_id = Some(prepared.user_message.id.clone());
+        let memory = create_memory(&connection, draft).expect("memory");
+        record_memory_usage(
+            &connection,
+            MemoryUsageRequest {
+                memory_ids: vec![memory.id.clone()],
+                conversation_id: prepared.conversation.id.clone(),
+                assistant_message_id: Some(prepared.assistant_message.id),
+                reason_code: "chat_context".to_owned(),
+            },
+        )
+        .expect("usage");
+        let usage = list_memory_usage_records(&connection, Some(memory.id.clone()), 10)
+            .expect("usage list");
+        assert_eq!(usage.len(), 1);
+        assert_eq!(
+            get_memory(&connection, &memory.id).expect("used").use_count,
+            1
+        );
+
+        delete_conversation(&connection, &prepared.conversation.id).expect("delete conversation");
+        let detached = get_memory(&connection, &memory.id).expect("detached");
+        assert!(detached.source_conversation_id.is_none());
+        assert!(detached.source_message_id.is_none());
+    }
+
+    #[test]
+    fn exports_and_deletes_memories_separately_from_conversations() {
+        let mut connection = database();
+        prepare_generation(&mut connection, generation("Saved conversation")).expect("prepare");
+        create_memory(
+            &connection,
+            memory_draft("User caps risk at 1% per trade.", MemoryStatus::Confirmed),
+        )
+        .expect("memory");
+        let export = export_memory_file(&connection, false).expect("export");
+        assert_eq!(export.format, "trading-buddy-memories");
+        assert_eq!(export.memories.len(), 1);
+
+        let result = delete_all_memories(&mut connection).expect("delete memories");
+        assert_eq!(result.deleted_memories, 1);
+        assert_eq!(
+            list_conversations(&connection, false, 20, 0)
+                .expect("conversations")
+                .len(),
+            1
+        );
     }
 
     #[test]

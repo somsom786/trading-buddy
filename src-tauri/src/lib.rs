@@ -92,6 +92,7 @@ pub fn run() {
             commands::storage::set_selected_local_model,
             commands::storage::set_conversation_retention_policy,
             commands::storage::set_companion_preferences,
+            commands::storage::set_memory_preferences,
             commands::storage::apply_retention_cleanup,
             commands::storage::list_conversations,
             commands::storage::get_conversation,
@@ -108,6 +109,18 @@ pub fn run() {
             commands::storage::delete_conversation,
             commands::storage::delete_all_conversation_data,
             commands::storage::export_conversations,
+            commands::storage::create_memory,
+            commands::storage::list_memories,
+            commands::storage::confirm_memory,
+            commands::storage::reject_memory,
+            commands::storage::update_memory_content,
+            commands::storage::delete_memory,
+            commands::storage::delete_all_memories,
+            commands::storage::cleanup_expired_memories,
+            commands::storage::retrieve_memories,
+            commands::storage::record_memory_usage,
+            commands::storage::list_memory_usage_records,
+            commands::storage::export_memories,
             commands::storage::create_development_interrupted_fixture
         ])
         .run(tauri::generate_context!())

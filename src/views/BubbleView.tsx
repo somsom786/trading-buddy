@@ -25,10 +25,17 @@ import {
   type StorageError,
   type StorageStatus,
 } from '../domain/storage/types';
+import type { Memory, RetrievedMemory } from '../domain/memory/types';
 import { tauriCompanionService, type CompanionService } from '../services/tauri/companionService';
 import { tauriLocalAiService, type LocalAiService } from '../services/tauri/localAiService';
 import { tauriStorageService, type StorageService } from '../services/tauri/storageService';
 import { tauriWindowService, type WindowService } from '../services/windowService';
+import {
+  buildMemoryContextForMessage,
+  handleExplicitMemoryIntent,
+  runBackgroundMemoryExtraction,
+} from '../services/memoryWorkflow';
+import { MemoryProposalCard } from '../components/memory/MemoryProposalCard';
 
 type PersistenceMode = 'persistent' | 'temporary';
 
@@ -41,9 +48,11 @@ interface BubbleViewProps {
 
 interface ActiveAssistantPersistence {
   mode: PersistenceMode;
+  conversationId: string;
   messageId: string;
   requestId: string;
   content: string;
+  memoryIds: string[];
 }
 
 export function BubbleView({
@@ -61,6 +70,10 @@ export function BubbleView({
   const [providerStatus, setProviderStatus] = useState<LocalAiStatus>({ status: 'checking' });
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [storageError, setStorageError] = useState<StorageError | null>(null);
+  const [storageNotice, setStorageNotice] = useState<string | null>(null);
+  const [pendingMemory, setPendingMemory] = useState<Memory | null>(null);
+  const [usedMemories, setUsedMemories] = useState<RetrievedMemory[]>([]);
+  const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const activeRequestRef = useRef<string | null>(null);
   const selectedModelRef = useRef<string | null>(null);
   const persistenceRef = useRef<ActiveAssistantPersistence | null>(null);
@@ -167,6 +180,14 @@ export function BubbleView({
       try {
         if (finalStatus === 'completed') {
           await storageService.completeAssistant(update);
+          if (persistence.memoryIds.length > 0) {
+            await storageService.recordMemoryUsage({
+              memoryIds: persistence.memoryIds,
+              conversationId: persistence.conversationId,
+              assistantMessageId: persistence.messageId,
+              reasonCode: 'bubble_chat_context',
+            });
+          }
         } else if (finalStatus === 'cancelled') {
           await storageService.cancelAssistant(update);
         } else {
@@ -219,6 +240,8 @@ export function BubbleView({
     let conversationId = session.id;
     let userMessage = createChatMessage('user', validation.content);
     let assistantMessage = createChatMessage('assistant', '');
+    let memoryContext: string | null = null;
+    let memoryOptedOutForRequest = conversationMemoryOptOut;
 
     if (mode === 'persistent') {
       try {
@@ -234,9 +257,11 @@ export function BubbleView({
         setActiveConversationId(conversationId);
         persistenceRef.current = {
           mode: 'persistent',
+          conversationId,
           messageId: prepared.assistantMessage.id,
           requestId,
           content: '',
+          memoryIds: [],
         };
       } catch (error) {
         setStorageError(normalizeStorageError(error));
@@ -245,10 +270,49 @@ export function BubbleView({
     } else {
       persistenceRef.current = {
         mode: 'temporary',
+        conversationId,
         messageId: assistantMessage.id,
         requestId,
         content: '',
+        memoryIds: [],
       };
+    }
+
+    try {
+      const memoryContextResult = await buildMemoryContextForMessage({
+        storageService,
+        content: validation.content,
+        temporaryChat: mode === 'temporary',
+      });
+      memoryContext = memoryContextResult.context;
+      setUsedMemories(memoryContextResult.retrieved);
+      if (persistenceRef.current.requestId === requestId) {
+        persistenceRef.current.memoryIds = memoryContextResult.retrieved.map((memory) => memory.id);
+      }
+      const proposalResult = await handleExplicitMemoryIntent({
+        storageService,
+        content: validation.content,
+        temporaryChat: mode === 'temporary',
+        sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+        sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+        preferences: memoryContextResult.preferences,
+      });
+      if (proposalResult.proposal?.status === 'proposed') {
+        setPendingMemory(proposalResult.proposal);
+        void companionService.setState('thinking');
+      }
+      if (proposalResult.usedOptOut === 'conversation') {
+        memoryOptedOutForRequest = true;
+        setConversationMemoryOptOut(true);
+      }
+      if (proposalResult.usedOptOut === 'message') {
+        memoryOptedOutForRequest = true;
+      }
+      if (proposalResult.notice) {
+        setStorageNotice(proposalResult.notice);
+      }
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
     }
 
     const request: LocalChatRequest = {
@@ -257,6 +321,7 @@ export function BubbleView({
       model: selectedModel,
       messages: [
         { role: 'system', content: COMPANION_SYSTEM_PROMPT },
+        ...(memoryContext ? [{ role: 'system' as const, content: memoryContext }] : []),
         ...session.messages
           .filter((message) => message.content)
           .map(({ role, content }) => ({ role, content })),
@@ -278,6 +343,28 @@ export function BubbleView({
 
     try {
       await localAiService.streamChat(request, handleStreamEvent);
+      const settings = await storageService.getSettings();
+      void runBackgroundMemoryExtraction({
+        storageService,
+        localAiService,
+        content: validation.content,
+        model: selectedModel,
+        requestId: createId('memory_request'),
+        sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+        sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+        temporaryChat: mode === 'temporary',
+        conversationOptedOut: memoryOptedOutForRequest,
+        preferences: settings.memoryPreferences,
+      })
+        .then((proposal) => {
+          if (proposal?.status === 'proposed') {
+            setPendingMemory(proposal);
+            void companionService.setState('thinking');
+          }
+        })
+        .catch((error: unknown) => {
+          setStorageError(normalizeStorageError(error));
+        });
     } catch (error) {
       handleStreamEvent({
         type: 'failed',
@@ -302,6 +389,49 @@ export function BubbleView({
       if (canSubmitMessage(session, input, LOCAL_AI_CONFIG.maxInputLength)) {
         void send();
       }
+    }
+  };
+
+  const confirmPendingMemory = async (memory: Memory) => {
+    try {
+      await storageService.confirmMemory(memory.id);
+      setPendingMemory(null);
+      setStorageNotice('Memory saved.');
+      void companionService.setState('happy');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const editPendingMemory = async (memory: Memory) => {
+    const content = window.prompt('Edit memory before saving', memory.content);
+    if (content === null) {
+      return;
+    }
+    try {
+      const updated = await storageService.updateMemoryContent({
+        memoryId: memory.id,
+        content,
+        category: memory.category,
+        sensitivity: memory.sensitivity,
+        expiresAt: memory.expiresAt,
+      });
+      setPendingMemory(updated);
+      setStorageNotice('Memory edited. Confirm it when ready.');
+      void companionService.setState('idle');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const rejectPendingMemory = async (memory: Memory) => {
+    try {
+      await storageService.rejectMemory(memory.id);
+      setPendingMemory(null);
+      setStorageNotice('Memory dismissed.');
+      void companionService.setState('idle');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
     }
   };
 
@@ -350,6 +480,29 @@ export function BubbleView({
           )}
         </div>
 
+        {pendingMemory ? (
+          <MemoryProposalCard
+            compact
+            memory={pendingMemory}
+            onRemember={confirmPendingMemory}
+            onEdit={editPendingMemory}
+            onReject={rejectPendingMemory}
+          />
+        ) : null}
+
+        {usedMemories.length > 0 ? (
+          <details className="memory-used-indicator memory-used-indicator--compact">
+            <summary>Used {String(usedMemories.length)} memories</summary>
+            <ul>
+              {usedMemories.map((memory) => (
+                <li key={memory.id}>{memory.content}</li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
+        {storageNotice ? <div className="storage-notice">{storageNotice}</div> : null}
+
         {storageError ? (
           <div className="bubble-error" role="alert">
             {storageError.userMessage}
@@ -389,6 +542,7 @@ export function BubbleView({
             className="text-button"
             onClick={() => {
               setMode((value) => (value === 'temporary' ? 'persistent' : 'temporary'));
+              setConversationMemoryOptOut(false);
             }}
           >
             {mode === 'temporary' ? 'Temporary on' : 'Saved'}

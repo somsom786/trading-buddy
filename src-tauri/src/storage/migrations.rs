@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 2;
+pub const CURRENT_SCHEMA_VERSION: i64 = 3;
 
 struct Migration {
     version: i64,
@@ -86,6 +86,91 @@ ALTER TABLE app_settings ADD COLUMN global_shortcut_enabled INTEGER NOT NULL DEF
 ALTER TABLE app_settings ADD COLUMN launch_at_login INTEGER NOT NULL DEFAULT 0 CHECK (launch_at_login IN (0, 1));
 ALTER TABLE app_settings ADD COLUMN open_companion_home_at_startup INTEGER NOT NULL DEFAULT 0 CHECK (open_companion_home_at_startup IN (0, 1));
 ALTER TABLE app_settings ADD COLUMN bubble_width INTEGER NOT NULL DEFAULT 340 CHECK (bubble_width BETWEEN 280 AND 520);
+"#,
+    },
+    Migration {
+        version: 3,
+        name: "transparent_local_memory",
+        sql: r#"
+ALTER TABLE app_settings ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 1 CHECK (memory_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN memory_approval_mode TEXT NOT NULL DEFAULT 'ask_every_time'
+  CHECK (memory_approval_mode IN ('ask_every_time', 'auto_save_ordinary', 'manual_only'));
+ALTER TABLE app_settings ADD COLUMN allow_personal_memories INTEGER NOT NULL DEFAULT 1 CHECK (allow_personal_memories IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN allow_sensitive_memories INTEGER NOT NULL DEFAULT 0 CHECK (allow_sensitive_memories IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN show_memory_used_indicator INTEGER NOT NULL DEFAULT 1 CHECK (show_memory_used_indicator IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN memory_candidate_notifications INTEGER NOT NULL DEFAULT 1 CHECK (memory_candidate_notifications IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN temporary_memory_default_expiry_days INTEGER NOT NULL DEFAULT 7
+  CHECK (temporary_memory_default_expiry_days BETWEEN 1 AND 365);
+ALTER TABLE app_settings ADD COLUMN use_memories_in_temporary_chat INTEGER NOT NULL DEFAULT 0 CHECK (use_memories_in_temporary_chat IN (0, 1));
+
+CREATE TABLE IF NOT EXISTS memories (
+  id TEXT PRIMARY KEY NOT NULL,
+  category TEXT NOT NULL CHECK (category IN (
+    'preference',
+    'goal',
+    'personal_rule',
+    'communication_style',
+    'routine',
+    'project',
+    'trading_profile',
+    'risk_rule',
+    'emotional_trigger',
+    'important_context',
+    'temporary_context',
+    'other'
+  )),
+  content TEXT NOT NULL,
+  normalized_content TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('proposed', 'confirmed', 'rejected', 'expired', 'superseded')),
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('user_explicit', 'model_proposed', 'user_created', 'system_observation')),
+  source_conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+  source_message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+  importance REAL NOT NULL CHECK (importance >= 0 AND importance <= 1),
+  sensitivity TEXT NOT NULL CHECK (sensitivity IN ('ordinary', 'personal', 'sensitive', 'prohibited')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  confirmed_at TEXT,
+  last_used_at TEXT,
+  use_count INTEGER NOT NULL DEFAULT 0 CHECK (use_count >= 0),
+  expires_at TEXT,
+  supersedes_memory_id TEXT REFERENCES memories(id) ON DELETE SET NULL
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts
+USING fts5(memory_id UNINDEXED, content, normalized_content);
+
+CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
+  INSERT INTO memory_fts(memory_id, content, normalized_content)
+  VALUES (new.id, new.content, new.normalized_content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE OF content, normalized_content ON memories BEGIN
+  UPDATE memory_fts
+  SET content = new.content,
+      normalized_content = new.normalized_content
+  WHERE memory_id = new.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
+  DELETE FROM memory_fts WHERE memory_id = old.id;
+END;
+
+CREATE TABLE IF NOT EXISTS memory_usage_records (
+  id TEXT PRIMARY KEY NOT NULL,
+  memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+  conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  assistant_message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  used_at TEXT NOT NULL,
+  reason_code TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_status_updated ON memories(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memories_category ON memories(category, status);
+CREATE INDEX IF NOT EXISTS idx_memories_sensitivity ON memories(sensitivity, status);
+CREATE INDEX IF NOT EXISTS idx_memories_source_conversation ON memories(source_conversation_id);
+CREATE INDEX IF NOT EXISTS idx_memory_usage_memory ON memory_usage_records(memory_id, used_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_usage_conversation ON memory_usage_records(conversation_id, used_at DESC);
 "#,
     },
 ];
@@ -250,11 +335,11 @@ mod tests {
         let count: i64 = connection
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index'
-                 AND name IN ('idx_conversations_activity', 'idx_messages_conversation_order', 'idx_messages_request_id')",
+                 AND name IN ('idx_conversations_activity', 'idx_messages_conversation_order', 'idx_messages_request_id', 'idx_memories_status_updated')",
                 [],
                 |row| row.get(0),
             )
             .expect("index count");
-        assert_eq!(count, 3);
+        assert_eq!(count, 4);
     }
 }

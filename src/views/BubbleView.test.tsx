@@ -5,6 +5,7 @@ import type { CompanionService } from '../services/tauri/companionService';
 import type { LocalAiService } from '../services/tauri/localAiService';
 import type { StorageService } from '../services/tauri/storageService';
 import type { WindowService } from '../services/windowService';
+import { defaultMemoryPreferences } from '../domain/memory/types';
 import { BubbleView } from './BubbleView';
 
 const companionService: CompanionService = {
@@ -109,9 +110,11 @@ function createStorageService(): {
         ambientAnimationsEnabled: true,
         conversationRetentionPolicy: 'keep_until_delete',
         companionPreferences,
+        memoryPreferences: defaultMemoryPreferences,
       }),
       setSelectedModel: vi.fn(),
       setCompanionPreferences: vi.fn(),
+      setMemoryPreferences: vi.fn(),
       setRetentionPolicy: vi.fn(),
       applyRetentionCleanup: vi.fn(),
       listConversations: vi.fn(),
@@ -129,6 +132,18 @@ function createStorageService(): {
       deleteConversation: vi.fn(),
       deleteAllConversationData: vi.fn(),
       exportConversations: vi.fn(),
+      createMemory: vi.fn(),
+      listMemories: vi.fn().mockResolvedValue([]),
+      confirmMemory: vi.fn(),
+      rejectMemory: vi.fn(),
+      updateMemoryContent: vi.fn(),
+      deleteMemory: vi.fn(),
+      deleteAllMemories: vi.fn().mockResolvedValue({ deletedMemories: 0 }),
+      cleanupExpiredMemories: vi.fn().mockResolvedValue(0),
+      retrieveMemories: vi.fn().mockResolvedValue([]),
+      recordMemoryUsage: vi.fn().mockResolvedValue(undefined),
+      listMemoryUsageRecords: vi.fn().mockResolvedValue([]),
+      exportMemories: vi.fn().mockResolvedValue(null),
       createDevelopmentInterruptedFixture: vi.fn(),
     },
   };

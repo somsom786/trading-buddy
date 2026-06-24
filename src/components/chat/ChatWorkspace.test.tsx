@@ -5,6 +5,7 @@ import type { CompanionService } from '../../services/tauri/companionService';
 import type { LocalAiService } from '../../services/tauri/localAiService';
 import type { StorageService } from '../../services/tauri/storageService';
 import type { WindowService } from '../../services/windowService';
+import { defaultMemoryPreferences } from '../../domain/memory/types';
 import { ChatWorkspace } from './ChatWorkspace';
 
 const companionService: CompanionService = {
@@ -112,17 +113,26 @@ function createStorageService(): {
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
     }),
     setSelectedModel: vi.fn().mockResolvedValue({
       selectedLocalModel: 'qwen3:4b',
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
     }),
     setCompanionPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
+    }),
+    setMemoryPreferences: vi.fn().mockResolvedValue({
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
     }),
     setRetentionPolicy: vi.fn().mockResolvedValue({ removedConversations: 0 }),
     applyRetentionCleanup: vi.fn().mockResolvedValue({ removedConversations: 0 }),
@@ -141,6 +151,18 @@ function createStorageService(): {
     deleteConversation: vi.fn().mockResolvedValue(undefined),
     deleteAllConversationData: vi.fn().mockResolvedValue({ deletedConversations: 0 }),
     exportConversations,
+    createMemory: vi.fn(),
+    listMemories: vi.fn().mockResolvedValue([]),
+    confirmMemory: vi.fn(),
+    rejectMemory: vi.fn(),
+    updateMemoryContent: vi.fn(),
+    deleteMemory: vi.fn(),
+    deleteAllMemories: vi.fn().mockResolvedValue({ deletedMemories: 0 }),
+    cleanupExpiredMemories: vi.fn().mockResolvedValue(0),
+    retrieveMemories: vi.fn().mockResolvedValue([]),
+    recordMemoryUsage: vi.fn().mockResolvedValue(undefined),
+    listMemoryUsageRecords: vi.fn().mockResolvedValue([]),
+    exportMemories: vi.fn().mockResolvedValue(null),
     createDevelopmentInterruptedFixture: vi.fn().mockResolvedValue({
       conversationId: 'conversation-fixture',
       assistantMessageId: 'message-fixture',

@@ -39,6 +39,24 @@ Rust-owned SQLite persistence. Temporary chat remains available for in-memory-on
 Exchange connections, wallets, authentication, cloud sync, long-term semantic memory, screen
 reading, global cursor tracking, telemetry, and order execution remain out of scope.
 
+## User-controlled companion memory
+
+Task 6 adds the first durable long-term companion memory system. Memory is separate from
+conversation history:
+
+- conversation history is the visible saved chat transcript;
+- confirmed memory is a small user-approved set of facts, preferences, goals, rules, and temporary
+  context that Buddy may use later when relevant.
+
+The product promise is that Buddy remembers because the user allowed it, not because it silently
+profiles everything. Temporary chats do not create durable memories. Sensitive memory is disabled
+by default. Secrets such as seed phrases, private keys, passwords, API keys, and recovery codes are
+rejected instead of saved.
+
+Companion Home now includes **What Buddy Knows About Me**, where users can inspect, search, filter,
+confirm, edit, reject, delete, delete all, and separately export memory records. The desktop bubble
+can show a polite one-at-a-time memory proposal without opening Companion Home.
+
 ## Buddy visual direction
 
 ![Buddy BETA v0.1 design reference](../public/design/buddy-concept-beta-v0.1.png)

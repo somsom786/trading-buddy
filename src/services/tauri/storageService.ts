@@ -4,10 +4,15 @@ import {
   isConversationDetail,
   isConversationSummary,
   isDeleteAllResult,
+  isDeleteAllMemoriesResult,
   isExportResult,
   isDevelopmentFixtureResult,
+  isMemory,
+  isMemoryExportResult,
+  isMemoryUsageRecord,
   isPrepareGenerationResponse,
   isRetentionCleanupResult,
+  isRetrievedMemory,
   isStorageDiagnostics,
   isStorageStatus,
   normalizeStorageError,
@@ -18,11 +23,22 @@ import {
   type CompanionPreferences,
   type ConversationDetail,
   type ConversationSummary,
+  type DeleteAllMemoriesResult,
   type DeleteAllResult,
   type DevelopmentFixtureResult,
   type ExportResult,
+  type Memory,
+  type MemoryCategory,
+  type MemoryDraft,
+  type MemoryExportResult,
+  type MemoryListOptions,
+  type MemoryPreferences,
+  type MemorySensitivity,
+  type MemoryUsageRecord,
+  type MemoryUsageRequest,
   type PrepareGenerationRequest,
   type PrepareGenerationResponse,
+  type RetrievedMemory,
   type RetentionCleanupResult,
   type RetentionPolicy,
   type StorageStatus,
@@ -35,6 +51,7 @@ export interface StorageService {
   getSettings(): Promise<AppSettings>;
   setSelectedModel(modelName: string | null): Promise<AppSettings>;
   setCompanionPreferences(preferences: CompanionPreferences): Promise<AppSettings>;
+  setMemoryPreferences(preferences: MemoryPreferences): Promise<AppSettings>;
   setRetentionPolicy(policy: RetentionPolicy): Promise<RetentionCleanupResult>;
   applyRetentionCleanup(): Promise<RetentionCleanupResult>;
   listConversations(options: {
@@ -56,6 +73,31 @@ export interface StorageService {
   deleteConversation(conversationId: string): Promise<void>;
   deleteAllConversationData(): Promise<DeleteAllResult>;
   exportConversations(): Promise<ExportResult | null>;
+  createMemory(draft: MemoryDraft): Promise<Memory>;
+  listMemories(options: MemoryListOptions): Promise<Memory[]>;
+  confirmMemory(memoryId: string): Promise<Memory>;
+  rejectMemory(memoryId: string): Promise<Memory>;
+  updateMemoryContent(options: {
+    memoryId: string;
+    content: string;
+    category: MemoryCategory;
+    sensitivity: MemorySensitivity;
+    expiresAt?: string | undefined;
+  }): Promise<Memory>;
+  deleteMemory(memoryId: string): Promise<void>;
+  deleteAllMemories(): Promise<DeleteAllMemoriesResult>;
+  cleanupExpiredMemories(): Promise<number>;
+  retrieveMemories(options: {
+    query: string;
+    limit?: number;
+    includeSensitive?: boolean;
+  }): Promise<RetrievedMemory[]>;
+  recordMemoryUsage(request: MemoryUsageRequest): Promise<void>;
+  listMemoryUsageRecords(options: {
+    memoryId?: string | undefined;
+    limit?: number;
+  }): Promise<MemoryUsageRecord[]>;
+  exportMemories(includeSensitive: boolean): Promise<MemoryExportResult | null>;
   createDevelopmentInterruptedFixture(): Promise<DevelopmentFixtureResult>;
 }
 
@@ -78,6 +120,10 @@ export const tauriStorageService: StorageService = {
 
   async setCompanionPreferences(preferences) {
     return invokeChecked('set_companion_preferences', { preferences }, isAppSettings);
+  },
+
+  async setMemoryPreferences(preferences) {
+    return invokeChecked('set_memory_preferences', { preferences }, isAppSettings);
   },
 
   async setRetentionPolicy(policy) {
@@ -159,6 +205,79 @@ export const tauriStorageService: StorageService = {
       return value;
     }
     throw new StorageException(normalizeStorageError('Invalid export response.'));
+  },
+
+  async createMemory(draft) {
+    return invokeChecked('create_memory', { draft }, isMemory);
+  },
+
+  async listMemories(options) {
+    return invokeChecked(
+      'list_memories',
+      { options },
+      (value): value is Memory[] => Array.isArray(value) && value.every(isMemory),
+    );
+  },
+
+  async confirmMemory(memoryId) {
+    return invokeChecked('confirm_memory', { memoryId }, isMemory);
+  },
+
+  async rejectMemory(memoryId) {
+    return invokeChecked('reject_memory', { memoryId }, isMemory);
+  },
+
+  async updateMemoryContent({ memoryId, content, category, sensitivity, expiresAt }) {
+    return invokeChecked(
+      'update_memory_content',
+      { memoryId, content, category, sensitivity, expiresAt },
+      isMemory,
+    );
+  },
+
+  async deleteMemory(memoryId) {
+    await invokeWrapped('delete_memory', { memoryId });
+  },
+
+  async deleteAllMemories() {
+    return invokeChecked('delete_all_memories', undefined, isDeleteAllMemoriesResult);
+  },
+
+  async cleanupExpiredMemories() {
+    const value = await invokeWrapped<unknown>('cleanup_expired_memories');
+    if (typeof value === 'number') {
+      return value;
+    }
+    throw new StorageException(normalizeStorageError('Invalid expiry cleanup response.'));
+  },
+
+  async retrieveMemories({ query, limit = 5, includeSensitive = false }) {
+    return invokeChecked(
+      'retrieve_memories',
+      { query, limit, includeSensitive },
+      (value): value is RetrievedMemory[] => Array.isArray(value) && value.every(isRetrievedMemory),
+    );
+  },
+
+  async recordMemoryUsage(request) {
+    await invokeWrapped('record_memory_usage', { request });
+  },
+
+  async listMemoryUsageRecords({ memoryId, limit = 50 }) {
+    return invokeChecked(
+      'list_memory_usage_records',
+      { memoryId, limit },
+      (value): value is MemoryUsageRecord[] =>
+        Array.isArray(value) && value.every(isMemoryUsageRecord),
+    );
+  },
+
+  async exportMemories(includeSensitive) {
+    const value = await invokeWrapped<unknown>('export_memories', { includeSensitive });
+    if (value === null || isMemoryExportResult(value)) {
+      return value;
+    }
+    throw new StorageException(normalizeStorageError('Invalid memory export response.'));
   },
 
   async createDevelopmentInterruptedFixture() {

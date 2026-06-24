@@ -1,4 +1,42 @@
 import type { ChatMessage } from '../local-ai/types';
+import {
+  defaultMemoryPreferences,
+  memoryApprovalModes,
+  memoryCategories,
+  memorySensitivities,
+  memoryStatuses,
+  type DeleteAllMemoriesResult,
+  type Memory,
+  type MemoryApprovalMode,
+  type MemoryCategory,
+  type MemoryDraft,
+  type MemoryExportResult,
+  type MemoryListOptions,
+  type MemoryPreferences,
+  type MemorySensitivity,
+  type MemorySourceKind,
+  type MemoryStatus,
+  type MemoryUsageRecord,
+  type MemoryUsageRequest,
+  type RetrievedMemory,
+} from '../memory/types';
+
+export type {
+  DeleteAllMemoriesResult,
+  Memory,
+  MemoryApprovalMode,
+  MemoryCategory,
+  MemoryDraft,
+  MemoryExportResult,
+  MemoryListOptions,
+  MemoryPreferences,
+  MemorySensitivity,
+  MemorySourceKind,
+  MemoryStatus,
+  MemoryUsageRecord,
+  MemoryUsageRequest,
+  RetrievedMemory,
+};
 
 export type StorageErrorCode =
   | 'database_unavailable'
@@ -75,6 +113,7 @@ export interface AppSettings {
   conversationRetentionPolicy: RetentionPolicy;
   lastOpenedConversationId?: string;
   companionPreferences: CompanionPreferences;
+  memoryPreferences: MemoryPreferences;
 }
 
 export interface ConversationSummary {
@@ -255,7 +294,8 @@ export function isAppSettings(value: unknown): value is AppSettings {
     typeof value.ambientAnimationsEnabled === 'boolean' &&
     retentionPolicies.has(value.conversationRetentionPolicy as RetentionPolicy) &&
     optionalString(value.lastOpenedConversationId) &&
-    isCompanionPreferences(value.companionPreferences)
+    isCompanionPreferences(value.companionPreferences) &&
+    isMemoryPreferences(value.memoryPreferences)
   );
 }
 
@@ -342,6 +382,86 @@ export function isDevelopmentFixtureResult(value: unknown): value is Development
   );
 }
 
+export function isMemoryPreferences(value: unknown): value is MemoryPreferences {
+  return (
+    isRecord(value) &&
+    typeof value.memoryEnabled === 'boolean' &&
+    memoryApprovalModes.has(value.memoryApprovalMode as MemoryApprovalMode) &&
+    typeof value.allowPersonalMemories === 'boolean' &&
+    typeof value.allowSensitiveMemories === 'boolean' &&
+    typeof value.showMemoryUsedIndicator === 'boolean' &&
+    typeof value.memoryCandidateNotifications === 'boolean' &&
+    isBoundedNumber(value.temporaryMemoryDefaultExpiryDays, 1, 365) &&
+    typeof value.useMemoriesInTemporaryChat === 'boolean'
+  );
+}
+
+export function normalizeMemoryPreferences(value: unknown): MemoryPreferences {
+  return isMemoryPreferences(value) ? value : defaultMemoryPreferences;
+}
+
+export function isMemory(value: unknown): value is Memory {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    memoryCategories.has(value.category as MemoryCategory) &&
+    typeof value.content === 'string' &&
+    typeof value.normalizedContent === 'string' &&
+    memoryStatuses.has(value.status as MemoryStatus) &&
+    isMemorySourceKind(value.sourceKind) &&
+    optionalString(value.sourceConversationId) &&
+    optionalString(value.sourceMessageId) &&
+    typeof value.confidence === 'number' &&
+    typeof value.importance === 'number' &&
+    memorySensitivities.has(value.sensitivity as MemorySensitivity) &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string' &&
+    optionalString(value.confirmedAt) &&
+    optionalString(value.lastUsedAt) &&
+    typeof value.useCount === 'number' &&
+    optionalString(value.expiresAt) &&
+    optionalString(value.supersedesMemoryId)
+  );
+}
+
+export function isRetrievedMemory(value: unknown): value is RetrievedMemory {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    memoryCategories.has(value.category as MemoryCategory) &&
+    typeof value.content === 'string' &&
+    memorySensitivities.has(value.sensitivity as MemorySensitivity) &&
+    typeof value.score === 'number' &&
+    Array.isArray(value.matchReasons) &&
+    value.matchReasons.every((reason) => typeof reason === 'string')
+  );
+}
+
+export function isMemoryUsageRecord(value: unknown): value is MemoryUsageRecord {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.memoryId === 'string' &&
+    typeof value.conversationId === 'string' &&
+    optionalString(value.assistantMessageId) &&
+    typeof value.usedAt === 'string' &&
+    typeof value.reasonCode === 'string'
+  );
+}
+
+export function isDeleteAllMemoriesResult(value: unknown): value is DeleteAllMemoriesResult {
+  return isRecord(value) && typeof value.deletedMemories === 'number';
+}
+
+export function isMemoryExportResult(value: unknown): value is MemoryExportResult {
+  return (
+    isRecord(value) &&
+    typeof value.exportedMemories === 'number' &&
+    typeof value.filePath === 'string' &&
+    typeof value.fileName === 'string'
+  );
+}
+
 function isStoredMessage(value: unknown): value is StoredMessage {
   return (
     isRecord(value) &&
@@ -370,6 +490,15 @@ function isCompanionFreePosition(value: unknown): value is CompanionFreePosition
     Number.isInteger(value.x) &&
     typeof value.y === 'number' &&
     Number.isInteger(value.y)
+  );
+}
+
+function isMemorySourceKind(value: unknown): value is MemorySourceKind {
+  return (
+    value === 'user_explicit' ||
+    value === 'model_proposed' ||
+    value === 'user_created' ||
+    value === 'system_observation'
   );
 }
 

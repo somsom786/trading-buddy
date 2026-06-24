@@ -11,6 +11,7 @@ import {
   storedMessageToChatMessage,
   type StoredMessage,
 } from './types';
+import { defaultMemoryPreferences } from '../memory/types';
 
 const companionPreferences = {
   buddyVisible: true,
@@ -66,6 +67,7 @@ describe('storage frontend types', () => {
         conversationRetentionPolicy: 'keep_until_delete',
         selectedLocalModel: 'qwen3:4b',
         companionPreferences,
+        memoryPreferences: defaultMemoryPreferences,
       }),
     ).toBe(true);
     expect(
@@ -73,6 +75,7 @@ describe('storage frontend types', () => {
         ambientAnimationsEnabled: true,
         conversationRetentionPolicy: 'delete_everything_whenever',
         companionPreferences,
+        memoryPreferences: defaultMemoryPreferences,
       }),
     ).toBe(false);
   });

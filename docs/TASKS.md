@@ -187,3 +187,43 @@ production-ready animation.
 
 The unchecked items are planning notes, not authorization to implement integrations or model
 features.
+
+## Task 6 - Transparent Local Companion Memory
+
+- [x] Run baseline validation before implementation.
+- [x] Add schema v3 with typed memory preferences, `memories`, `memory_fts`, and
+      `memory_usage_records`.
+- [x] Keep memory persistence behind Rust repository functions and typed Tauri commands.
+- [x] Preserve approved memories when source conversations are deleted by detaching provenance.
+- [x] Add deterministic explicit memory intent detection.
+- [x] Add deterministic candidate pre-filtering.
+- [x] Add deterministic fake-secret detection and storage-boundary secret rejection.
+- [x] Add local Qwen structured extraction prompt construction and strict frontend candidate
+      validation.
+- [x] Keep model-proposed candidates unable to write directly to SQLite.
+- [x] Default to ask-every-time memory approval.
+- [x] Retrieve only confirmed, non-expired, non-superseded memories.
+- [x] Exclude sensitive memories from default retrieval and export.
+- [x] Build labelled confirmed-memory context below the system prompt.
+- [x] Add memory-used usage records with IDs and reason codes only.
+- [x] Add desktop bubble memory proposal card.
+- [x] Add Companion Home **What Buddy Knows About Me** with confirmed, pending, expiring, rejected,
+      settings, search, filters, sort, edit, confirm, reject, delete, delete-all, and export.
+- [x] Keep temporary chats from creating durable memory and default them away from existing-memory
+      retrieval.
+- [x] Add separate memory JSON export.
+- [x] Add Rust tests for preferences, lifecycle, retrieval exclusions, secret rejection, provenance
+      detachment, usage logging, export, and memory deletion separation.
+- [x] Add frontend tests for intent detection, pre-filtering, structured extraction validation,
+      secret detection, and memory context construction.
+- [ ] Complete full real-desktop local-Qwen manual verification of remember/restart/retrieve/edit/
+      delete/export scenarios.
+- [ ] Add full conflict-resolution UX for contradictory memories.
+- [ ] Add bulk natural-language forgetting by category/source.
+- [ ] Add fixture-scale development Memory Lab controls for 100/1,000 memory performance runs.
+- [ ] Add restore/extend/convert temporary memory controls beyond the basic edit/delete path.
+- [ ] Add exhaustive shared queue synchronization tests across separate bubble and Companion Home
+      webviews.
+
+Task 6 establishes the durable transparent memory foundation. Some advanced UX and manual-QA
+acceptance items remain pending and are recommended for Task 7 rather than being silently claimed.

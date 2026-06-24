@@ -42,12 +42,20 @@ import {
 import { tauriLocalAiService, type LocalAiService } from '../../services/tauri/localAiService';
 import { tauriStorageService, type StorageService } from '../../services/tauri/storageService';
 import { tauriWindowService, type WindowService } from '../../services/windowService';
+import {
+  buildMemoryContextForMessage,
+  handleExplicitMemoryIntent,
+  runBackgroundMemoryExtraction,
+} from '../../services/memoryWorkflow';
 import { BuddyLab } from '../local-ai/BuddyLab';
 import { StorageLab } from '../local-ai/StorageLab';
 import { ChatComposer } from './ChatComposer';
 import { LocalAiStatusPanel } from './LocalAiStatusPanel';
 import { MessageList } from './MessageList';
 import { ModelSelector } from './ModelSelector';
+import { MemoryPanel } from '../memory/MemoryPanel';
+import { MemoryProposalCard } from '../memory/MemoryProposalCard';
+import type { Memory, RetrievedMemory } from '../../domain/memory/types';
 
 const CHECKPOINT_CHAR_THRESHOLD = 500;
 const CHECKPOINT_INTERVAL_MS = 1_200;
@@ -63,10 +71,12 @@ type PersistenceMode = 'persistent' | 'temporary';
 
 interface ActiveAssistantPersistence {
   mode: PersistenceMode;
+  conversationId: string;
   messageId: string;
   requestId: string;
   content: string;
   lastSavedLength: number;
+  memoryIds: string[];
 }
 
 export function ChatWorkspace({
@@ -94,6 +104,9 @@ export function ChatWorkspace({
   const [buddyState, setBuddyStateValue] = useState<BuddyState>('idle');
   const [retentionPolicy, setRetentionPolicyState] = useState<RetentionPolicy>('keep_until_delete');
   const [lastExport, setLastExport] = useState<ExportResult | null>(null);
+  const [pendingMemory, setPendingMemory] = useState<Memory | null>(null);
+  const [usedMemories, setUsedMemories] = useState<RetrievedMemory[]>([]);
+  const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const activeRequestRef = useRef<string | null>(null);
@@ -173,6 +186,7 @@ export function ChatWorkspace({
         });
         setMode('persistent');
         setActiveConversationId(conversationId);
+        setConversationMemoryOptOut(false);
         setStorageError(null);
         setStorageNotice(null);
         await storageService.setLastOpenedConversation(conversationId);
@@ -306,6 +320,14 @@ export function ChatWorkspace({
       try {
         if (finalStatus === 'completed') {
           await storageService.completeAssistant(update);
+          if (persistence.memoryIds.length > 0) {
+            await storageService.recordMemoryUsage({
+              memoryIds: persistence.memoryIds,
+              conversationId: persistence.conversationId,
+              assistantMessageId: persistence.messageId,
+              reasonCode: 'chat_context',
+            });
+          }
           assistantPersistenceRef.current = null;
         } else if (finalStatus === 'cancelled') {
           await storageService.cancelAssistant(update);
@@ -409,6 +431,8 @@ export function ChatWorkspace({
       let conversationId = session.id;
       let userMessage = createChatMessage('user', content);
       let assistantMessage = createChatMessage('assistant', '');
+      let memoryContext: string | null = null;
+      let memoryOptedOutForRequest = conversationMemoryOptOut;
 
       if (requestMode === 'real' && mode === 'persistent') {
         try {
@@ -424,10 +448,12 @@ export function ChatWorkspace({
           setActiveConversationId(prepared.conversation.id);
           assistantPersistenceRef.current = {
             mode: 'persistent',
+            conversationId,
             messageId: prepared.assistantMessage.id,
             requestId,
             content: '',
             lastSavedLength: 0,
+            memoryIds: [],
           };
           await refreshConversationLists();
         } catch (error) {
@@ -437,11 +463,55 @@ export function ChatWorkspace({
       } else {
         assistantPersistenceRef.current = {
           mode: 'temporary',
+          conversationId,
           messageId: assistantMessage.id,
           requestId,
           content: '',
           lastSavedLength: 0,
+          memoryIds: [],
         };
+      }
+
+      if (requestMode === 'real') {
+        try {
+          const memoryContextResult = await buildMemoryContextForMessage({
+            storageService,
+            content,
+            temporaryChat: mode === 'temporary',
+          });
+          memoryContext = memoryContextResult.context;
+          const retrievedMemories = memoryContextResult.retrieved;
+          setUsedMemories(retrievedMemories);
+          if (assistantPersistenceRef.current.requestId === requestId) {
+            assistantPersistenceRef.current.memoryIds = retrievedMemories.map(
+              (memory) => memory.id,
+            );
+          }
+          const proposalResult = await handleExplicitMemoryIntent({
+            storageService,
+            content,
+            temporaryChat: mode === 'temporary',
+            sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+            sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+            preferences: memoryContextResult.preferences,
+          });
+          if (proposalResult.proposal?.status === 'proposed') {
+            setPendingMemory(proposalResult.proposal);
+            setBuddyState('thinking');
+          }
+          if (proposalResult.usedOptOut === 'conversation') {
+            memoryOptedOutForRequest = true;
+            setConversationMemoryOptOut(true);
+          }
+          if (proposalResult.usedOptOut === 'message') {
+            memoryOptedOutForRequest = true;
+          }
+          if (proposalResult.notice) {
+            setStorageNotice(proposalResult.notice);
+          }
+        } catch (error) {
+          setStorageError(normalizeStorageError(error));
+        }
       }
 
       const request: LocalChatRequest = {
@@ -450,6 +520,7 @@ export function ChatWorkspace({
         model: selectedModel,
         messages: [
           { role: 'system', content: COMPANION_SYSTEM_PROMPT },
+          ...(memoryContext ? [{ role: 'system' as const, content: memoryContext }] : []),
           ...session.messages
             .filter((message) => message.content)
             .map(({ role, content: messageContent }) => ({ role, content: messageContent })),
@@ -494,6 +565,28 @@ export function ChatWorkspace({
 
       try {
         await localAiService.streamChat(request, handleStreamEvent);
+        const settings = await storageService.getSettings();
+        void runBackgroundMemoryExtraction({
+          storageService,
+          localAiService,
+          content,
+          model: selectedModel,
+          requestId: createId('memory_request'),
+          sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+          temporaryChat: mode === 'temporary',
+          conversationOptedOut: memoryOptedOutForRequest,
+          preferences: settings.memoryPreferences,
+        })
+          .then((proposal) => {
+            if (proposal?.status === 'proposed') {
+              setPendingMemory(proposal);
+              setBuddyState('thinking');
+            }
+          })
+          .catch((error: unknown) => {
+            setStorageError(normalizeStorageError(error));
+          });
       } catch (error) {
         handleStreamEvent({
           type: 'failed',
@@ -504,6 +597,7 @@ export function ChatWorkspace({
     },
     [
       activeConversationId,
+      conversationMemoryOptOut,
       handleStreamEvent,
       localAiService,
       mode,
@@ -549,6 +643,7 @@ export function ChatWorkspace({
     }
     setMode('persistent');
     setActiveConversationId(null);
+    setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
     setStorageNotice('New chat is ready. It will be saved after your first message.');
   };
@@ -564,6 +659,7 @@ export function ChatWorkspace({
     }
     setMode('temporary');
     setActiveConversationId(null);
+    setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
     setStorageNotice('Temporary chat is on. Conversation content will not be written to disk.');
   };
@@ -578,6 +674,7 @@ export function ChatWorkspace({
     }
     setMode('persistent');
     setActiveConversationId(null);
+    setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
     setStorageNotice('Temporary chat cleared. New saved chat is ready.');
   };
@@ -804,6 +901,49 @@ export function ChatWorkspace({
     }
   };
 
+  const confirmPendingMemory = async (memory: Memory) => {
+    try {
+      await storageService.confirmMemory(memory.id);
+      setPendingMemory(null);
+      setBuddyState('happy');
+      setStorageNotice('Memory confirmed. Buddy may use it when relevant.');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const editPendingMemory = async (memory: Memory) => {
+    const content = window.prompt('Edit memory before saving', memory.content);
+    if (content === null) {
+      return;
+    }
+    try {
+      const updated = await storageService.updateMemoryContent({
+        memoryId: memory.id,
+        content,
+        category: memory.category,
+        sensitivity: memory.sensitivity,
+        expiresAt: memory.expiresAt,
+      });
+      setPendingMemory(updated);
+      setBuddyState('idle');
+      setStorageNotice('Memory proposal edited. Confirm it when ready.');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const rejectPendingMemory = async (memory: Memory) => {
+    try {
+      await storageService.rejectMemory(memory.id);
+      setPendingMemory(null);
+      setBuddyState('idle');
+      setStorageNotice('Memory proposal dismissed. Buddy will not use it.');
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
   const models = providerStatus.status === 'connected' ? providerStatus.models : [];
   const canSend =
     canSubmitMessage(session, input, LOCAL_AI_CONFIG.maxInputLength) &&
@@ -983,6 +1123,29 @@ export function ChatWorkspace({
 
         {storageNotice ? <div className="storage-notice">{storageNotice}</div> : null}
 
+        {pendingMemory ? (
+          <MemoryProposalCard
+            memory={pendingMemory}
+            onRemember={confirmPendingMemory}
+            onEdit={editPendingMemory}
+            onReject={rejectPendingMemory}
+          />
+        ) : null}
+
+        {usedMemories.length > 0 ? (
+          <details className="memory-used-indicator">
+            <summary>Used {String(usedMemories.length)} confirmed memories</summary>
+            <ul>
+              {usedMemories.map((memory) => (
+                <li key={memory.id}>
+                  <span>{memory.category.replaceAll('_', ' ')}</span>
+                  {memory.content}
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
         <MessageList messages={session.messages} generating={session.status === 'generating'} />
 
         {session.error ? (
@@ -1089,6 +1252,14 @@ export function ChatWorkspace({
             retain historical data.
           </p>
         </details>
+
+        {storageAvailable ? (
+          <MemoryPanel
+            storageService={storageService}
+            onNotice={setStorageNotice}
+            onError={setStorageError}
+          />
+        ) : null}
 
         {import.meta.env.DEV ? (
           <>

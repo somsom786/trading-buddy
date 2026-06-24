@@ -11,7 +11,10 @@ use super::{
     errors::StorageError,
     migrations,
     models::{AppSettings, StorageStatus},
-    repository::{cleanup_retention, metadata, recover_interrupted_streams, settings},
+    repository::{
+        cleanup_expired_memories, cleanup_retention, metadata, recover_interrupted_streams,
+        settings,
+    },
 };
 
 const DATABASE_FILE_NAME: &str = "trading-buddy.db";
@@ -120,6 +123,7 @@ fn initialize_database(app: &AppHandle) -> Result<(Connection, PathBuf), Storage
     migrations::run_migrations(&mut connection)?;
     recover_interrupted_streams(&connection)?;
     cleanup_retention(&connection)?;
+    cleanup_expired_memories(&connection)?;
     let _ = metadata(&connection)?;
     Ok((connection, database_path))
 }

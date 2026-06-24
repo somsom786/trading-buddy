@@ -350,3 +350,61 @@ The extracted assets are static poses, not animation frames. Temporary breathing
 thinking, talking, writing, happy, and sleeping motion uses restrained CSS transforms that respect
 reduced motion. Production sprite animation remains deferred until original frame animation and
 artist cleanup are deliberately produced.
+
+## 045 - Transparent memory before clever memory
+
+**Status:** Accepted
+
+Task 6 implements visible, editable, user-approved memories before semantic embeddings or hidden
+profile-building. Memory is a relationship feature only if the user can inspect and correct it.
+The default approval mode is `ask_every_time`; proposed memories are never used as facts until
+confirmed.
+
+## 046 - Embeddings and vector databases deferred
+
+**Status:** Accepted
+
+SQLite FTS5 plus deterministic ranking is sufficient for the first local memory milestone and is
+easy to inspect, test, export, and delete. Embeddings may be added later behind the retrieval
+interface, but adding a vector database now would increase dependency and privacy surface before the
+approval UX is proven.
+
+## 047 - Secrets are prohibited memory content
+
+**Status:** Accepted
+
+Passwords, seed phrases, private keys, API keys, authentication tokens, and recovery codes are never
+valid companion memories. Deterministic fake-secret-pattern detection rejects obvious cases before
+storage. The UI refusal avoids echoing the full secret back.
+
+## 048 - Sensitive memory disabled by default
+
+**Status:** Accepted
+
+Sensitive memories require explicit user enablement and approval. Trading preferences, general risk
+rules, and project goals can be personal without being automatically sensitive, but health,
+political, religious, sexual, precise-location, and similarly private facts are not auto-saved.
+
+## 049 - Temporary chats do not create durable memory
+
+**Status:** Accepted
+
+Temporary chats remain in-memory-only by default. They do not create memory proposals, and existing
+confirmed memories are not retrieved there unless the user explicitly enables
+`useMemoriesInTemporaryChat`.
+
+## 050 - Memory is context, not authority
+
+**Status:** Accepted
+
+Confirmed memories are added below the companion system prompt as labelled user-approved context.
+They are treated as potentially outdated and cannot override safety rules, privacy boundaries, or
+the user's current message.
+
+## 051 - Memory deletion and conversation deletion are separate
+
+**Status:** Accepted
+
+Deleting a source conversation detaches memory provenance with `ON DELETE SET NULL` but does not
+silently delete approved memories. Deleting memories does not delete conversations. This keeps the
+two user intents distinct and auditable.

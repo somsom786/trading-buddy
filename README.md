@@ -115,6 +115,49 @@ Use **Temporary chat** for an in-memory session. Temporary chat content is not w
 is gone after the application closes, you leave temporary mode, or the session is reset. Temporary
 mode is visibly labeled in the chat toolbar before you send messages.
 
+## Companion memory
+
+Memory is separate from saved conversation history. Conversations are transcripts; memories are
+small, user-approved facts or preferences that Buddy may use later when relevant.
+
+Buddy can propose memories from explicit requests such as:
+
+```text
+Remember that I prefer direct feedback.
+Please remember my maximum risk is 1%.
+```
+
+Clear durable statements may also be passed through a deterministic pre-filter and a local
+Qwen/Ollama structured extraction prompt. The local model can propose memory JSON, but it cannot
+write directly to SQLite. Proposals are schema-validated, checked for prohibited content, and then
+shown to the user.
+
+The default mode is **Ask every time**. Proposed memories are not used until confirmed. When a
+confirmed memory is relevant, it is added to the local model request as labelled user-approved
+context below the companion system prompt. It is not treated as a system instruction.
+
+Open **What Buddy Knows About Me** in Companion Home to:
+
+- view confirmed memories;
+- review pending proposals;
+- inspect expiring and rejected memories;
+- search, filter, and sort;
+- edit, confirm, reject, or delete memories;
+- disable memory or switch to manual-only mode;
+- delete all memories without deleting conversations;
+- export memories as a separate local JSON file.
+
+The desktop bubble can also show one polite memory proposal at a time with **Remember**, **Edit**,
+and **Not now**.
+
+Temporary chats do not create durable memories. Existing memories are also not used in temporary
+chats unless **Use confirmed memories in temporary chats** is enabled in memory settings.
+
+Sensitive memory is disabled by default. Secrets are never valid memories: do not ask Buddy to save
+seed phrases, private keys, passwords, API keys, authentication tokens, recovery codes, or exchange
+credentials. Obvious fake-secret-shaped content is rejected deterministically in tests and at the
+storage boundary.
+
 ## Local data and privacy controls
 
 The database filename is `trading-buddy.db` and is created in Tauri's application-specific local

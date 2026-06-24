@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 24, 2026 - Transparent local companion memory
+
+- Added local SQLite memory schema, typed preferences, FTS table, and usage records.
+- Added deterministic explicit memory intents, pre-filtering, fake-secret rejection, and structured
+  local-Qwen proposal validation.
+- Added confirmed-memory retrieval and labelled memory context below the companion system prompt.
+- Added memory proposal cards to the desktop bubble and Companion Home.
+- Added **What Buddy Knows About Me** for memory inspection, search/filter/sort, settings,
+  confirm/reject/edit/delete/delete-all, and separate memory export.
+- Added frontend and Rust tests for memory domain logic, schema/repository behavior, retrieval
+  exclusions, usage logging, provenance detachment, and export boundaries.
+- Detailed handoff report:
+  [`docs/reports/TASK-006-transparent-local-companion-memory.md`](reports/TASK-006-transparent-local-companion-memory.md)
+
 ### June 24, 2026 - Temporary buddy pose asset pack
 
 - Moved the provided buddy reference image into `src/assets/buddy/source/`.

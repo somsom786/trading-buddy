@@ -70,3 +70,21 @@ work.
 - Companion preferences are stored in Rust-owned settings rather than browser local storage.
 - Global shortcut and launch-at-login preferences exist in the typed settings model, but the actual
   OS integrations are deferred until the official Tauri plugin surface is added and verified.
+
+## Transparent local memory milestone
+
+- Add Rust-owned SQLite memory tables, memory preferences, FTS index, and usage records.
+- Default memory mode is enabled but `ask_every_time`; proposed memories are not used until
+  confirmed.
+- Add deterministic explicit commands and candidate pre-filtering before any local model
+  extraction.
+- Use local Qwen/Ollama only for structured memory proposals; model output is schema-validated and
+  never writes directly to SQLite.
+- Retrieve only relevant confirmed memories and pass them below the companion system prompt as
+  labelled user-approved context.
+- Show memory proposals in the desktop bubble and Companion Home without guilt or pressure.
+- Provide **What Buddy Knows About Me** for search, filters, settings, confirm/reject/edit/delete,
+  delete all, and separate memory export.
+- Keep temporary chats isolated by default: no durable memory creation, and existing memories are
+  used only if the user enables that setting.
+- Keep secrets prohibited and sensitive memories disabled by default.
