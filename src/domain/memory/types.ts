@@ -87,6 +87,18 @@ export interface RetrievedMemory {
   matchReasons: string[];
 }
 
+export interface MemoryDiagnostics {
+  totalCount: number;
+  proposedCount: number;
+  confirmedCount: number;
+  rejectedCount: number;
+  expiredCount: number;
+  supersededCount: number;
+  sensitiveCount: number;
+  ftsAvailable: boolean;
+  fixtureCount: number;
+}
+
 export interface MemoryUsageRecord {
   id: string;
   memoryId: string;
@@ -111,6 +123,11 @@ export interface MemoryExportResult {
   exportedMemories: number;
   filePath: string;
   fileName: string;
+}
+
+export interface DevelopmentMemoryFixtureResult {
+  createdMemories: number;
+  deletedMemories: number;
 }
 
 export interface MemoryExtractionDecision {

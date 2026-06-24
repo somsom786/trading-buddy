@@ -1,4 +1,5 @@
 import { buildConfirmedMemoryContext } from '../domain/memory/context';
+import { classifyMemoryConflict } from '../domain/memory/conflicts';
 import {
   MEMORY_EXTRACTION_SYSTEM_PROMPT,
   buildMemoryExtractionUserPrompt,
@@ -6,6 +7,7 @@ import {
   explicitMemoryCandidate,
   parseMemoryExtractionResponse,
 } from '../domain/memory/extraction';
+import { resolveForgetRequest } from '../domain/memory/forgetting';
 import { detectMemoryIntent } from '../domain/memory/intent';
 import { canAutoConfirmMemory, canStoreMemorySensitivity } from '../domain/memory/policy';
 import { decideMemoryExtraction } from '../domain/memory/prefilter';
@@ -24,6 +26,11 @@ export interface MemoryContextResult {
 export interface MemoryProposalResult {
   proposal?: Memory;
   usedOptOut?: 'message' | 'conversation';
+  notice?: string;
+}
+
+export interface MemoryForgetResult {
+  deletedMemory?: Memory;
   notice?: string;
 }
 
@@ -98,21 +105,119 @@ export async function handleExplicitMemoryIntent(input: {
   const status = canAutoConfirmMemory(candidate.sensitivity, input.preferences)
     ? 'confirmed'
     : 'proposed';
-  const proposal = await input.storageService.createMemory(
-    candidateToDraft(candidate, {
-      status,
-      sourceKind: 'user_explicit',
-      sourceConversationId: input.sourceConversationId,
-      sourceMessageId: input.sourceMessageId,
-    }),
-  );
+  const draft = candidateToDraft(candidate, {
+    status,
+    sourceKind: 'user_explicit',
+    sourceConversationId: input.sourceConversationId,
+    sourceMessageId: input.sourceMessageId,
+  });
+  const existing = await input.storageService.listMemories({ status: 'confirmed', limit: 25 });
+  const relationship = classifyMemoryConflict({ candidate: draft, existing });
+  if (relationship.relationship === 'conflict') {
+    return {
+      notice:
+        'That sounds related to an existing memory but may contradict it. Please review memories before replacing anything.',
+    };
+  }
+  const proposal =
+    relationship.relationship === 'update' && relationship.existingMemory
+      ? status === 'confirmed'
+        ? await input.storageService.supersedeMemory({
+            previousMemoryId: relationship.existingMemory.id,
+            replacement: draft,
+          })
+        : await input.storageService.createMemory({
+            ...draft,
+            supersedesMemoryId: relationship.existingMemory.id,
+          })
+      : await input.storageService.createMemory(draft);
   return {
     proposal,
     notice:
-      status === 'confirmed'
-        ? 'Memory saved. You can edit or delete it anytime.'
-        : 'Memory proposal created. Please approve it before Buddy uses it.',
+      relationship.relationship === 'update'
+        ? status === 'confirmed'
+          ? 'Memory updated. The older version was superseded.'
+          : 'Memory update proposal created. Confirm it before Buddy replaces the old version.'
+        : status === 'confirmed'
+          ? 'Memory saved. You can edit or delete it anytime.'
+          : 'Memory proposal created. Please approve it before Buddy uses it.',
   };
+}
+
+export async function handleForgetMemoryIntent(input: {
+  storageService: StorageService;
+  content: string;
+}): Promise<MemoryForgetResult> {
+  const intent = detectMemoryIntent(input.content);
+  if (intent.type !== 'forget_explicit') {
+    return {};
+  }
+  const memories = await input.storageService.listMemories({ status: 'confirmed', limit: 100 });
+  const resolution = resolveForgetRequest({ query: intent.query, memories });
+  switch (resolution.kind) {
+    case 'exact':
+      await input.storageService.deleteMemory(resolution.memory.id);
+      return {
+        deletedMemory: resolution.memory,
+        notice: `Forgot: ${resolution.memory.content}`,
+      };
+    case 'ambiguous':
+      return {
+        notice: `I found ${String(
+          resolution.matches.length,
+        )} possible memories. Please open What Buddy Knows About Me and delete the exact one.`,
+      };
+    case 'category':
+      return {
+        notice: `I found ${String(
+          resolution.matches.length,
+        )} ${resolution.category.replaceAll('_', ' ')} memories. Please confirm deletions in What Buddy Knows About Me.`,
+      };
+    case 'all':
+      return {
+        notice:
+          'That would delete all memories. Please use Delete all memories in What Buddy Knows About Me so it is deliberate.',
+      };
+    case 'not_found':
+      return { notice: resolution.reason };
+  }
+}
+
+async function createMemoryFromCandidate(input: {
+  storageService: StorageService;
+  candidate: ReturnType<typeof parseMemoryExtractionResponse>[number];
+  preferences: MemoryPreferences;
+  sourceConversationId?: string | undefined;
+  sourceMessageId?: string | undefined;
+  sourceKind: 'user_explicit' | 'model_proposed';
+}): Promise<Memory | null> {
+  const status = canAutoConfirmMemory(input.candidate.sensitivity, input.preferences)
+    ? 'confirmed'
+    : 'proposed';
+  const draft = candidateToDraft(input.candidate, {
+    status,
+    sourceKind: input.sourceKind,
+    sourceConversationId: input.sourceConversationId,
+    sourceMessageId: input.sourceMessageId,
+  });
+  const existing = await input.storageService.listMemories({ status: 'confirmed', limit: 25 });
+  const relationship = classifyMemoryConflict({ candidate: draft, existing });
+  if (relationship.relationship === 'duplicate' || relationship.relationship === 'conflict') {
+    return null;
+  }
+  if (relationship.relationship === 'update' && relationship.existingMemory) {
+    if (status === 'confirmed') {
+      return input.storageService.supersedeMemory({
+        previousMemoryId: relationship.existingMemory.id,
+        replacement: draft,
+      });
+    }
+    return input.storageService.createMemory({
+      ...draft,
+      supersedesMemoryId: relationship.existingMemory.id,
+    });
+  }
+  return input.storageService.createMemory(draft);
 }
 
 export async function runBackgroundMemoryExtraction(input: {
@@ -176,16 +281,14 @@ export async function runBackgroundMemoryExtraction(input: {
   if (duplicate) {
     return null;
   }
-  return input.storageService.createMemory(
-    candidateToDraft(candidate, {
-      status: canAutoConfirmMemory(candidate.sensitivity, input.preferences)
-        ? 'confirmed'
-        : 'proposed',
-      sourceKind: 'model_proposed',
-      sourceConversationId: input.sourceConversationId,
-      sourceMessageId: input.sourceMessageId,
-    }),
-  );
+  return createMemoryFromCandidate({
+    storageService: input.storageService,
+    candidate,
+    preferences: input.preferences,
+    sourceKind: 'model_proposed',
+    sourceConversationId: input.sourceConversationId,
+    sourceMessageId: input.sourceMessageId,
+  });
 }
 
 async function findDuplicate(

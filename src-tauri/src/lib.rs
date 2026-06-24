@@ -113,7 +113,10 @@ pub fn run() {
             commands::storage::list_memories,
             commands::storage::confirm_memory,
             commands::storage::reject_memory,
+            commands::storage::restore_memory,
             commands::storage::update_memory_content,
+            commands::storage::update_memory_expiry,
+            commands::storage::supersede_memory,
             commands::storage::delete_memory,
             commands::storage::delete_all_memories,
             commands::storage::cleanup_expired_memories,
@@ -121,6 +124,9 @@ pub fn run() {
             commands::storage::record_memory_usage,
             commands::storage::list_memory_usage_records,
             commands::storage::export_memories,
+            commands::storage::get_memory_diagnostics,
+            commands::storage::create_development_memory_fixtures,
+            commands::storage::delete_development_memory_fixtures,
             commands::storage::create_development_interrupted_fixture
         ])
         .run(tauri::generate_context!())

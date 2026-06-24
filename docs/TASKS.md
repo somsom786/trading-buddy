@@ -227,3 +227,32 @@ features.
 
 Task 6 establishes the durable transparent memory foundation. Some advanced UX and manual-QA
 acceptance items remain pending and are recommended for Task 7 rather than being silently claimed.
+
+## Task 7 - Memory Reliability, Conflict Resolution, Forgetting, and Desktop QA
+
+- [x] Run baseline validation before implementation.
+- [x] Write `docs/qa/TASK-007-memory-qa-plan.md` before implementation.
+- [x] Add deterministic conflict classification for duplicate, update, conflict, and unrelated
+      memories.
+- [x] Add deterministic natural-language forgetting resolution for exact, ambiguous, category,
+      all, and not-found requests.
+- [x] Wire exact forget requests into both Companion Home and Bubble chat flows.
+- [x] Keep broad/ambiguous forget requests confirmation-first instead of bulk-deleting.
+- [x] Add superseding behavior for confirmed memory updates.
+- [x] Keep proposed updates from superseding old memories until confirmation.
+- [x] Add Memory Lab diagnostics and bounded 100/1,000 fixture generation/cleanup.
+- [x] Move Rust memory listing filters into SQLite for bounded list behavior.
+- [x] Add restore and remove-expiry controls for temporary/rejected/expired memories.
+- [x] Add stable retrieval reason codes.
+- [x] Verify local Qwen availability through Ollama loopback.
+- [x] Smoke-launch the real desktop debug build and visually verify the buddy window.
+- [x] Run frontend checks, Rust tests, clippy, Vite build, and Tauri debug/release no-bundle
+      builds.
+- [ ] Complete fully driven real-desktop local-Qwen remember/confirm/retrieve/forget/export QA in
+      the WebView UI.
+- [ ] Add full cross-WebView proposal queue synchronization tests.
+- [ ] Add richer user-facing conflict-resolution UI for contradictory memories.
+- [ ] Add selectable bulk forget confirmation UI for category/source requests.
+
+Task 7 hardens memory reliability and adds development tooling. The remaining unchecked items need
+direct human WebView interaction or additional UX design rather than silent automation claims.

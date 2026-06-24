@@ -45,9 +45,11 @@ import { tauriWindowService, type WindowService } from '../../services/windowSer
 import {
   buildMemoryContextForMessage,
   handleExplicitMemoryIntent,
+  handleForgetMemoryIntent,
   runBackgroundMemoryExtraction,
 } from '../../services/memoryWorkflow';
 import { BuddyLab } from '../local-ai/BuddyLab';
+import { MemoryLab } from '../local-ai/MemoryLab';
 import { StorageLab } from '../local-ai/StorageLab';
 import { ChatComposer } from './ChatComposer';
 import { LocalAiStatusPanel } from './LocalAiStatusPanel';
@@ -55,7 +57,7 @@ import { MessageList } from './MessageList';
 import { ModelSelector } from './ModelSelector';
 import { MemoryPanel } from '../memory/MemoryPanel';
 import { MemoryProposalCard } from '../memory/MemoryProposalCard';
-import type { Memory, RetrievedMemory } from '../../domain/memory/types';
+import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
 
 const CHECKPOINT_CHAR_THRESHOLD = 500;
 const CHECKPOINT_INTERVAL_MS = 1_200;
@@ -91,6 +93,7 @@ export function ChatWorkspace({
   const [providerStatus, setProviderStatus] = useState<LocalAiStatus>({ status: 'checking' });
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [storageDiagnostics, setStorageDiagnostics] = useState<StorageDiagnostics | null>(null);
+  const [memoryDiagnostics, setMemoryDiagnostics] = useState<MemoryDiagnostics | null>(null);
   const [storageError, setStorageError] = useState<StorageError | null>(null);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -134,6 +137,7 @@ export function ChatWorkspace({
     try {
       const diagnostics = await storageService.diagnostics();
       setStorageDiagnostics(diagnostics);
+      setMemoryDiagnostics(await storageService.getMemoryDiagnostics());
       if (diagnostics.error) {
         setStorageError(diagnostics.error);
       }
@@ -433,6 +437,7 @@ export function ChatWorkspace({
       let assistantMessage = createChatMessage('assistant', '');
       let memoryContext: string | null = null;
       let memoryOptedOutForRequest = conversationMemoryOptOut;
+      let memoryNotice: string | null = null;
 
       if (requestMode === 'real' && mode === 'persistent') {
         try {
@@ -487,6 +492,13 @@ export function ChatWorkspace({
               (memory) => memory.id,
             );
           }
+          const forgetResult = await handleForgetMemoryIntent({
+            storageService,
+            content,
+          });
+          if (forgetResult.notice) {
+            memoryNotice = forgetResult.notice;
+          }
           const proposalResult = await handleExplicitMemoryIntent({
             storageService,
             content,
@@ -507,7 +519,7 @@ export function ChatWorkspace({
             memoryOptedOutForRequest = true;
           }
           if (proposalResult.notice) {
-            setStorageNotice(proposalResult.notice);
+            memoryNotice = proposalResult.notice;
           }
         } catch (error) {
           setStorageError(normalizeStorageError(error));
@@ -541,7 +553,7 @@ export function ChatWorkspace({
       });
       setInput('');
       setStorageError(null);
-      setStorageNotice(null);
+      setStorageNotice(memoryNotice);
       setBuddyState(buddyStateForLifecycle('message_submitted'));
 
       if (requestMode === 'mock') {
@@ -877,6 +889,34 @@ export function ChatWorkspace({
     } catch (error) {
       setStorageError(normalizeStorageError(error));
     }
+  };
+
+  const generateMemoryFixtures = async (count: number) => {
+    try {
+      const result = await storageService.createDevelopmentMemoryFixtures(count);
+      await refreshDiagnostics();
+      setStorageNotice(`Created ${String(result.createdMemories)} memory fixture(s).`);
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const deleteMemoryFixtures = async () => {
+    try {
+      const result = await storageService.deleteDevelopmentMemoryFixtures();
+      await refreshDiagnostics();
+      setStorageNotice(`Deleted ${String(result.deletedMemories)} memory fixture(s).`);
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const retrieveMemoryLabResults = async (query: string) => {
+    return storageService.retrieveMemories({
+      query,
+      limit: 8,
+      includeSensitive: false,
+    });
   };
 
   const exportConversations = async () => {
@@ -1274,6 +1314,15 @@ export function ChatWorkspace({
               }}
               onRunRetention={runRetentionCleanup}
               onSimulateInterrupted={simulateInterruptedMessage}
+            />
+            <MemoryLab
+              diagnostics={memoryDiagnostics}
+              onRefresh={() => {
+                void refreshDiagnostics();
+              }}
+              onGenerateFixtures={generateMemoryFixtures}
+              onDeleteFixtures={deleteMemoryFixtures}
+              onRetrieve={retrieveMemoryLabResults}
             />
             <BuddyLab
               buddyState={buddyState}

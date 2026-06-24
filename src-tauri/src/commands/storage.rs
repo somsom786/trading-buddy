@@ -7,11 +7,11 @@ use crate::storage::{
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionPreferences,
         ConversationDetail, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult, ExportResult, Memory,
-        MemoryCategory, MemoryDraft, MemoryExportResult, MemoryListOptions, MemoryPreferences,
-        MemorySensitivity, MemoryUsageRecord, MemoryUsageRequest, PrepareGenerationRequest,
-        PrepareGenerationResponse, RetentionCleanupResult, RetrievedMemory, StorageDiagnostics,
-        StorageStatus,
+        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
+        DevelopmentMemoryFixtureResult, ExportResult, Memory, MemoryCategory, MemoryDiagnostics,
+        MemoryDraft, MemoryExportResult, MemoryListOptions, MemoryPreferences, MemorySensitivity,
+        MemoryUsageRecord, MemoryUsageRequest, PrepareGenerationRequest, PrepareGenerationResponse,
+        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageStatus,
     },
     repository, StorageService,
 };
@@ -339,6 +339,16 @@ pub async fn reject_memory(
 }
 
 #[tauri::command]
+pub async fn restore_memory(
+    memory_id: String,
+    service: State<'_, StorageService>,
+) -> Result<Memory, StorageError> {
+    service
+        .run(move |connection, _| repository::restore_memory(connection, &memory_id))
+        .await
+}
+
+#[tauri::command]
 pub async fn update_memory_content(
     memory_id: String,
     content: String,
@@ -357,6 +367,32 @@ pub async fn update_memory_content(
                 sensitivity,
                 expires_at,
             )
+        })
+        .await
+}
+
+#[tauri::command]
+pub async fn update_memory_expiry(
+    memory_id: String,
+    expires_at: Option<String>,
+    service: State<'_, StorageService>,
+) -> Result<Memory, StorageError> {
+    service
+        .run(move |connection, _| {
+            repository::update_memory_expiry(connection, &memory_id, expires_at)
+        })
+        .await
+}
+
+#[tauri::command]
+pub async fn supersede_memory(
+    previous_memory_id: String,
+    replacement: MemoryDraft,
+    service: State<'_, StorageService>,
+) -> Result<Memory, StorageError> {
+    service
+        .run(move |connection, _| {
+            repository::supersede_memory(connection, &previous_memory_id, replacement)
         })
         .await
 }
@@ -464,6 +500,44 @@ pub async fn export_memories(
         file_path: display_path,
         file_name,
     }))
+}
+
+#[tauri::command]
+pub async fn get_memory_diagnostics(
+    service: State<'_, StorageService>,
+) -> Result<MemoryDiagnostics, StorageError> {
+    service
+        .run(|connection, _| repository::memory_diagnostics(connection))
+        .await
+}
+
+#[tauri::command]
+pub async fn create_development_memory_fixtures(
+    count: u32,
+    service: State<'_, StorageService>,
+) -> Result<DevelopmentMemoryFixtureResult, StorageError> {
+    if !cfg!(debug_assertions) {
+        return Err(StorageError::invalid_request(
+            "Development memory fixtures are available only in debug builds.",
+        ));
+    }
+    service
+        .run(move |connection, _| repository::create_development_memory_fixtures(connection, count))
+        .await
+}
+
+#[tauri::command]
+pub async fn delete_development_memory_fixtures(
+    service: State<'_, StorageService>,
+) -> Result<DevelopmentMemoryFixtureResult, StorageError> {
+    if !cfg!(debug_assertions) {
+        return Err(StorageError::invalid_request(
+            "Development memory fixtures are available only in debug builds.",
+        ));
+    }
+    service
+        .run(|connection, _| repository::delete_development_memory_fixtures(connection))
+        .await
 }
 
 #[tauri::command]

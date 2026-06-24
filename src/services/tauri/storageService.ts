@@ -7,7 +7,9 @@ import {
   isDeleteAllMemoriesResult,
   isExportResult,
   isDevelopmentFixtureResult,
+  isDevelopmentMemoryFixtureResult,
   isMemory,
+  isMemoryDiagnostics,
   isMemoryExportResult,
   isMemoryUsageRecord,
   isPrepareGenerationResponse,
@@ -26,9 +28,11 @@ import {
   type DeleteAllMemoriesResult,
   type DeleteAllResult,
   type DevelopmentFixtureResult,
+  type DevelopmentMemoryFixtureResult,
   type ExportResult,
   type Memory,
   type MemoryCategory,
+  type MemoryDiagnostics,
   type MemoryDraft,
   type MemoryExportResult,
   type MemoryListOptions,
@@ -77,6 +81,7 @@ export interface StorageService {
   listMemories(options: MemoryListOptions): Promise<Memory[]>;
   confirmMemory(memoryId: string): Promise<Memory>;
   rejectMemory(memoryId: string): Promise<Memory>;
+  restoreMemory(memoryId: string): Promise<Memory>;
   updateMemoryContent(options: {
     memoryId: string;
     content: string;
@@ -84,6 +89,11 @@ export interface StorageService {
     sensitivity: MemorySensitivity;
     expiresAt?: string | undefined;
   }): Promise<Memory>;
+  updateMemoryExpiry(options: {
+    memoryId: string;
+    expiresAt?: string | undefined;
+  }): Promise<Memory>;
+  supersedeMemory(options: { previousMemoryId: string; replacement: MemoryDraft }): Promise<Memory>;
   deleteMemory(memoryId: string): Promise<void>;
   deleteAllMemories(): Promise<DeleteAllMemoriesResult>;
   cleanupExpiredMemories(): Promise<number>;
@@ -98,6 +108,9 @@ export interface StorageService {
     limit?: number;
   }): Promise<MemoryUsageRecord[]>;
   exportMemories(includeSensitive: boolean): Promise<MemoryExportResult | null>;
+  getMemoryDiagnostics(): Promise<MemoryDiagnostics>;
+  createDevelopmentMemoryFixtures(count: number): Promise<DevelopmentMemoryFixtureResult>;
+  deleteDevelopmentMemoryFixtures(): Promise<DevelopmentMemoryFixtureResult>;
   createDevelopmentInterruptedFixture(): Promise<DevelopmentFixtureResult>;
 }
 
@@ -227,12 +240,24 @@ export const tauriStorageService: StorageService = {
     return invokeChecked('reject_memory', { memoryId }, isMemory);
   },
 
+  async restoreMemory(memoryId) {
+    return invokeChecked('restore_memory', { memoryId }, isMemory);
+  },
+
   async updateMemoryContent({ memoryId, content, category, sensitivity, expiresAt }) {
     return invokeChecked(
       'update_memory_content',
       { memoryId, content, category, sensitivity, expiresAt },
       isMemory,
     );
+  },
+
+  async updateMemoryExpiry({ memoryId, expiresAt }) {
+    return invokeChecked('update_memory_expiry', { memoryId, expiresAt }, isMemory);
+  },
+
+  async supersedeMemory({ previousMemoryId, replacement }) {
+    return invokeChecked('supersede_memory', { previousMemoryId, replacement }, isMemory);
   },
 
   async deleteMemory(memoryId) {
@@ -278,6 +303,26 @@ export const tauriStorageService: StorageService = {
       return value;
     }
     throw new StorageException(normalizeStorageError('Invalid memory export response.'));
+  },
+
+  async getMemoryDiagnostics() {
+    return invokeChecked('get_memory_diagnostics', undefined, isMemoryDiagnostics);
+  },
+
+  async createDevelopmentMemoryFixtures(count) {
+    return invokeChecked(
+      'create_development_memory_fixtures',
+      { count },
+      isDevelopmentMemoryFixtureResult,
+    );
+  },
+
+  async deleteDevelopmentMemoryFixtures() {
+    return invokeChecked(
+      'delete_development_memory_fixtures',
+      undefined,
+      isDevelopmentMemoryFixtureResult,
+    );
   },
 
   async createDevelopmentInterruptedFixture() {

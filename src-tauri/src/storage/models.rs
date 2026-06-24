@@ -487,6 +487,20 @@ pub struct RetrievedMemory {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct MemoryDiagnostics {
+    pub total_count: u32,
+    pub proposed_count: u32,
+    pub confirmed_count: u32,
+    pub rejected_count: u32,
+    pub expired_count: u32,
+    pub superseded_count: u32,
+    pub sensitive_count: u32,
+    pub fts_available: bool,
+    pub fixture_count: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryUsageRecord {
     pub id: String,
     pub memory_id: String,
@@ -633,6 +647,13 @@ pub struct ExportResult {
 pub struct DevelopmentFixtureResult {
     pub conversation_id: String,
     pub assistant_message_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DevelopmentMemoryFixtureResult {
+    pub created_memories: u32,
+    pub deleted_memories: u32,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

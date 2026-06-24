@@ -9,14 +9,14 @@ use super::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
         CompanionPlacementMode, CompanionPreferences, ConversationDetail, ConversationExport,
         ConversationExportFile, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult, Memory,
-        MemoryApprovalMode, MemoryCategory, MemoryDraft, MemoryExportFile, MemoryListOptions,
-        MemoryPreferences, MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord,
-        MemoryUsageRequest, MessageExport, PrepareGenerationRequest, PrepareGenerationResponse,
-        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageMetadata,
-        StoredMessage, StoredMessageRole, StoredMessageStatus, MAX_MEMORY_CONTENT_LENGTH,
-        MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH,
-        MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
+        DevelopmentMemoryFixtureResult, Memory, MemoryApprovalMode, MemoryCategory,
+        MemoryDiagnostics, MemoryDraft, MemoryExportFile, MemoryListOptions, MemoryPreferences,
+        MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
+        MessageExport, PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
+        RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
+        StoredMessageStatus, MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH,
+        MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -732,6 +732,13 @@ pub fn list_memories(
     if let Some(query) = &options.query {
         validate_memory_search(query)?;
     }
+    let status = options.status.as_ref().map(MemoryStatus::as_db);
+    let category = options.category.as_ref().map(MemoryCategory::as_db);
+    let sensitivity = options.sensitivity.as_ref().map(MemorySensitivity::as_db);
+    let query = options
+        .query
+        .as_ref()
+        .map(|value| format!("%{}%", normalize_memory_content(value)));
     let mut statement = connection
         .prepare(
             "SELECT id, category, content, normalized_content, status, source_kind,
@@ -739,34 +746,22 @@ pub fn list_memories(
                     created_at, updated_at, confirmed_at, last_used_at, use_count, expires_at,
                     supersedes_memory_id
              FROM memories
-             ORDER BY updated_at DESC, id ASC",
+             WHERE (?1 IS NULL OR status = ?1)
+               AND (?2 IS NULL OR category = ?2)
+               AND (?3 IS NULL OR sensitivity = ?3)
+               AND (?4 IS NULL OR normalized_content LIKE ?4)
+             ORDER BY updated_at DESC, id ASC
+             LIMIT ?5",
         )
         .map_err(StorageError::from_sql_read)?;
-    let mut memories = collect_rows(
+    let memories = collect_rows(
         statement
-            .query_map([], map_memory)
+            .query_map(
+                params![status, category, sensitivity, query, limit],
+                map_memory,
+            )
             .map_err(StorageError::from_sql_read)?,
     )?;
-    memories.retain(|memory| {
-        options
-            .status
-            .as_ref()
-            .map_or(true, |status| memory.status == *status)
-            && options
-                .category
-                .as_ref()
-                .map_or(true, |category| memory.category == *category)
-            && options
-                .sensitivity
-                .as_ref()
-                .map_or(true, |sensitivity| memory.sensitivity == *sensitivity)
-            && options.query.as_ref().map_or(true, |query| {
-                memory
-                    .normalized_content
-                    .contains(&normalize_memory_content(query))
-            })
-    });
-    memories.truncate(limit as usize);
     Ok(memories)
 }
 
@@ -776,6 +771,95 @@ pub fn confirm_memory(connection: &Connection, memory_id: &str) -> Result<Memory
 
 pub fn reject_memory(connection: &Connection, memory_id: &str) -> Result<Memory, StorageError> {
     update_memory_status(connection, memory_id, MemoryStatus::Rejected)
+}
+
+pub fn restore_memory(connection: &Connection, memory_id: &str) -> Result<Memory, StorageError> {
+    update_memory_status(connection, memory_id, MemoryStatus::Confirmed)
+}
+
+pub fn update_memory_expiry(
+    connection: &Connection,
+    memory_id: &str,
+    expires_at: Option<String>,
+) -> Result<Memory, StorageError> {
+    validate_identifier(memory_id, "memory ID")?;
+    let now = timestamp();
+    let changed = connection
+        .execute(
+            "UPDATE memories
+             SET expires_at = ?1,
+                 status = CASE WHEN status = 'expired' THEN 'confirmed' ELSE status END,
+                 updated_at = ?2
+             WHERE id = ?3",
+            params![expires_at, now, memory_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request("Memory was not found."));
+    }
+    get_memory(connection, memory_id)
+}
+
+pub fn supersede_memory(
+    connection: &mut Connection,
+    previous_memory_id: &str,
+    replacement: MemoryDraft,
+) -> Result<Memory, StorageError> {
+    validate_identifier(previous_memory_id, "previous memory ID")?;
+    validate_memory_draft(&replacement)?;
+    let previous = get_memory(connection, previous_memory_id)?;
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let now = timestamp();
+    transaction
+        .execute(
+            "UPDATE memories
+             SET status = 'superseded',
+                 updated_at = ?1
+             WHERE id = ?2",
+            params![now, previous_memory_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    let id = generate_id("memory");
+    let normalized = normalize_memory_content(&replacement.content);
+    let confirmed_at = if replacement.status == MemoryStatus::Confirmed {
+        Some(now.clone())
+    } else {
+        None
+    };
+    transaction
+        .execute(
+            "INSERT INTO memories (
+                id, category, content, normalized_content, status, source_kind,
+                source_conversation_id, source_message_id, confidence, importance, sensitivity,
+                created_at, updated_at, confirmed_at, expires_at, supersedes_memory_id
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            params![
+                id,
+                replacement.category.as_db(),
+                replacement.content.trim(),
+                normalized,
+                replacement.status.as_db(),
+                replacement.source_kind.as_db(),
+                replacement.source_conversation_id,
+                replacement.source_message_id,
+                replacement.confidence.clamp(0.0, 1.0),
+                replacement
+                    .importance
+                    .clamp(0.0, 1.0)
+                    .max(previous.importance),
+                replacement.sensitivity.as_db(),
+                now,
+                now,
+                confirmed_at,
+                replacement.expires_at,
+                previous_memory_id,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    get_memory(connection, &id)
 }
 
 pub fn update_memory_content(
@@ -905,15 +989,24 @@ pub fn retrieve_memories(
     let mut retrieved: Vec<RetrievedMemory> = memories
         .into_iter()
         .filter_map(|memory| {
-            let reasons: Vec<String> = tokens
+            let overlap_count = tokens
                 .iter()
                 .filter(|token| memory.normalized_content.contains(token.as_str()))
-                .map(|token| format!("keyword:{token}"))
-                .collect();
-            if reasons.is_empty() {
+                .count();
+            if overlap_count == 0 {
                 return None;
             }
-            let score = reasons.len() as f64
+            let mut reasons = vec!["keyword_overlap".to_owned()];
+            if memory.normalized_content.contains(&normalized_query) {
+                reasons.push("exact_phrase".to_owned());
+            }
+            if memory.importance >= 0.75 {
+                reasons.push("high_importance".to_owned());
+            }
+            if memory.last_used_at.is_some() {
+                reasons.push("recent_usage".to_owned());
+            }
+            let score = overlap_count as f64
                 + memory.importance
                 + (memory.use_count as f64 * 0.02).min(0.2);
             Some(RetrievedMemory {
@@ -1034,6 +1127,126 @@ pub fn export_memory_file(
         exported_at: timestamp(),
         settings: settings.memory_preferences,
         memories,
+    })
+}
+
+pub fn memory_diagnostics(connection: &Connection) -> Result<MemoryDiagnostics, StorageError> {
+    let count_for = |status: &str| -> Result<u32, StorageError> {
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM memories WHERE status = ?1",
+                params![status],
+                |row| row.get::<_, u32>(0),
+            )
+            .map_err(StorageError::from_sql_read)
+    };
+    let total_count = connection
+        .query_row("SELECT COUNT(*) FROM memories", [], |row| {
+            row.get::<_, u32>(0)
+        })
+        .map_err(StorageError::from_sql_read)?;
+    let sensitive_count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM memories WHERE sensitivity = 'sensitive'",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let fixture_count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM memories WHERE source_kind = 'system_observation'
+               AND normalized_content LIKE 'development fixture memory %'",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let fts_available = connection
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'memory_fts'",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)?
+        .is_some();
+    Ok(MemoryDiagnostics {
+        total_count,
+        proposed_count: count_for("proposed")?,
+        confirmed_count: count_for("confirmed")?,
+        rejected_count: count_for("rejected")?,
+        expired_count: count_for("expired")?,
+        superseded_count: count_for("superseded")?,
+        sensitive_count,
+        fts_available,
+        fixture_count,
+    })
+}
+
+pub fn create_development_memory_fixtures(
+    connection: &mut Connection,
+    requested_count: u32,
+) -> Result<DevelopmentMemoryFixtureResult, StorageError> {
+    let count = requested_count.clamp(1, 1_000);
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let now = timestamp();
+    for index in 0..count {
+        let id = generate_id("memory");
+        let category = match index % 5 {
+            0 => MemoryCategory::Preference,
+            1 => MemoryCategory::RiskRule,
+            2 => MemoryCategory::Project,
+            3 => MemoryCategory::Routine,
+            _ => MemoryCategory::ImportantContext,
+        };
+        let content = format!(
+            "Development fixture memory {:04}: user prefers bounded memory QA scenario {}.",
+            index + 1,
+            index % 17
+        );
+        let normalized_content = normalize_memory_content(&content);
+        transaction
+            .execute(
+                "INSERT INTO memories (
+                    id, category, content, normalized_content, status, source_kind,
+                    confidence, importance, sensitivity, created_at, updated_at, confirmed_at
+                 ) VALUES (?1, ?2, ?3, ?4, 'confirmed', 'system_observation', ?5, ?6, 'ordinary', ?7, ?8, ?9)",
+                params![
+                    id,
+                    category.as_db(),
+                    content,
+                    normalized_content,
+                    0.9_f64,
+                    0.3_f64 + f64::from(index % 7) * 0.05_f64,
+                    now,
+                    now,
+                    now,
+                ],
+            )
+            .map_err(StorageError::from_sql_write)?;
+    }
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    Ok(DevelopmentMemoryFixtureResult {
+        created_memories: count,
+        deleted_memories: 0,
+    })
+}
+
+pub fn delete_development_memory_fixtures(
+    connection: &Connection,
+) -> Result<DevelopmentMemoryFixtureResult, StorageError> {
+    let deleted = connection
+        .execute(
+            "DELETE FROM memories
+             WHERE source_kind = 'system_observation'
+               AND normalized_content LIKE 'development fixture memory %'",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)? as u32;
+    Ok(DevelopmentMemoryFixtureResult {
+        created_memories: 0,
+        deleted_memories: deleted,
     })
 }
 
@@ -1371,6 +1584,26 @@ fn update_memory_status(
         .map_err(StorageError::from_sql_write)?;
     if changed == 0 {
         return Err(StorageError::invalid_request("Memory was not found."));
+    }
+    if status == MemoryStatus::Confirmed {
+        let supersedes_memory_id: Option<String> = connection
+            .query_row(
+                "SELECT supersedes_memory_id FROM memories WHERE id = ?1",
+                params![memory_id],
+                |row| row.get(0),
+            )
+            .map_err(StorageError::from_sql_read)?;
+        if let Some(previous_id) = supersedes_memory_id {
+            connection
+                .execute(
+                    "UPDATE memories
+                     SET status = 'superseded',
+                         updated_at = ?1
+                     WHERE id = ?2 AND status = 'confirmed'",
+                    params![now, previous_id],
+                )
+                .map_err(StorageError::from_sql_write)?;
+        }
     }
     get_memory(connection, memory_id)
 }
@@ -2002,6 +2235,59 @@ mod tests {
             .is_empty());
         delete_memory(&connection, &proposed.id).expect("delete");
         assert!(get_memory(&connection, &proposed.id).is_err());
+    }
+
+    #[test]
+    fn confirming_update_proposal_supersedes_previous_memory() {
+        let connection = database();
+        let previous = create_memory(
+            &connection,
+            memory_draft("User caps risk at 1% per trade.", MemoryStatus::Confirmed),
+        )
+        .expect("previous");
+        let mut replacement =
+            memory_draft("User caps risk at 0.5% per trade.", MemoryStatus::Proposed);
+        replacement.supersedes_memory_id = Some(previous.id.clone());
+        let replacement = create_memory(&connection, replacement).expect("replacement");
+
+        confirm_memory(&connection, &replacement.id).expect("confirm replacement");
+
+        assert_eq!(
+            get_memory(&connection, &previous.id)
+                .expect("previous")
+                .status,
+            MemoryStatus::Superseded
+        );
+        let retrieved = retrieve_memories(&connection, "risk trade", 8, false).expect("retrieve");
+        assert_eq!(retrieved.len(), 1);
+        assert_eq!(retrieved[0].id, replacement.id);
+    }
+
+    #[test]
+    fn memory_diagnostics_and_development_fixtures_are_bounded() {
+        let mut connection = database();
+        create_development_memory_fixtures(&mut connection, 1_500).expect("fixtures");
+        let diagnostics = memory_diagnostics(&connection).expect("diagnostics");
+        assert_eq!(diagnostics.fixture_count, 1_000);
+        assert_eq!(diagnostics.confirmed_count, 1_000);
+        assert!(diagnostics.fts_available);
+
+        let retrieved = retrieve_memories(&connection, "bounded memory qa scenario 7", 8, false)
+            .expect("retrieve fixtures");
+        assert!(!retrieved.is_empty());
+        assert!(retrieved.iter().all(|memory| memory
+            .match_reasons
+            .iter()
+            .any(|reason| reason == "keyword_overlap")));
+
+        let deleted = delete_development_memory_fixtures(&connection).expect("delete fixtures");
+        assert_eq!(deleted.deleted_memories, 1_000);
+        assert_eq!(
+            memory_diagnostics(&connection)
+                .expect("diagnostics after delete")
+                .fixture_count,
+            0
+        );
     }
 
     #[test]

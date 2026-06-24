@@ -193,9 +193,12 @@ Memory text is escaped and bounded before model use. Usage logging stores IDs an
 it does not store hidden reasoning, chain-of-thought, model internals, or source prompts.
 
 The first implementation includes a focused memory control center in Companion Home and proposal
-cards in both the main window and desktop bubble. Full conflict-resolution UX, bulk natural-language
-forgetting, fixture-scale Memory Lab controls, and complete manual local-Qwen QA are documented as
-Task 7 follow-up work rather than silently claimed.
+cards in both the main window and desktop bubble. Task 7 adds deterministic conflict classification,
+safe natural-language forgetting resolution, confirmed-update superseding, stable retrieval reason
+codes, and a development-only Memory Lab for diagnostics, 100/1,000 fixture generation, cleanup, and
+retrieval timing. Richer user-facing conflict resolution, selectable bulk-forget confirmation, full
+cross-WebView synchronization tests, and complete manually driven local-Qwen WebView QA remain
+pending.
 
 ## Companion state and cross-window contracts
 

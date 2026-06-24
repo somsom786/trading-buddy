@@ -33,6 +33,7 @@ import { tauriWindowService, type WindowService } from '../services/windowServic
 import {
   buildMemoryContextForMessage,
   handleExplicitMemoryIntent,
+  handleForgetMemoryIntent,
   runBackgroundMemoryExtraction,
 } from '../services/memoryWorkflow';
 import { MemoryProposalCard } from '../components/memory/MemoryProposalCard';
@@ -242,6 +243,7 @@ export function BubbleView({
     let assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
     let memoryOptedOutForRequest = conversationMemoryOptOut;
+    let memoryNotice: string | null = null;
 
     if (mode === 'persistent') {
       try {
@@ -289,6 +291,13 @@ export function BubbleView({
       if (persistenceRef.current.requestId === requestId) {
         persistenceRef.current.memoryIds = memoryContextResult.retrieved.map((memory) => memory.id);
       }
+      const forgetResult = await handleForgetMemoryIntent({
+        storageService,
+        content: validation.content,
+      });
+      if (forgetResult.notice) {
+        memoryNotice = forgetResult.notice;
+      }
       const proposalResult = await handleExplicitMemoryIntent({
         storageService,
         content: validation.content,
@@ -309,7 +318,7 @@ export function BubbleView({
         memoryOptedOutForRequest = true;
       }
       if (proposalResult.notice) {
-        setStorageNotice(proposalResult.notice);
+        memoryNotice = proposalResult.notice;
       }
     } catch (error) {
       setStorageError(normalizeStorageError(error));
@@ -339,6 +348,7 @@ export function BubbleView({
     });
     setInput('');
     setStorageError(null);
+    setStorageNotice(memoryNotice);
     setBuddyState(buddyStateForLifecycle('message_submitted'));
 
     try {

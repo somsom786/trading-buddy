@@ -105,6 +105,14 @@ export function MemoryPanel({ storageService, onNotice, onError }: MemoryPanelPr
     });
   };
 
+  const restore = async (memory: Memory) => {
+    await runAction(async () => {
+      await storageService.restoreMemory(memory.id);
+      onNotice('Memory restored. Buddy may use it when relevant.');
+      await refresh();
+    });
+  };
+
   const edit = async (memory: Memory) => {
     const content = window.prompt('Edit memory', memory.content);
     if (content === null) {
@@ -130,6 +138,14 @@ export function MemoryPanel({ storageService, onNotice, onError }: MemoryPanelPr
     await runAction(async () => {
       await storageService.deleteMemory(memory.id);
       onNotice('Memory deleted.');
+      await refresh();
+    });
+  };
+
+  const removeExpiry = async (memory: Memory) => {
+    await runAction(async () => {
+      await storageService.updateMemoryExpiry({ memoryId: memory.id });
+      onNotice('Memory expiry removed.');
       await refresh();
     });
   };
@@ -401,17 +417,35 @@ export function MemoryPanel({ storageService, onNotice, onError }: MemoryPanelPr
                     <dd>
                       {memory.expiresAt ? new Date(memory.expiresAt).toLocaleString() : 'None'}
                     </dd>
+                    {memory.supersedesMemoryId ? (
+                      <>
+                        <dt>Updates</dt>
+                        <dd>{memory.supersedesMemoryId}</dd>
+                      </>
+                    ) : null}
                   </dl>
                   <div className="button-row">
-                    {memory.status === 'rejected' ? (
+                    {memory.status === 'rejected' || memory.status === 'expired' ? (
                       <button
                         type="button"
                         onClick={() => {
-                          void confirm(memory);
+                          void restore(memory);
                         }}
                         disabled={busy}
                       >
                         Restore
+                      </button>
+                    ) : null}
+                    {memory.expiresAt ? (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => {
+                          void removeExpiry(memory);
+                        }}
+                        disabled={busy}
+                      >
+                        Remove expiry
                       </button>
                     ) : null}
                     <button

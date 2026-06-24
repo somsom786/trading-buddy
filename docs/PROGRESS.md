@@ -6,6 +6,23 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 24, 2026 - Memory reliability hardening
+
+- Added deterministic memory conflict classification for duplicate, update, conflict, and unrelated
+  candidates.
+- Added deterministic natural-language forgetting resolution for exact, ambiguous, category, all,
+  and not-found requests.
+- Added confirmed-update superseding behavior so old memories are replaced only when the update is
+  confirmed.
+- Added development-only Memory Lab diagnostics, 100/1,000 fixture generation, cleanup, and bounded
+  retrieval timing.
+- Moved memory listing filters into SQLite instead of loading all memory rows before filtering.
+- Added restore/remove-expiry controls for rejected or temporary memories.
+- Verified local Qwen availability through Ollama loopback and documented the remaining desktop
+  UI automation gap.
+- Detailed handoff report:
+  [`docs/reports/TASK-007-memory-reliability-hardening.md`](reports/TASK-007-memory-reliability-hardening.md)
+
 ### June 24, 2026 - Transparent local companion memory
 
 - Added local SQLite memory schema, typed preferences, FTS table, and usage records.

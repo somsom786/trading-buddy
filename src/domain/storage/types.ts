@@ -6,9 +6,11 @@ import {
   memorySensitivities,
   memoryStatuses,
   type DeleteAllMemoriesResult,
+  type DevelopmentMemoryFixtureResult,
   type Memory,
   type MemoryApprovalMode,
   type MemoryCategory,
+  type MemoryDiagnostics,
   type MemoryDraft,
   type MemoryExportResult,
   type MemoryListOptions,
@@ -23,9 +25,11 @@ import {
 
 export type {
   DeleteAllMemoriesResult,
+  DevelopmentMemoryFixtureResult,
   Memory,
   MemoryApprovalMode,
   MemoryCategory,
+  MemoryDiagnostics,
   MemoryDraft,
   MemoryExportResult,
   MemoryListOptions,
@@ -449,8 +453,33 @@ export function isMemoryUsageRecord(value: unknown): value is MemoryUsageRecord 
   );
 }
 
+export function isMemoryDiagnostics(value: unknown): value is MemoryDiagnostics {
+  return (
+    isRecord(value) &&
+    typeof value.totalCount === 'number' &&
+    typeof value.proposedCount === 'number' &&
+    typeof value.confirmedCount === 'number' &&
+    typeof value.rejectedCount === 'number' &&
+    typeof value.expiredCount === 'number' &&
+    typeof value.supersededCount === 'number' &&
+    typeof value.sensitiveCount === 'number' &&
+    typeof value.ftsAvailable === 'boolean' &&
+    typeof value.fixtureCount === 'number'
+  );
+}
+
 export function isDeleteAllMemoriesResult(value: unknown): value is DeleteAllMemoriesResult {
   return isRecord(value) && typeof value.deletedMemories === 'number';
+}
+
+export function isDevelopmentMemoryFixtureResult(
+  value: unknown,
+): value is DevelopmentMemoryFixtureResult {
+  return (
+    isRecord(value) &&
+    typeof value.createdMemories === 'number' &&
+    typeof value.deletedMemories === 'number'
+  );
 }
 
 export function isMemoryExportResult(value: unknown): value is MemoryExportResult {

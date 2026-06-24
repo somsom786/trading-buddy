@@ -408,3 +408,20 @@ the user's current message.
 Deleting a source conversation detaches memory provenance with `ON DELETE SET NULL` but does not
 silently delete approved memories. Deleting memories does not delete conversations. This keeps the
 two user intents distinct and auditable.
+
+## 052 - Memory update proposals supersede only after confirmation
+
+**Status:** Accepted
+
+When a new memory appears to update an existing confirmed memory, the replacement can reference the
+old memory through `supersedesMemoryId`, but the old memory is not marked `superseded` until the
+replacement is confirmed. This keeps reviewable proposals from silently changing Buddy's active
+understanding.
+
+## 053 - Memory Lab is debug tooling, not product surface
+
+**Status:** Accepted
+
+The development Memory Lab exposes bounded diagnostics, fixture generation, fixture cleanup, and
+retrieval timing only in development builds. It exists to prove memory reliability at 100 and 1,000
+local memories without turning the user-facing memory panel into a dashboard.
