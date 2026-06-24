@@ -157,9 +157,34 @@ Task 5 adds a second typed visual model:
 - `BuddyActivity`: idle, breathing, blinking, looking, listening, thinking, talking, stretching,
   sitting, sleeping, waking, writing, alert.
 
-The runtime CSS placeholder maps `emotion + activity` onto temporary visual distinctions. A future
-sprite renderer can map the same pair to animation clips without letting the model invent file
-names or animation IDs.
+The runtime pose renderer maps `emotion + activity` onto temporary pose assets and motion
+distinctions. A future sprite renderer can map the same pair to animation clips without letting the
+model invent file names or animation IDs.
+
+The current renderer uses a temporary extracted pose pack:
+
+```text
+src/assets/buddy/source/buddy-reference-sheet.png
+        -> scripts/extract-buddy-poses.mjs
+        -> src/assets/buddy/poses/*.png
+        -> src/assets/buddy/poseManifest.ts
+        -> BuddyPoseRenderer
+```
+
+The source sheet is preserved as concept/reference art only. It is not rendered directly because it
+contains an opaque grey background, grid separators, palette swatches, a silhouette preview, and
+multiple composition cells. The extraction script validates the source dimensions, crops configured
+pose cells, removes background-like pixels, trims empty space, places every pose on a transparent
+128×128 logical canvas, and aligns standing poses to a shared baseline. Runtime code consumes a
+typed manifest of pose IDs and generated PNG URLs.
+
+Pose selection remains deterministic in `src/domain/companion/poseSelection.ts`. It maps
+`BuddyVisualState` to approved pose IDs with explicit priority: sleeping, writing, thinking,
+concerned/alert, proud, happy, curious/looking, then neutral-front. The LLM cannot select arbitrary
+filenames or request source-sheet coordinates.
+
+The old CSS placeholder remains available as a safe fallback if a generated pose asset fails to
+load. Temporary movement is CSS-based over static poses; final sprite animation remains deferred.
 
 Cross-window messages use centralized event names and validated command/interaction payloads.
 Window show, hide, and focus operations remain native commands. Event listeners return cleanup

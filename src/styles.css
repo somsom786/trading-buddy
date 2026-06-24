@@ -236,6 +236,89 @@ button {
   box-shadow: 0 0 10px rgb(255 131 122 / 50%);
 }
 
+.buddy-character--pose {
+  width: 128px;
+  height: 128px;
+  transform: scale(var(--buddy-scale, 1));
+  transform-origin: center bottom;
+  animation: none;
+  filter: none;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='breathing'],
+.buddy-character--pose[data-motion='on'][data-activity='idle'] {
+  animation: buddy-pose-breathe 3.8s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='looking'] {
+  animation: buddy-pose-look 2.4s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='listening'] {
+  animation: buddy-pose-listen 1.8s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='thinking'] {
+  animation: buddy-pose-think 2.1s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='talking'] {
+  animation: buddy-pose-talk 760ms ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='writing'] {
+  animation: buddy-pose-write 1.2s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='sleeping'] {
+  animation: buddy-pose-sleep 4.8s ease-in-out infinite;
+}
+
+.buddy-character--pose[data-motion='on'][data-emotion='happy'],
+.buddy-character--pose[data-motion='on'][data-emotion='proud'] {
+  animation: buddy-pose-happy 720ms ease-out 1;
+}
+
+.buddy-character__pose {
+  display: block;
+  width: 128px;
+  height: 128px;
+  pointer-events: none;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.buddy-character__core-effect {
+  position: absolute;
+  right: 48px;
+  bottom: 34px;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  border-radius: 999px;
+  opacity: 0;
+  box-shadow: 0 0 12px rgb(255 191 83 / 45%);
+}
+
+.buddy-character--pose[data-motion='on'][data-activity='talking'] .buddy-character__core-effect {
+  animation: buddy-core-pulse 760ms ease-in-out infinite;
+}
+
+.buddy-character__sleep-indicator {
+  position: absolute;
+  top: 25px;
+  right: 13px;
+  color: #6f5ea7;
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 1px 1px #f1ecff;
+  image-rendering: pixelated;
+}
+
 .buddy-status {
   position: absolute;
   bottom: 0;
@@ -290,6 +373,107 @@ button {
   }
   50% {
     transform: translateY(-7px);
+  }
+}
+
+@keyframes buddy-pose-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(-2px) scale(var(--buddy-scale, 1)) scaleY(1.012);
+  }
+}
+
+@keyframes buddy-pose-look {
+  0%,
+  100% {
+    transform: translateX(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateX(2px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-pose-listen {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(-1px) scale(var(--buddy-scale, 1)) skewX(-1deg);
+  }
+}
+
+@keyframes buddy-pose-think {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(-2px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-pose-talk {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(-1px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-pose-write {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(1px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-pose-sleep {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  50% {
+    transform: translateY(1px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-pose-happy {
+  0%,
+  100% {
+    transform: translateY(0) scale(var(--buddy-scale, 1));
+  }
+
+  45% {
+    transform: translateY(-4px) scale(var(--buddy-scale, 1));
+  }
+}
+
+@keyframes buddy-core-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 0.75;
+    transform: scale(1);
   }
 }
 
@@ -1125,6 +1309,46 @@ button.stop-button {
   margin: 0;
   padding-left: 18px;
   color: #c0cada;
+}
+
+.companion-lab__control {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-right: 12px;
+  margin-bottom: 6px;
+}
+
+.companion-lab__poses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(74px, 1fr));
+  gap: 8px;
+}
+
+.companion-lab__pose {
+  display: grid;
+  gap: 3px;
+  justify-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid #30394d;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.companion-lab__pose img {
+  width: 56px;
+  height: 56px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.companion-lab__pose figcaption {
+  display: grid;
+  gap: 1px;
+  text-align: center;
 }
 
 .buddy-lab button,

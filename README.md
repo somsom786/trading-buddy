@@ -278,5 +278,33 @@ application config directory. Conversations are stored separately in the app-loc
 The current visual reference is stored at
 [`public/design/buddy-concept-beta-v0.1.png`](public/design/buddy-concept-beta-v0.1.png). It is a
 development concept board for proportions, poses, expressions, antennae, and the glowing chest
-core. The live buddy remains CSS-based until production-ready sprite assets and usage rights are
-finalized.
+core. The live buddy now uses extracted temporary PNG poses, while production-ready sprite
+animation and final art cleanup remain future work.
+
+## Temporary buddy pose assets
+
+The current runtime buddy uses normalized temporary PNG poses generated from:
+
+```text
+src/assets/buddy/source/buddy-reference-sheet.png
+```
+
+Regenerate the pose pack after changing the source sheet:
+
+```powershell
+pnpm buddy:extract
+```
+
+Generated assets are written to:
+
+```text
+src/assets/buddy/poses/
+```
+
+The extraction script validates the source dimensions, removes the light grey sheet background,
+trims each character, aligns standing poses to a shared baseline, and exports transparent 128×128
+PNGs. It uses nearest-neighbour resizing and does not use the source sheet at runtime.
+
+Preview every generated pose in development through **Companion Lab**. The source sheet remains
+concept/reference art, not a final animation sprite sheet. Runtime motion is temporary CSS movement
+over static poses.

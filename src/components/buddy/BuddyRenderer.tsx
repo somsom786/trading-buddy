@@ -2,7 +2,7 @@ import { useRef, type PointerEvent } from 'react';
 import { buddyStateToVisualState, type BuddyState } from '../../domain/companion/buddyState';
 import type { BuddyVisualState } from '../../domain/companion/visualState';
 import type { CompanionService } from '../../services/tauri/companionService';
-import { BuddyPlaceholder } from './BuddyPlaceholder';
+import { BuddyPoseRenderer } from './BuddyPoseRenderer';
 
 interface BuddyRendererProps {
   state: BuddyState;
@@ -58,7 +58,7 @@ export function BuddyRenderer({
   };
 
   return (
-    <BuddyPlaceholder
+    <BuddyPoseRenderer
       state={state}
       visualState={visualState}
       onPointerDown={handlePointerDown}

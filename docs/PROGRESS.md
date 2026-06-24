@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 24, 2026 - Temporary buddy pose asset pack
+
+- Moved the provided buddy reference image into `src/assets/buddy/source/`.
+- Added a reproducible PNG extraction pipeline for ten transparent 128×128 pose assets.
+- Added a typed pose manifest and deterministic visual-state-to-pose selection.
+- Swapped the runtime buddy from the normal CSS placeholder to extracted pose PNGs with placeholder
+  fallback.
+- Added restrained temporary CSS motion over static poses.
+- Expanded Companion Lab with pose previews, selected pose ID, scale/motion controls, natural
+  dimensions, and fallback testing.
+- Added image/manifest/pose-selection/renderer tests.
+- Detailed handoff report:
+  [`docs/reports/TASK-005B-temporary-buddy-pose-asset-pack.md`](reports/TASK-005B-temporary-buddy-pose-asset-pack.md)
+
 ### June 23, 2026 - Companion-first desktop shell
 
 - Corrected the product hierarchy so the desktop buddy is primary and Companion Home is secondary.

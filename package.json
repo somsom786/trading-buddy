@@ -15,6 +15,7 @@
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "buddy:extract": "node scripts/extract-buddy-poses.mjs",
     "typecheck": "tsc -b --pretty false",
     "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test"
   },
@@ -25,11 +26,13 @@
     "react-dom": "19.2.7"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.11.3",
     "@eslint/js": "10.0.1",
+    "@tauri-apps/cli": "2.11.3",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
+    "@types/node": "^26.0.0",
+    "@types/pngjs": "^6.0.5",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
@@ -37,6 +40,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-react-refresh": "0.5.3",
     "jsdom": "29.1.1",
+    "pngjs": "^7.0.0",
     "prettier": "3.8.4",
     "typescript": "6.0.3",
     "typescript-eslint": "8.61.1",

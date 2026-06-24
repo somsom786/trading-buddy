@@ -1,0 +1,80 @@
+{
+  "source": "src/assets/buddy/source/buddy-reference-sheet.png",
+  "outputDir": "src/assets/buddy/poses",
+  "expectedSource": {
+    "width": 1408,
+    "height": 768,
+    "bitDepth": 8,
+    "colorType": 6
+  },
+  "canvas": {
+    "width": 128,
+    "height": 128,
+    "standingBaseline": 118,
+    "sleepingBaseline": 110,
+    "padding": 6
+  },
+  "backgroundThreshold": 50,
+  "poses": [
+    {
+      "id": "neutral-front",
+      "source": "top-left front pose",
+      "rect": { "x": 18, "y": 34, "width": 252, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "neutral-side",
+      "source": "top-row side pose",
+      "rect": { "x": 308, "y": 38, "width": 236, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "neutral-back",
+      "source": "top-row rear pose",
+      "rect": { "x": 586, "y": 38, "width": 240, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "curious",
+      "source": "top-row three-quarter pose",
+      "rect": { "x": 870, "y": 38, "width": 236, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "happy",
+      "source": "top-row smiling pose",
+      "rect": { "x": 1144, "y": 44, "width": 250, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "proud",
+      "source": "bottom-left eyes-closed smile pose",
+      "rect": { "x": 34, "y": 398, "width": 238, "height": 278 },
+      "kind": "standing"
+    },
+    {
+      "id": "concerned",
+      "source": "bottom concerned pose",
+      "rect": { "x": 314, "y": 394, "width": 236, "height": 286 },
+      "kind": "standing"
+    },
+    {
+      "id": "thinking",
+      "source": "bottom hand-to-face pose",
+      "rect": { "x": 590, "y": 370, "width": 246, "height": 304 },
+      "kind": "standing"
+    },
+    {
+      "id": "writing",
+      "source": "bottom notebook pose",
+      "rect": { "x": 862, "y": 404, "width": 252, "height": 282 },
+      "kind": "standing"
+    },
+    {
+      "id": "sleeping",
+      "source": "right-side sleeping pose",
+      "rect": { "x": 1138, "y": 358, "width": 244, "height": 214 },
+      "kind": "sleeping"
+    }
+  ]
+}

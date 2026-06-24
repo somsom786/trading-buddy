@@ -144,6 +144,33 @@ Task 5 establishes the companion-first shell and core deterministic architecture
 integration and manual-desktop verification items remain intentionally pending. The global shortcut
 and launch-at-login settings are persisted but not yet wired to OS behavior.
 
+## Art integration - Temporary buddy pose asset pack
+
+- [x] Preserve the source reference sheet under `src/assets/buddy/source/`.
+- [x] Create a reproducible pose extraction script.
+- [x] Generate ten normalized transparent pose PNGs.
+- [x] Use a shared 128×128 logical canvas.
+- [x] Align standing poses to a consistent baseline.
+- [x] Keep runtime code off the full source sheet.
+- [x] Add a typed pose ID union and central asset manifest.
+- [x] Add deterministic `BuddyVisualState` to pose selection.
+- [x] Replace the normal CSS placeholder with the extracted pose renderer.
+- [x] Keep the CSS placeholder as a fallback.
+- [x] Add temporary pose-based breathing, looking, listening, thinking, talking, writing, happy,
+      proud, and sleeping motion.
+- [x] Respect reduced-motion behavior.
+- [x] Prevent native image drag ghosts.
+- [x] Expand Companion Lab to preview poses, selected pose ID, natural dimensions, motion toggles,
+      scale, reduced motion, and missing-asset fallback.
+- [x] Add tests for manifest coverage, source-sheet exclusion, pose-selection priority, generated
+      PNG transparency, canvas dimensions, alpha corners, baseline alignment, and source-dimension
+      rejection.
+- [ ] Complete direct manual visual QA in the real desktop application.
+- [ ] Perform artist cleanup for generated-art inconsistencies and production animation frames.
+
+The pose pack is temporary. It is extracted from concept/reference art and should not be treated as
+production-ready animation.
+
 ## Next — requires separate product approval
 
 - [ ] Add official Tauri/native global-shortcut integration with registration-failure handling.

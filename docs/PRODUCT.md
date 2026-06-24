@@ -46,4 +46,5 @@ reading, global cursor tracking, telemetry, and order execution remain out of sc
 The BETA v0.1 concept establishes the intended character language: a small rounded dark body,
 expressive pale face, floating purple antennae, warm chest core, and readable emotional poses.
 This board is a design reference only. The current CSS placeholder remains the runtime renderer
-until production sprites are deliberately created and licensed.
+fallback, while the normal runtime buddy uses temporary transparent pose PNGs extracted from the
+reference sheet until production sprites are deliberately created and licensed.
