@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   decorateStoredMessageContent,
   isAppSettings,
+  isCompanionPreferences,
   isConversationDetail,
   isDevelopmentFixtureResult,
   isStorageError,
@@ -10,6 +11,25 @@ import {
   storedMessageToChatMessage,
   type StoredMessage,
 } from './types';
+
+const companionPreferences = {
+  buddyVisible: true,
+  buddyAlwaysOnTop: true,
+  placementMode: 'free',
+  ambientAnimationsEnabled: true,
+  reducedMovementEnabled: false,
+  sleepAfterInactivitySeconds: 900,
+  proactiveCheckinsEnabled: true,
+  proactiveCheckinCooldownMinutes: 180,
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '07:00',
+  doNotDisturb: false,
+  globalShortcutEnabled: true,
+  launchAtLogin: false,
+  openCompanionHomeAtStartup: false,
+  bubbleWidth: 340,
+} as const;
 
 const baseMessage: StoredMessage = {
   id: 'message-1',
@@ -45,12 +65,30 @@ describe('storage frontend types', () => {
         ambientAnimationsEnabled: true,
         conversationRetentionPolicy: 'keep_until_delete',
         selectedLocalModel: 'qwen3:4b',
+        companionPreferences,
       }),
     ).toBe(true);
     expect(
       isAppSettings({
         ambientAnimationsEnabled: true,
         conversationRetentionPolicy: 'delete_everything_whenever',
+        companionPreferences,
+      }),
+    ).toBe(false);
+  });
+
+  it('validates companion preferences with bounded values', () => {
+    expect(isCompanionPreferences(companionPreferences)).toBe(true);
+    expect(
+      isCompanionPreferences({
+        ...companionPreferences,
+        sleepAfterInactivitySeconds: 10,
+      }),
+    ).toBe(false);
+    expect(
+      isCompanionPreferences({
+        ...companionPreferences,
+        quietHoursStart: '7:00',
       }),
     ).toBe(false);
   });

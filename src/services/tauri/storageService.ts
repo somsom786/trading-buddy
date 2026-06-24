@@ -15,6 +15,7 @@ import {
   type AppSettings,
   type AssistantMessageFailure,
   type AssistantMessageUpdate,
+  type CompanionPreferences,
   type ConversationDetail,
   type ConversationSummary,
   type DeleteAllResult,
@@ -33,6 +34,7 @@ export interface StorageService {
   diagnostics(): Promise<StorageDiagnostics>;
   getSettings(): Promise<AppSettings>;
   setSelectedModel(modelName: string | null): Promise<AppSettings>;
+  setCompanionPreferences(preferences: CompanionPreferences): Promise<AppSettings>;
   setRetentionPolicy(policy: RetentionPolicy): Promise<RetentionCleanupResult>;
   applyRetentionCleanup(): Promise<RetentionCleanupResult>;
   listConversations(options: {
@@ -72,6 +74,10 @@ export const tauriStorageService: StorageService = {
 
   async setSelectedModel(modelName) {
     return invokeChecked('set_selected_local_model', { modelName }, isAppSettings);
+  },
+
+  async setCompanionPreferences(preferences) {
+    return invokeChecked('set_companion_preferences', { preferences }, isAppSettings);
   },
 
   async setRetentionPolicy(policy) {

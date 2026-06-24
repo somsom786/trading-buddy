@@ -4,18 +4,26 @@ import { describe, expect, it, vi } from 'vitest';
 import { BuddyView } from './BuddyView';
 
 describe('BuddyView', () => {
-  it('opens the main window when activated', async () => {
+  it('toggles the desktop bubble when activated', async () => {
     const user = userEvent.setup();
-    const openMainWindow = vi.fn().mockResolvedValue(undefined);
+    const toggleCompanionBubble = vi.fn().mockResolvedValue(undefined);
 
     render(
       <BuddyView
-        windowService={{ openMainWindow, controlBuddy: vi.fn().mockResolvedValue(undefined) }}
+        windowService={{
+          openMainWindow: vi.fn().mockResolvedValue(undefined),
+          toggleCompanionBubble,
+          controlBubble: vi.fn().mockResolvedValue(undefined),
+          positionCompanionBubble: vi.fn().mockResolvedValue(undefined),
+          resetBuddyPosition: vi.fn().mockResolvedValue(undefined),
+          controlBuddy: vi.fn().mockResolvedValue(undefined),
+          getOsIdleSeconds: vi.fn().mockResolvedValue(0),
+        }}
       />,
     );
-    await user.click(screen.getByRole('button', { name: 'Open Trading Buddy' }));
+    await user.click(screen.getByRole('button', { name: 'Talk to Trading Buddy' }));
 
-    expect(openMainWindow).toHaveBeenCalledOnce();
+    expect(toggleCompanionBubble).toHaveBeenCalledOnce();
   });
 
   it('cleans up the cross-window listener on unmount', async () => {
@@ -25,7 +33,12 @@ describe('BuddyView', () => {
       <BuddyView
         windowService={{
           openMainWindow: vi.fn().mockResolvedValue(undefined),
+          toggleCompanionBubble: vi.fn().mockResolvedValue(undefined),
+          controlBubble: vi.fn().mockResolvedValue(undefined),
+          positionCompanionBubble: vi.fn().mockResolvedValue(undefined),
+          resetBuddyPosition: vi.fn().mockResolvedValue(undefined),
           controlBuddy: vi.fn().mockResolvedValue(undefined),
+          getOsIdleSeconds: vi.fn().mockResolvedValue(0),
         }}
         companionService={{
           setState: vi.fn().mockResolvedValue(undefined),

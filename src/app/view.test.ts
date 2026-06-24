@@ -6,6 +6,10 @@ describe('resolveAppView', () => {
     expect(resolveAppView('?view=buddy')).toBe('buddy');
   });
 
+  it('selects the bubble view when requested', () => {
+    expect(resolveAppView('?view=bubble')).toBe('bubble');
+  });
+
   it.each(['', '?view=main', '?view=unknown'])('defaults %s to the main view', (search) => {
     expect(resolveAppView(search)).toBe('main');
   });

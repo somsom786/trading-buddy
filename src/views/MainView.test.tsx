@@ -7,6 +7,8 @@ describe('MainView', () => {
     render(<MainView />);
 
     expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Companion Home' })).toBeInTheDocument();
+    expect(screen.getByText(/buddy lives on the desktop/i)).toBeInTheDocument();
     for (const label of ['Chat', 'Journal', 'Reviews', 'Settings']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }

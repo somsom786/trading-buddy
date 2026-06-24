@@ -22,7 +22,31 @@ const companionService: CompanionService = {
 
 const windowService: WindowService = {
   openMainWindow: vi.fn().mockResolvedValue(undefined),
+  toggleCompanionBubble: vi.fn().mockResolvedValue(undefined),
+  controlBubble: vi.fn().mockResolvedValue(undefined),
+  positionCompanionBubble: vi.fn().mockResolvedValue(undefined),
+  resetBuddyPosition: vi.fn().mockResolvedValue(undefined),
   controlBuddy: vi.fn().mockResolvedValue(undefined),
+  getOsIdleSeconds: vi.fn().mockResolvedValue(0),
+};
+
+const companionPreferences = {
+  buddyVisible: true,
+  buddyAlwaysOnTop: true,
+  placementMode: 'free' as const,
+  ambientAnimationsEnabled: true,
+  reducedMovementEnabled: false,
+  sleepAfterInactivitySeconds: 900,
+  proactiveCheckinsEnabled: true,
+  proactiveCheckinCooldownMinutes: 180,
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '07:00',
+  doNotDisturb: false,
+  globalShortcutEnabled: true,
+  launchAtLogin: false,
+  openCompanionHomeAtStartup: false,
+  bubbleWidth: 340,
 };
 
 function createStorageService(): {
@@ -87,11 +111,18 @@ function createStorageService(): {
     getSettings: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
     }),
     setSelectedModel: vi.fn().mockResolvedValue({
       selectedLocalModel: 'qwen3:4b',
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
+    }),
+    setCompanionPreferences: vi.fn().mockResolvedValue({
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
     }),
     setRetentionPolicy: vi.fn().mockResolvedValue({ removedConversations: 0 }),
     applyRetentionCleanup: vi.fn().mockResolvedValue({ removedConversations: 0 }),

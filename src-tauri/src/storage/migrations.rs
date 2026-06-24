@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 1;
+pub const CURRENT_SCHEMA_VERSION: i64 = 2;
 
 struct Migration {
     version: i64,
@@ -11,10 +11,11 @@ struct Migration {
     sql: &'static str,
 }
 
-const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial_conversation_storage",
-    sql: r#"
+const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial_conversation_storage",
+        sql: r#"
 CREATE TABLE IF NOT EXISTS storage_metadata (
   key TEXT PRIMARY KEY NOT NULL,
   value TEXT NOT NULL
@@ -60,7 +61,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_request_id ON messages(request_id
 INSERT OR IGNORE INTO app_settings (id, ambient_animations_enabled, conversation_retention_policy)
 VALUES (1, 1, 'keep_until_delete');
 "#,
-}];
+    },
+    Migration {
+        version: 2,
+        name: "companion_first_preferences",
+        sql: r#"
+ALTER TABLE app_settings ADD COLUMN buddy_visible INTEGER NOT NULL DEFAULT 1 CHECK (buddy_visible IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN buddy_always_on_top INTEGER NOT NULL DEFAULT 1 CHECK (buddy_always_on_top IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN buddy_placement_mode TEXT NOT NULL DEFAULT 'free'
+  CHECK (buddy_placement_mode IN ('free', 'dock_left', 'dock_right', 'taskbar_perch'));
+ALTER TABLE app_settings ADD COLUMN buddy_free_position_x INTEGER;
+ALTER TABLE app_settings ADD COLUMN buddy_free_position_y INTEGER;
+ALTER TABLE app_settings ADD COLUMN reduced_movement_enabled INTEGER NOT NULL DEFAULT 0 CHECK (reduced_movement_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN sleep_after_inactivity_seconds INTEGER NOT NULL DEFAULT 900
+  CHECK (sleep_after_inactivity_seconds BETWEEN 60 AND 86400);
+ALTER TABLE app_settings ADD COLUMN proactive_checkins_enabled INTEGER NOT NULL DEFAULT 1 CHECK (proactive_checkins_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN proactive_checkin_cooldown_minutes INTEGER NOT NULL DEFAULT 180
+  CHECK (proactive_checkin_cooldown_minutes BETWEEN 15 AND 1440);
+ALTER TABLE app_settings ADD COLUMN quiet_hours_enabled INTEGER NOT NULL DEFAULT 0 CHECK (quiet_hours_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN quiet_hours_start TEXT NOT NULL DEFAULT '22:00';
+ALTER TABLE app_settings ADD COLUMN quiet_hours_end TEXT NOT NULL DEFAULT '07:00';
+ALTER TABLE app_settings ADD COLUMN do_not_disturb INTEGER NOT NULL DEFAULT 0 CHECK (do_not_disturb IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN global_shortcut_enabled INTEGER NOT NULL DEFAULT 1 CHECK (global_shortcut_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN launch_at_login INTEGER NOT NULL DEFAULT 0 CHECK (launch_at_login IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN open_companion_home_at_startup INTEGER NOT NULL DEFAULT 0 CHECK (open_companion_home_at_startup IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN bubble_width INTEGER NOT NULL DEFAULT 340 CHECK (bubble_width BETWEEN 280 AND 520);
+"#,
+    },
+];
 
 pub fn configure_connection(connection: &Connection) -> Result<(), StorageError> {
     connection

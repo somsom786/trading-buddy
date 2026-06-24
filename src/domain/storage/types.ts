@@ -42,11 +42,39 @@ export interface StorageDiagnostics {
 
 export type RetentionPolicy = 'keep_until_delete' | 'delete_after_30_days' | 'delete_after_90_days';
 
+export type CompanionPlacementMode = 'free' | 'dock_left' | 'dock_right' | 'taskbar_perch';
+
+export interface CompanionFreePosition {
+  x: number;
+  y: number;
+}
+
+export interface CompanionPreferences {
+  buddyVisible: boolean;
+  buddyAlwaysOnTop: boolean;
+  placementMode: CompanionPlacementMode;
+  freePosition?: CompanionFreePosition;
+  ambientAnimationsEnabled: boolean;
+  reducedMovementEnabled: boolean;
+  sleepAfterInactivitySeconds: number;
+  proactiveCheckinsEnabled: boolean;
+  proactiveCheckinCooldownMinutes: number;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  doNotDisturb: boolean;
+  globalShortcutEnabled: boolean;
+  launchAtLogin: boolean;
+  openCompanionHomeAtStartup: boolean;
+  bubbleWidth: number;
+}
+
 export interface AppSettings {
   selectedLocalModel?: string;
   ambientAnimationsEnabled: boolean;
   conversationRetentionPolicy: RetentionPolicy;
   lastOpenedConversationId?: string;
+  companionPreferences: CompanionPreferences;
 }
 
 export interface ConversationSummary {
@@ -226,7 +254,31 @@ export function isAppSettings(value: unknown): value is AppSettings {
     optionalString(value.selectedLocalModel) &&
     typeof value.ambientAnimationsEnabled === 'boolean' &&
     retentionPolicies.has(value.conversationRetentionPolicy as RetentionPolicy) &&
-    optionalString(value.lastOpenedConversationId)
+    optionalString(value.lastOpenedConversationId) &&
+    isCompanionPreferences(value.companionPreferences)
+  );
+}
+
+export function isCompanionPreferences(value: unknown): value is CompanionPreferences {
+  return (
+    isRecord(value) &&
+    typeof value.buddyVisible === 'boolean' &&
+    typeof value.buddyAlwaysOnTop === 'boolean' &&
+    companionPlacementModes.has(value.placementMode as CompanionPlacementMode) &&
+    (value.freePosition === undefined || isCompanionFreePosition(value.freePosition)) &&
+    typeof value.ambientAnimationsEnabled === 'boolean' &&
+    typeof value.reducedMovementEnabled === 'boolean' &&
+    isBoundedNumber(value.sleepAfterInactivitySeconds, 60, 86_400) &&
+    typeof value.proactiveCheckinsEnabled === 'boolean' &&
+    isBoundedNumber(value.proactiveCheckinCooldownMinutes, 15, 1_440) &&
+    typeof value.quietHoursEnabled === 'boolean' &&
+    isClockTime(value.quietHoursStart) &&
+    isClockTime(value.quietHoursEnd) &&
+    typeof value.doNotDisturb === 'boolean' &&
+    typeof value.globalShortcutEnabled === 'boolean' &&
+    typeof value.launchAtLogin === 'boolean' &&
+    typeof value.openCompanionHomeAtStartup === 'boolean' &&
+    isBoundedNumber(value.bubbleWidth, 280, 520)
   );
 }
 
@@ -311,14 +363,52 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
+function isCompanionFreePosition(value: unknown): value is CompanionFreePosition {
+  return (
+    isRecord(value) &&
+    typeof value.x === 'number' &&
+    Number.isInteger(value.x) &&
+    typeof value.y === 'number' &&
+    Number.isInteger(value.y)
+  );
+}
+
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === 'string';
+}
+
+function isBoundedNumber(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max;
+}
+
+function isClockTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) {
+    return false;
+  }
+  const parts = value.split(':').map(Number);
+  const hour = parts[0];
+  const minute = parts[1];
+  return (
+    typeof hour === 'number' &&
+    typeof minute === 'number' &&
+    Number.isInteger(hour) &&
+    Number.isInteger(minute) &&
+    hour <= 23 &&
+    minute <= 59
+  );
 }
 
 const retentionPolicies = new Set<RetentionPolicy>([
   'keep_until_delete',
   'delete_after_30_days',
   'delete_after_90_days',
+]);
+
+const companionPlacementModes = new Set<CompanionPlacementMode>([
+  'free',
+  'dock_left',
+  'dock_right',
+  'taskbar_perch',
 ]);
 
 const messageStatuses = new Set<StoredMessageStatus>([

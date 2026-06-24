@@ -2,8 +2,8 @@
 
 ## Shape
 
-Trading Buddy is a single Tauri 2 desktop application with one React bundle and two native webview
-windows.
+Trading Buddy is a single Tauri 2 desktop application with one React bundle and three native
+webview windows.
 
 ```text
 React views
@@ -16,6 +16,14 @@ React views
         -> Rust storage service
           -> repository interfaces
             -> SQLite in app-local data directory
+```
+
+The product hierarchy is companion-first:
+
+```text
+buddy window
+  -> attached bubble window
+    -> Companion Home only when explicitly opened
 ```
 
 ## Frontend boundaries
@@ -143,22 +151,87 @@ Buddy states are a closed TypeScript union. Input and generation lifecycle event
 deterministically to listening, thinking, talking, idle, concerned, or error states; model output
 cannot choose arbitrary animations.
 
+Task 5 adds a second typed visual model:
+
+- `BuddyEmotion`: calm, curious, happy, proud, concerned, sad, sleepy, surprised.
+- `BuddyActivity`: idle, breathing, blinking, looking, listening, thinking, talking, stretching,
+  sitting, sleeping, waking, writing, alert.
+
+The runtime CSS placeholder maps `emotion + activity` onto temporary visual distinctions. A future
+sprite renderer can map the same pair to animation clips without letting the model invent file
+names or animation IDs.
+
 Cross-window messages use centralized event names and validated command/interaction payloads.
 Window show, hide, and focus operations remain native commands. Event listeners return cleanup
 functions and React effects remove them on unmount. Pointer movement must cross a drag threshold
 before native window dragging starts, so dragging does not also open the main window.
+
+The buddy single-click behavior now toggles the desktop conversation bubble. Companion Home is
+opened only through explicit actions such as the bubble button, tray menu, or main-window command.
+
+## Ambient life and proactive presence
+
+Ambient life is deterministic domain logic in `src/domain/companion/ambientLife.ts`. It chooses
+bounded visual states for breathing, blinking, looking, stretching, sitting, sleeping, and waking.
+The engine accepts injected time and randomness so tests can cover reduced motion, disabled
+ambient behavior, sleep thresholds, and priority pauses during conversation or alerts.
+
+Proactive presence is deterministic domain logic in `src/domain/companion/proactive.ts`. It can
+allow a small template check-in only after evaluating:
+
+- Do Not Disturb.
+- quiet hours.
+- cooldown.
+- active generation.
+- sleeping state.
+- whether the bubble is already open.
+- recent dismissal.
+- user preference flags.
+
+For this milestone, proactive content is a local template library. No LLM-generated proactive
+messages, screen reading, browser inspection, exchange monitoring, keylogging, or global cursor
+tracking is implemented.
+
+## Placement and idle awareness
+
+Placement math lives in `src/domain/companion/placement.ts` and covers free floating, left dock,
+right dock, taskbar perch, negative monitor coordinates, disconnected-monitor recovery, work-area
+clamping, and bubble-side flipping. The native window manager currently persists the buddy's
+physical free-floating position and positions the bubble beside the buddy. Full user-facing docking
+controls are still pending.
+
+The native idle abstraction exposes only elapsed idle seconds. On Windows it uses the operating
+system last-input timing API and `GetTickCount`; unsupported platforms return a safe `0`. It does
+not capture keys, mouse coordinates, text, screen contents, or application names, and it does not
+persist activity history.
 
 ## Native shell
 
 Tauri creates:
 
 - `main`: a normal resizable application window.
+- `bubble`: a transparent, taskbar-skipped attached conversation bubble.
 - `buddy`: a fixed-size transparent, undecorated, always-on-top window.
 
-The native window manager handles tray actions, showing/focusing windows, and buddy position
-persistence. Position data is a small JSON file in the operating system application config
-directory; no cloud or database is involved. Closing the main window hides it instead of
-destroying it, allowing the buddy and tray to reopen the existing session.
+The native window manager handles tray actions, showing/focusing windows, bubble positioning, and
+buddy position persistence. Position data is a small JSON file in the operating system application
+config directory; no cloud or database is involved. Closing the main window hides it instead of
+destroying it, allowing the buddy and tray to reopen the existing session. Closing the bubble hides
+it instead of closing the buddy.
+
+Startup shows the buddy while Companion Home remains hidden by default. A persisted
+`openCompanionHomeAtStartup` preference exists and defaults to disabled.
+
+## Companion preferences
+
+Companion preferences are stored in the Rust-owned `app_settings` row and validated before use.
+They include buddy visibility, always-on-top, placement mode, free position, ambient/reduced motion,
+sleep threshold, proactive check-ins, cooldown, quiet hours, Do Not Disturb, global shortcut flag,
+launch-at-login flag, open-Companion-Home-at-startup flag, and bubble width.
+
+The global shortcut and launch-at-login booleans are currently persisted configuration fields only.
+Actual OS shortcut registration and autostart integration are deferred because they require adding
+and verifying official Tauri/native plugin behavior.
 
 ## Security posture
 
@@ -167,15 +240,20 @@ destroying it, allowing the buddy and tray to reopen the existing session.
   names, message counts, and content lengths.
 - The only new plugin capability opens the exact official `https://ollama.com` URL.
 - Ollama requests use Rust networking and never receive arbitrary remote URLs from the frontend.
+- OS idle awareness reads elapsed idle time only and does not capture user input or screen content.
+- The actual Windows taskbar is not modified; taskbar perch is just a placement mode above the
+  usable work area.
 - No secrets or financial credentials are accepted or stored.
 - Future external inputs must be validated at service boundaries.
 
 ## Testing
 
 Vitest and React Testing Library cover the reducer, validation, model selection, prompt boundaries,
-buddy lifecycle, drag/click behavior, event payloads, listener cleanup, provider states, and mock
-stream interaction, plus storage display helpers, temporary chat storage behavior, and filename-only
+buddy lifecycle, drag/click behavior, event payloads, listener cleanup, provider states, mock stream
+interaction, bubble send/collapse behavior, ambient decisions, proactive decisions, placement math,
+visual-state guards, storage display helpers, temporary chat storage behavior, and filename-only
 export reporting. Rust tests cover endpoint and model validation, model-list parsing, error mapping,
-cancellation, position serialization, incremental NDJSON parsing, SQLite migrations, repository
-lifecycle behavior, diagnostics, retention cleanup, export boundaries, deletion, and interrupted
-message recovery. Platform window, tray, and WebView behavior still require native smoke tests.
+cancellation, position serialization, native clamp helpers, incremental NDJSON parsing, SQLite
+migrations, repository lifecycle behavior, companion preference validation/persistence,
+diagnostics, retention cleanup, export boundaries, deletion, and interrupted message recovery.
+Platform window, tray, and WebView behavior still require native smoke tests.

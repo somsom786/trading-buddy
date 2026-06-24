@@ -6,12 +6,13 @@ use super::{
     errors::StorageError,
     migrations,
     models::{
-        AppSettings, AssistantMessageFailure, AssistantMessageUpdate, ConversationDetail,
-        ConversationExport, ConversationExportFile, ConversationRetentionPolicy,
-        ConversationSummary, DeleteAllResult, DevelopmentFixtureResult, MessageExport,
-        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
-        StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole, StoredMessageStatus,
-        MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
+        CompanionPlacementMode, CompanionPreferences, ConversationDetail, ConversationExport,
+        ConversationExportFile, ConversationRetentionPolicy, ConversationSummary, DeleteAllResult,
+        DevelopmentFixtureResult, MessageExport, PrepareGenerationRequest,
+        PrepareGenerationResponse, RetentionCleanupResult, StorageDiagnostics, StorageMetadata,
+        StoredMessage, StoredMessageRole, StoredMessageStatus, MAX_MESSAGE_CONTENT_LENGTH,
+        MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -72,27 +73,113 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
             "SELECT selected_local_model,
                     ambient_animations_enabled,
                     conversation_retention_policy,
-                    last_opened_conversation_id
+                    last_opened_conversation_id,
+                    buddy_visible,
+                    buddy_always_on_top,
+                    buddy_placement_mode,
+                    buddy_free_position_x,
+                    buddy_free_position_y,
+                    reduced_movement_enabled,
+                    sleep_after_inactivity_seconds,
+                    proactive_checkins_enabled,
+                    proactive_checkin_cooldown_minutes,
+                    quiet_hours_enabled,
+                    quiet_hours_start,
+                    quiet_hours_end,
+                    do_not_disturb,
+                    global_shortcut_enabled,
+                    launch_at_login,
+                    open_companion_home_at_startup,
+                    bubble_width
              FROM app_settings WHERE id = 1",
             [],
             |row| {
                 let policy: String = row.get(2)?;
+                let placement_mode: String = row.get(6)?;
+                let free_x: Option<i32> = row.get(7)?;
+                let free_y: Option<i32> = row.get(8)?;
                 Ok((
                     row.get::<_, Option<String>>(0)?,
                     row.get::<_, i64>(1)?,
                     policy,
                     row.get::<_, Option<String>>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    placement_mode,
+                    free_x,
+                    free_y,
+                    row.get::<_, i64>(9)?,
+                    row.get::<_, i64>(10)?,
+                    row.get::<_, i64>(11)?,
+                    row.get::<_, i64>(12)?,
+                    row.get::<_, i64>(13)?,
+                    row.get::<_, String>(14)?,
+                    row.get::<_, String>(15)?,
+                    row.get::<_, i64>(16)?,
+                    row.get::<_, i64>(17)?,
+                    row.get::<_, i64>(18)?,
+                    row.get::<_, i64>(19)?,
+                    row.get::<_, i64>(20)?,
                 ))
             },
         )
         .map_err(StorageError::from_sql_read)
         .and_then(
-            |(selected_local_model, animations, policy, last_opened_conversation_id)| {
+            |(
+                selected_local_model,
+                animations,
+                policy,
+                last_opened_conversation_id,
+                buddy_visible,
+                buddy_always_on_top,
+                placement_mode,
+                free_x,
+                free_y,
+                reduced_movement_enabled,
+                sleep_after_inactivity_seconds,
+                proactive_checkins_enabled,
+                proactive_checkin_cooldown_minutes,
+                quiet_hours_enabled,
+                quiet_hours_start,
+                quiet_hours_end,
+                do_not_disturb,
+                global_shortcut_enabled,
+                launch_at_login,
+                open_companion_home_at_startup,
+                bubble_width,
+            )| {
+                let companion_preferences = CompanionPreferences {
+                    buddy_visible: buddy_visible == 1,
+                    buddy_always_on_top: buddy_always_on_top == 1,
+                    placement_mode: CompanionPlacementMode::from_db(&placement_mode)?,
+                    free_position: free_position(free_x, free_y),
+                    ambient_animations_enabled: animations == 1,
+                    reduced_movement_enabled: reduced_movement_enabled == 1,
+                    sleep_after_inactivity_seconds: bounded_u32(
+                        sleep_after_inactivity_seconds,
+                        "sleep-after-inactivity setting",
+                    )?,
+                    proactive_checkins_enabled: proactive_checkins_enabled == 1,
+                    proactive_checkin_cooldown_minutes: bounded_u32(
+                        proactive_checkin_cooldown_minutes,
+                        "proactive cooldown setting",
+                    )?,
+                    quiet_hours_enabled: quiet_hours_enabled == 1,
+                    quiet_hours_start,
+                    quiet_hours_end,
+                    do_not_disturb: do_not_disturb == 1,
+                    global_shortcut_enabled: global_shortcut_enabled == 1,
+                    launch_at_login: launch_at_login == 1,
+                    open_companion_home_at_startup: open_companion_home_at_startup == 1,
+                    bubble_width: bounded_u32(bubble_width, "bubble width setting")?,
+                };
+                validate_companion_preferences(&companion_preferences)?;
                 Ok(AppSettings {
                     selected_local_model,
                     ambient_animations_enabled: animations == 1,
                     conversation_retention_policy: ConversationRetentionPolicy::from_db(&policy)?,
                     last_opened_conversation_id,
+                    companion_preferences,
                 })
             },
         )
@@ -125,6 +212,62 @@ pub fn set_retention_policy(
         )
         .map_err(StorageError::from_sql_write)?;
     cleanup_retention(connection)
+}
+
+pub fn set_companion_preferences(
+    connection: &Connection,
+    preferences: CompanionPreferences,
+) -> Result<AppSettings, StorageError> {
+    validate_companion_preferences(&preferences)?;
+    let (free_x, free_y) = preferences
+        .free_position
+        .map(|position| (Some(position.x), Some(position.y)))
+        .unwrap_or((None, None));
+    connection
+        .execute(
+            "UPDATE app_settings
+             SET ambient_animations_enabled = ?1,
+                 buddy_visible = ?2,
+                 buddy_always_on_top = ?3,
+                 buddy_placement_mode = ?4,
+                 buddy_free_position_x = ?5,
+                 buddy_free_position_y = ?6,
+                 reduced_movement_enabled = ?7,
+                 sleep_after_inactivity_seconds = ?8,
+                 proactive_checkins_enabled = ?9,
+                 proactive_checkin_cooldown_minutes = ?10,
+                 quiet_hours_enabled = ?11,
+                 quiet_hours_start = ?12,
+                 quiet_hours_end = ?13,
+                 do_not_disturb = ?14,
+                 global_shortcut_enabled = ?15,
+                 launch_at_login = ?16,
+                 open_companion_home_at_startup = ?17,
+                 bubble_width = ?18
+             WHERE id = 1",
+            params![
+                bool_to_db(preferences.ambient_animations_enabled),
+                bool_to_db(preferences.buddy_visible),
+                bool_to_db(preferences.buddy_always_on_top),
+                preferences.placement_mode.as_db(),
+                free_x,
+                free_y,
+                bool_to_db(preferences.reduced_movement_enabled),
+                preferences.sleep_after_inactivity_seconds,
+                bool_to_db(preferences.proactive_checkins_enabled),
+                preferences.proactive_checkin_cooldown_minutes,
+                bool_to_db(preferences.quiet_hours_enabled),
+                preferences.quiet_hours_start,
+                preferences.quiet_hours_end,
+                bool_to_db(preferences.do_not_disturb),
+                bool_to_db(preferences.global_shortcut_enabled),
+                bool_to_db(preferences.launch_at_login),
+                bool_to_db(preferences.open_companion_home_at_startup),
+                preferences.bubble_width,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    settings(connection)
 }
 
 pub fn set_last_opened_conversation(
@@ -792,6 +935,79 @@ fn count_rows(
         .map_err(|_| StorageError::invalid_stored_data("Row count overflow."))
 }
 
+fn free_position(x: Option<i32>, y: Option<i32>) -> Option<CompanionFreePosition> {
+    match (x, y) {
+        (Some(x), Some(y)) => Some(CompanionFreePosition { x, y }),
+        _ => None,
+    }
+}
+
+fn bounded_u32(value: i64, label: &str) -> Result<u32, StorageError> {
+    value
+        .try_into()
+        .map_err(|_| StorageError::invalid_stored_data(format!("Invalid {label}.")))
+}
+
+fn bool_to_db(value: bool) -> i64 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
+
+fn validate_companion_preferences(preferences: &CompanionPreferences) -> Result<(), StorageError> {
+    if !(60..=86_400).contains(&preferences.sleep_after_inactivity_seconds) {
+        return Err(StorageError::invalid_request(
+            "Sleep-after-inactivity must be between 60 seconds and 24 hours.",
+        ));
+    }
+    if !(15..=1_440).contains(&preferences.proactive_checkin_cooldown_minutes) {
+        return Err(StorageError::invalid_request(
+            "Proactive check-in cooldown must be between 15 minutes and 24 hours.",
+        ));
+    }
+    if !(280..=520).contains(&preferences.bubble_width) {
+        return Err(StorageError::invalid_request(
+            "Bubble width must be between 280 and 520 pixels.",
+        ));
+    }
+    validate_clock_time(&preferences.quiet_hours_start)?;
+    validate_clock_time(&preferences.quiet_hours_end)?;
+    Ok(())
+}
+
+fn validate_clock_time(value: &str) -> Result<(), StorageError> {
+    let mut parts = value.split(':');
+    let Some(hour) = parts.next() else {
+        return Err(StorageError::invalid_request(
+            "Quiet hours time is invalid.",
+        ));
+    };
+    let Some(minute) = parts.next() else {
+        return Err(StorageError::invalid_request(
+            "Quiet hours time is invalid.",
+        ));
+    };
+    if parts.next().is_some() {
+        return Err(StorageError::invalid_request(
+            "Quiet hours time is invalid.",
+        ));
+    }
+    let hour = hour
+        .parse::<u8>()
+        .map_err(|_| StorageError::invalid_request("Quiet hours hour is invalid."))?;
+    let minute = minute
+        .parse::<u8>()
+        .map_err(|_| StorageError::invalid_request("Quiet hours minute is invalid."))?;
+    if hour > 23 || minute > 59 || value.len() != 5 {
+        return Err(StorageError::invalid_request(
+            "Quiet hours time is invalid.",
+        ));
+    }
+    Ok(())
+}
+
 pub fn derive_conversation_title(content: &str) -> String {
     let normalized = normalize_title(content);
     if normalized.is_empty() {
@@ -1061,6 +1277,39 @@ mod tests {
             settings.last_opened_conversation_id.as_deref(),
             Some(prepared.conversation.id.as_str())
         );
+    }
+
+    #[test]
+    fn persists_companion_preferences() {
+        let connection = database();
+        let mut settings = settings(&connection).expect("settings");
+        settings.companion_preferences.buddy_visible = false;
+        settings.companion_preferences.buddy_always_on_top = false;
+        settings.companion_preferences.placement_mode = CompanionPlacementMode::TaskbarPerch;
+        settings.companion_preferences.free_position =
+            Some(CompanionFreePosition { x: -50, y: 42 });
+        settings
+            .companion_preferences
+            .sleep_after_inactivity_seconds = 1_200;
+        settings.companion_preferences.do_not_disturb = true;
+        settings
+            .companion_preferences
+            .open_companion_home_at_startup = false;
+        settings.companion_preferences.bubble_width = 360;
+
+        let updated =
+            set_companion_preferences(&connection, settings.companion_preferences).expect("update");
+        assert!(!updated.companion_preferences.buddy_visible);
+        assert_eq!(
+            updated.companion_preferences.placement_mode,
+            CompanionPlacementMode::TaskbarPerch
+        );
+        assert_eq!(
+            updated.companion_preferences.free_position,
+            Some(CompanionFreePosition { x: -50, y: 42 })
+        );
+        assert!(updated.companion_preferences.do_not_disturb);
+        assert_eq!(updated.companion_preferences.bubble_width, 360);
     }
 
     #[test]

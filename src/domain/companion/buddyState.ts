@@ -47,3 +47,24 @@ export function buddyStateForLifecycle(
 export function isBuddyState(value: unknown): value is BuddyState {
   return typeof value === 'string' && (BUDDY_STATES as readonly string[]).includes(value);
 }
+
+export function buddyStateToVisualState(state: BuddyState) {
+  switch (state) {
+    case 'listening':
+      return { emotion: 'curious', activity: 'listening' } as const;
+    case 'thinking':
+      return { emotion: 'calm', activity: 'thinking' } as const;
+    case 'talking':
+      return { emotion: 'happy', activity: 'talking' } as const;
+    case 'happy':
+      return { emotion: 'happy', activity: 'breathing' } as const;
+    case 'concerned':
+      return { emotion: 'concerned', activity: 'alert' } as const;
+    case 'sleeping':
+      return { emotion: 'sleepy', activity: 'sleeping' } as const;
+    case 'error':
+      return { emotion: 'concerned', activity: 'alert' } as const;
+    case 'idle':
+      return { emotion: 'calm', activity: 'breathing' } as const;
+  }
+}

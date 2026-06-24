@@ -202,6 +202,31 @@ button {
   margin-top: 5px;
 }
 
+.buddy-character[data-activity='blinking'] .buddy-character__eye {
+  height: 2px;
+  margin-top: 5px;
+}
+
+.buddy-character[data-activity='looking'] .buddy-character__eye--left {
+  transform: translateX(4px);
+}
+
+.buddy-character[data-activity='looking'] .buddy-character__eye--right {
+  transform: translateX(4px);
+}
+
+.buddy-character[data-activity='sitting'] .buddy-character__body {
+  transform: translateY(6px) scaleY(0.93);
+}
+
+.buddy-character[data-activity='stretching'] .buddy-character__antennae {
+  transform: translateY(-4px) scaleY(1.1);
+}
+
+.buddy-character[data-activity='waking'] {
+  animation: buddy-happy 900ms ease-in-out 1;
+}
+
 .buddy-character[data-state='error'] .buddy-character__body {
   filter: saturate(0.65) sepia(0.25) hue-rotate(310deg);
 }
@@ -273,6 +298,136 @@ button {
   min-height: 100%;
   grid-template-columns: 230px 1fr;
   background: radial-gradient(circle at 80% 10%, rgb(59 83 164 / 16%), transparent 30%), #0a0d14;
+}
+
+.bubble-view {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  place-items: center;
+  background: transparent;
+}
+
+.bubble-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  color: #e9eef9;
+  border: 1px solid rgb(133 242 207 / 22%);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 12% 8%, rgb(133 242 207 / 14%), transparent 28%), rgb(13 18 28 / 94%);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 28%);
+}
+
+.bubble-card::after {
+  position: absolute;
+  bottom: -8px;
+  left: 34px;
+  width: 18px;
+  height: 18px;
+  content: '';
+  border-right: 1px solid rgb(133 242 207 / 22%);
+  border-bottom: 1px solid rgb(133 242 207 / 22%);
+  background: rgb(13 18 28 / 94%);
+  transform: rotate(45deg);
+}
+
+.bubble-card__header,
+.bubble-card__footer {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bubble-card__header strong,
+.bubble-card__header span {
+  display: block;
+}
+
+.bubble-card__header span,
+.bubble-card__footer span {
+  max-width: 120px;
+  overflow: hidden;
+  color: #8d98ad;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bubble-card__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.bubble-messages {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+}
+
+.bubble-line {
+  width: fit-content;
+  max-width: 92%;
+  margin: 0;
+  padding: 7px 9px;
+  color: #dfe7f7;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid #28334a;
+  border-radius: 11px;
+  background: #121a28;
+  white-space: pre-wrap;
+}
+
+.bubble-line--user {
+  align-self: flex-end;
+  border-color: #3d527a;
+  background: #1a2740;
+}
+
+.bubble-line--buddy,
+.bubble-line--assistant {
+  align-self: flex-start;
+}
+
+.bubble-error {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  color: #ffcac5;
+  font-size: 11px;
+  border: 1px solid #613438;
+  border-radius: 9px;
+  background: #2b191d;
+}
+
+.bubble-card textarea {
+  width: 100%;
+  resize: none;
+  padding: 9px 10px;
+  color: #edf2fb;
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid #30394d;
+  border-radius: 11px;
+  outline: none;
+  background: #0c111b;
+}
+
+.bubble-card textarea:focus-visible {
+  border-color: #85f2cf;
+  box-shadow: 0 0 0 2px rgb(133 242 207 / 16%);
 }
 
 .sidebar {
@@ -378,6 +533,14 @@ button {
   margin: 3px 0 0;
   font-size: 25px;
   letter-spacing: -0.02em;
+}
+
+.workspace__subtitle {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: #8f99af;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .eyebrow {
@@ -942,6 +1105,26 @@ button.stop-button {
   display: flex;
   gap: 5px;
   flex-wrap: wrap;
+}
+
+.companion-lab__preview {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.companion-lab__preview .buddy-shell {
+  width: 70px;
+  height: 70px;
+  background: radial-gradient(circle at 50% 80%, rgba(255, 181, 82, 0.2), transparent 60%);
+}
+
+.companion-lab__list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  color: #c0cada;
 }
 
 .buddy-lab button,

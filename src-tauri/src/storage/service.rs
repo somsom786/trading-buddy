@@ -10,8 +10,8 @@ use tauri::{AppHandle, Manager};
 use super::{
     errors::StorageError,
     migrations,
-    models::StorageStatus,
-    repository::{cleanup_retention, metadata, recover_interrupted_streams},
+    models::{AppSettings, StorageStatus},
+    repository::{cleanup_retention, metadata, recover_interrupted_streams, settings},
 };
 
 const DATABASE_FILE_NAME: &str = "trading-buddy.db";
@@ -68,6 +68,17 @@ impl StorageService {
                 schema_version: None,
                 error: Some(error.clone()),
             },
+        }
+    }
+
+    pub fn settings_snapshot(&self) -> Result<AppSettings, StorageError> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| StorageError::database_unavailable("Storage mutex was poisoned."))?;
+        match &*state {
+            StorageState::Ready { connection, .. } => settings(connection),
+            StorageState::Unavailable(error) => Err(error.clone()),
         }
     }
 

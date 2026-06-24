@@ -214,3 +214,95 @@ Storage diagnostics expose counts, schema version, safe database summary, retent
 availability state without raw SQL or message contents. The interrupted-generation fixture is guarded
 to debug builds because it intentionally creates test data and should not be available as a release
 feature.
+
+## 029 - Creature-first product hierarchy
+
+**Status:** Accepted
+
+Trading Buddy's primary interface is the desktop creature, not the full application shell. The
+normal window is now framed as Companion Home for history, privacy, storage, development labs, and
+future deeper tools. This keeps everyday interaction lightweight and close to the desktop while
+preserving the existing full workspace for longer sessions.
+
+## 030 - Single click toggles the bubble
+
+**Status:** Accepted
+
+A normal click on the buddy toggles the attached conversation bubble instead of opening Companion
+Home. Opening the full application is now explicit through the bubble, tray, or other intentional
+actions. This avoids treating the buddy as decoration for a traditional chat app.
+
+## 031 - Separate attached bubble window
+
+**Status:** Accepted
+
+The desktop conversation surface is a separate transparent, taskbar-skipped Tauri window. Keeping
+the buddy window compact prevents large invisible hit areas around the creature and lets the bubble
+flip beside the buddy near screen edges. The tradeoff is more native window coordination, which is
+kept behind `windowService` and Rust window-manager functions.
+
+## 032 - Deterministic ambient life
+
+**Status:** Accepted
+
+Breathing, blinking, looking, sitting, stretching, sleeping, and waking are selected by a testable
+domain engine with injected time and randomness. The LLM cannot request arbitrary animations or
+change activity priority. This keeps visual behavior predictable, bounded, and replaceable by a
+future sprite renderer.
+
+## 033 - Deterministic proactive triggers with template content
+
+**Status:** Accepted
+
+Proactive check-ins are gated by deterministic preference, cooldown, quiet-hours, busy-state, sleep,
+dismissal, and bubble-open rules. Content is currently a small local template set. LLM-generated
+proactive content is deferred so the product does not create manipulative, noisy, or unreviewed
+messages.
+
+## 034 - No screen reading or global input capture
+
+**Status:** Accepted
+
+The idle integration reads elapsed OS idle duration only. It does not capture keys, mouse
+coordinates, screen contents, window titles, browser pages, exchange apps, or other application
+text. This preserves the local-first privacy boundary and avoids surprising surveillance behavior.
+
+## 035 - Taskbar perch does not modify the taskbar
+
+**Status:** Accepted
+
+Taskbar perch is a visual placement mode above the usable work area. The app does not inject into,
+hook, replace, or modify Windows Explorer or the real taskbar.
+
+## 036 - Random walking deferred
+
+**Status:** Accepted
+
+The buddy may shift subtly as part of placeholder animation, but it does not wander across the
+screen. Uncontrolled movement could block user work, steal attention, or feel surprising. Any
+future walking behavior needs explicit product approval and desktop-interference testing.
+
+## 037 - Final art deferred
+
+**Status:** Accepted
+
+The BETA v0.1 concept board remains a reference only. Runtime visuals use CSS placeholders and
+typed state hooks so production sprite sheets can be introduced later with clear ownership and
+licensing.
+
+## 038 - Windows idle dependency
+
+**Status:** Accepted
+
+`windows-sys` is included for the narrow Windows last-input timing API. Alternatives were polling
+from frontend events, which would miss OS-level idle time, or adding a larger plugin before the
+privacy boundary was proven. The dependency is limited to elapsed idle seconds and is isolated in
+the native layer.
+
+## 039 - Global shortcut and launch-at-login deferred
+
+**Status:** Accepted
+
+Task 5 persists typed preferences for global shortcut and launch at login, but does not register a
+global shortcut or enable OS autostart yet. Those features require official Tauri/native plugin
+integration, failure handling, user-facing settings, and manual OS verification.

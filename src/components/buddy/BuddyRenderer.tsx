@@ -1,12 +1,16 @@
 import { useRef, type PointerEvent } from 'react';
-import type { BuddyState } from '../../domain/companion/buddyState';
+import { buddyStateToVisualState, type BuddyState } from '../../domain/companion/buddyState';
+import type { BuddyVisualState } from '../../domain/companion/visualState';
 import type { CompanionService } from '../../services/tauri/companionService';
 import { BuddyPlaceholder } from './BuddyPlaceholder';
 
 interface BuddyRendererProps {
   state: BuddyState;
+  visualState?: BuddyVisualState;
   companionService: CompanionService;
   onActivate: () => void;
+  onHoverStart?: () => void;
+  onHoverEnd?: () => void;
 }
 
 interface PointerStart {
@@ -15,7 +19,14 @@ interface PointerStart {
   dragging: boolean;
 }
 
-export function BuddyRenderer({ state, companionService, onActivate }: BuddyRendererProps) {
+export function BuddyRenderer({
+  state,
+  visualState = buddyStateToVisualState(state),
+  companionService,
+  onActivate,
+  onHoverStart,
+  onHoverEnd,
+}: BuddyRendererProps) {
   const pointerStart = useRef<PointerStart | null>(null);
 
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
@@ -49,9 +60,12 @@ export function BuddyRenderer({ state, companionService, onActivate }: BuddyRend
   return (
     <BuddyPlaceholder
       state={state}
+      visualState={visualState}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      {...(onHoverStart ? { onPointerEnter: onHoverStart } : {})}
+      {...(onHoverEnd ? { onPointerLeave: onHoverEnd } : {})}
     />
   );
 }

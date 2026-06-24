@@ -15,6 +15,68 @@ pub enum ConversationRetentionPolicy {
     DeleteAfter90Days,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CompanionPlacementMode {
+    Free,
+    DockLeft,
+    DockRight,
+    TaskbarPerch,
+}
+
+impl CompanionPlacementMode {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "free" => Ok(Self::Free),
+            "dock_left" => Ok(Self::DockLeft),
+            "dock_right" => Ok(Self::DockRight),
+            "taskbar_perch" => Ok(Self::TaskbarPerch),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported companion placement mode: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Free => "free",
+            Self::DockLeft => "dock_left",
+            Self::DockRight => "dock_right",
+            Self::TaskbarPerch => "taskbar_perch",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionPreferences {
+    pub buddy_visible: bool,
+    pub buddy_always_on_top: bool,
+    pub placement_mode: CompanionPlacementMode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub free_position: Option<CompanionFreePosition>,
+    pub ambient_animations_enabled: bool,
+    pub reduced_movement_enabled: bool,
+    pub sleep_after_inactivity_seconds: u32,
+    pub proactive_checkins_enabled: bool,
+    pub proactive_checkin_cooldown_minutes: u32,
+    pub quiet_hours_enabled: bool,
+    pub quiet_hours_start: String,
+    pub quiet_hours_end: String,
+    pub do_not_disturb: bool,
+    pub global_shortcut_enabled: bool,
+    pub launch_at_login: bool,
+    pub open_companion_home_at_startup: bool,
+    pub bubble_width: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompanionFreePosition {
+    pub x: i32,
+    pub y: i32,
+}
+
 impl ConversationRetentionPolicy {
     pub fn from_db(value: &str) -> Result<Self, StorageError> {
         match value {
@@ -146,6 +208,7 @@ pub struct AppSettings {
     pub conversation_retention_policy: ConversationRetentionPolicy,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_opened_conversation_id: Option<String>,
+    pub companion_preferences: CompanionPreferences,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

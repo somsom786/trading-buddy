@@ -5,8 +5,8 @@ use tauri::State;
 use crate::storage::{
     errors::StorageError,
     models::{
-        AppSettings, AssistantMessageFailure, AssistantMessageUpdate, ConversationDetail,
-        ConversationRetentionPolicy, ConversationSummary, DeleteAllResult,
+        AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionPreferences,
+        ConversationDetail, ConversationRetentionPolicy, ConversationSummary, DeleteAllResult,
         DevelopmentFixtureResult, ExportResult, PrepareGenerationRequest,
         PrepareGenerationResponse, RetentionCleanupResult, StorageDiagnostics, StorageStatus,
     },
@@ -65,6 +65,16 @@ pub async fn set_conversation_retention_policy(
 ) -> Result<RetentionCleanupResult, StorageError> {
     service
         .run(move |connection, _| repository::set_retention_policy(connection, policy))
+        .await
+}
+
+#[tauri::command]
+pub async fn set_companion_preferences(
+    preferences: CompanionPreferences,
+    service: State<'_, StorageService>,
+) -> Result<AppSettings, StorageError> {
+    service
+        .run(move |connection, _| repository::set_companion_preferences(connection, preferences))
         .await
 }
 

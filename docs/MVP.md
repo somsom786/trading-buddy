@@ -2,13 +2,23 @@
 
 ## Goal
 
-Validate that a local desktop companion can help a trader capture context and review decisions with
-minimal interruption.
+Validate that a local desktop creature can help a trader capture context and review decisions with
+minimal interruption, while the full application remains a secondary Companion Home for deeper
+work.
 
 ## Candidate MVP scope
 
-- Local chat-style workspace with clearly bounded assistant behavior, local Ollama streaming, and
-  privacy-first local conversation persistence.
+- Desktop buddy visible at launch without opening Companion Home.
+- Attached conversation bubble for the user's everyday local chat, using existing Ollama streaming
+  and privacy-first local conversation persistence.
+- Deterministic ambient life: breathing, blinking, looking, sitting, stretching, sleeping, waking,
+  and explicit listening/thinking/talking states.
+- Respectful proactive check-in engine based on templates, cooldowns, quiet hours, Do Not Disturb,
+  and idle/session timing.
+- Placement behavior for free floating, left dock, right dock, and taskbar-perch positioning,
+  without modifying the real operating-system taskbar.
+- Companion Home for history, privacy/storage controls, development labs, and longer
+  conversations.
 - Local trading journal with structured entries.
 - Review workflow for decisions and outcomes.
 - Read-only market or exchange context after a separate security review.
@@ -47,3 +57,16 @@ minimal interruption.
   saved conversation content.
 - Provide rename, archive, restore, delete, delete-all, retention, and export controls.
 - Document that the database is local but not application-level encrypted yet.
+
+## Companion-first desktop milestone
+
+- Start with the buddy visible and Companion Home hidden by default.
+- Single-clicking the buddy toggles the attached conversation bubble instead of opening the full
+  application.
+- The bubble streams local model output beside the buddy and can cancel active generation.
+- The buddy uses typed `emotion + activity` visual state instead of arbitrary animation names.
+- OS idle awareness exposes elapsed idle seconds only; it does not capture input, coordinates,
+  screen contents, or other app text.
+- Companion preferences are stored in Rust-owned settings rather than browser local storage.
+- Global shortcut and launch-at-login preferences exist in the typed settings model, but the actual
+  OS integrations are deferred until the official Tauri plugin surface is added and verified.

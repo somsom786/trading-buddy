@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 23, 2026 - Companion-first desktop shell
+
+- Corrected the product hierarchy so the desktop buddy is primary and Companion Home is secondary.
+- Added a separate attached conversation bubble window for compact desktop chat.
+- Changed single-click buddy behavior to toggle the bubble instead of opening the full app.
+- Added typed emotion/activity visual state, deterministic ambient life, proactive template gates,
+  placement math, and OS idle-duration boundaries.
+- Persisted companion preferences in Rust-owned settings.
+- Expanded development tooling into Companion Lab previews.
+- Documented deferred OS integrations: global shortcut, launch at login, native right-click buddy
+  context menu, and user-facing docking controls.
+- Detailed handoff report:
+  [`docs/reports/TASK-005-companion-first-desktop-experience.md`](reports/TASK-005-companion-first-desktop-experience.md)
+
 ### June 23, 2026 - Desktop QA and storage UX hardening
 
 - Added a Task 4 manual QA plan and QA journal for release-readiness work.
@@ -63,5 +77,6 @@ production-ready.
 ## Next journal targets
 
 - Refine the companion’s visual identity into original, production-ready sprites.
-- Design the local persistence milestone before storing conversations or journal entries.
+- Add verified OS global shortcut and launch-at-login integration.
+- Add user-facing companion preference controls.
 - Continue recording product decisions, verification results, and notable limitations here.

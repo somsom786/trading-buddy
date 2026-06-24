@@ -10,7 +10,9 @@ export type CompanionCommand =
   | { type: 'wake' }
   | { type: 'focus' }
   | { type: 'show' }
-  | { type: 'hide' };
+  | { type: 'hide' }
+  | { type: 'toggle_bubble' }
+  | { type: 'do_not_disturb' };
 
 export type CompanionInteraction =
   | { type: 'buddy_clicked' }
@@ -23,7 +25,7 @@ export function isCompanionCommand(value: unknown): value is CompanionCommand {
   }
   return value.type === 'set_state'
     ? isBuddyState(value.state)
-    : ['wake', 'focus', 'show', 'hide'].includes(value.type);
+    : ['wake', 'focus', 'show', 'hide', 'toggle_bubble', 'do_not_disturb'].includes(value.type);
 }
 
 export function isCompanionInteraction(value: unknown): value is CompanionInteraction {

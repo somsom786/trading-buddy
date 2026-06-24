@@ -1,7 +1,15 @@
 import { resolveAppView } from './app/view';
+import { BubbleView } from './views/BubbleView';
 import { BuddyView } from './views/BuddyView';
 import { MainView } from './views/MainView';
 
 export function App() {
-  return resolveAppView(window.location.search) === 'buddy' ? <BuddyView /> : <MainView />;
+  const view = resolveAppView(window.location.search);
+  if (view === 'buddy') {
+    return <BuddyView />;
+  }
+  if (view === 'bubble') {
+    return <BubbleView />;
+  }
+  return <MainView />;
 }

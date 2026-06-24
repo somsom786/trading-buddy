@@ -102,8 +102,55 @@ verified launch and database creation, but the full desktop checklist remains pa
 because WebView content and tray overflow interactions were not reliably controllable through the
 available automation.
 
+## Task 5 - Companion-First Desktop Experience
+
+- [x] Run baseline validation before implementation.
+- [x] Keep Companion Home hidden by default while the buddy starts visible.
+- [x] Add a separate transparent, taskbar-skipped conversation bubble window.
+- [x] Change single-click buddy behavior to toggle the bubble instead of opening Companion Home.
+- [x] Keep explicit Companion Home actions from the bubble, tray, and main-window controls.
+- [x] Stream local Ollama responses from the bubble through the existing conversation reducer and
+      storage commands.
+- [x] Add bubble cancellation and Escape-to-collapse behavior.
+- [x] Add typed `BuddyEmotion`, `BuddyActivity`, and `BuddyVisualState` domain concepts.
+- [x] Extend the placeholder renderer with breathing, blinking, looking, listening, thinking,
+      talking, concerned, happy, sitting, sleeping, waking, and stretching distinctions.
+- [x] Add deterministic ambient-life domain logic with injected time/randomness and reduced-motion
+      support.
+- [x] Add narrow OS idle-duration command without input capture or screen inspection.
+- [x] Add deterministic proactive check-in domain logic with template content, cooldown, quiet
+      hours, Do Not Disturb, and busy-state gates.
+- [x] Add placement domain logic for free floating, dock left, dock right, taskbar perch, monitor
+      recovery, work-area clamping, and bubble-side flipping.
+- [x] Persist typed companion preferences in Rust-owned SQLite settings.
+- [x] Update tray actions around the companion-first model: Talk, Open Companion Home, Show Buddy,
+      Hide Buddy, Sleep, Wake, Do Not Disturb, Reset Position, Quit.
+- [x] Rename/reframe the full window as Companion Home and add a return-to-buddy action.
+- [x] Expand the development-only Buddy Lab into a Companion Lab preview for emotion/activity,
+      proactive templates, and placement modes.
+- [x] Add frontend tests for visual state, ambient life, proactive gates, placement, bubble
+      behavior, and view routing.
+- [x] Add Rust tests for companion preference persistence and native placement/clamp helpers.
+- [ ] Implement user-facing docking controls that actively snap the native buddy to each persisted
+      placement mode.
+- [ ] Implement a native right-click buddy context menu.
+- [ ] Implement global shortcut registration.
+- [ ] Implement launch-at-login integration.
+- [ ] Prove full shared active-generation handoff between bubble and Companion Home in a real
+      desktop session.
+- [ ] Manually verify the complete Task 5 desktop checklist with real WebView/tray interaction.
+
+Task 5 establishes the companion-first shell and core deterministic architecture, but several OS
+integration and manual-desktop verification items remain intentionally pending. The global shortcut
+and launch-at-login settings are persisted but not yet wired to OS behavior.
+
 ## Next — requires separate product approval
 
+- [ ] Add official Tauri/native global-shortcut integration with registration-failure handling.
+- [ ] Add launch-at-login integration and settings UI.
+- [ ] Add user-facing companion preference controls for docking, quiet hours, Do Not Disturb,
+      ambient motion, and startup behavior.
+- [ ] Complete a direct human QA run against the Task 5 desktop checklist.
 - [ ] Design a local persistence schema for journal and settings data.
 - [ ] Add navigation state and empty feature routes.
 - [ ] Define validated domain types for journal entries and reviews.

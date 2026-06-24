@@ -74,17 +74,38 @@ Run only the browser frontend:
 pnpm dev
 ```
 
-The browser frontend defaults to the main view. Append `?view=buddy` to preview the buddy view.
-Native Ollama requests require the Tauri desktop application.
+The browser frontend defaults to the Companion Home view. Append `?view=buddy` to preview the buddy
+view or `?view=bubble` to preview the attached conversation bubble. Native window behavior, storage
+paths, idle awareness, and Ollama requests require the Tauri desktop application.
+
+## Desktop companion startup
+
+Trading Buddy now starts companion-first:
+
+- The buddy appears on the desktop.
+- Companion Home stays hidden by default.
+- The tray remains available.
+- Local AI or storage failures do not automatically open the full application.
+- The buddy position is restored from local app config.
+
+The persisted setting `Open Companion Home at startup` exists and defaults to disabled. There is no
+user-facing settings screen for it yet.
 
 ## Using local chat
 
 1. Start Ollama.
 2. Confirm at least one model appears in `ollama list`.
 3. Run `pnpm tauri dev`.
-4. Select an installed model.
+4. Click the buddy to open the attached bubble.
 5. Type a message and press Enter. Use Shift+Enter for a newline.
-6. Use **Stop generation** to cancel the active local request.
+6. Use **Stop** to cancel the active local request.
+
+The bubble shows local AI status, the selected model, recent messages, a multiline input, collapse
+control, and an explicit **Open Home** action. It streams through the existing local Ollama and
+SQLite persistence pipeline instead of creating a separate chat backend.
+
+Companion Home can still be opened explicitly from the bubble, tray, or app controls for history,
+privacy/storage tools, development labs, and deeper conversations.
 
 Saved conversations persist across restarts. User messages are saved before generation starts;
 assistant responses are checkpointed during streaming and finalized as completed, cancelled, or
@@ -122,14 +143,43 @@ builds this is under `%LOCALAPPDATA%\com.tradingbuddy.desktop`.
 
 Automated storage tests use temporary in-memory databases and do not modify real user data.
 
-## Buddy Lab
+## Companion controls
 
-Buddy Lab is shown at the bottom of the main Chat view in development builds only. Expand it to:
+The tray contains companion-first actions:
 
-- Preview every buddy state.
+- Talk
+- Open Companion Home
+- Show Buddy
+- Hide Buddy
+- Sleep
+- Wake
+- Do Not Disturb
+- Reset Position
+- Quit
+
+Do Not Disturb, quiet hours, proactive check-in settings, placement mode, launch-at-login, and
+global-shortcut preferences are represented in typed persistent settings. Full user-facing settings
+controls are still pending.
+
+Global shortcut and launch-at-login behavior are not active yet. They are documented as deferred OS
+integrations that need official Tauri/native plugin wiring and manual verification.
+
+Docking placement logic exists for free floating, dock left, dock right, and taskbar perch. The
+runtime app currently persists and restores the free-floating buddy position; user-facing docking
+controls are pending. Taskbar perch means visually above the usable work area; the app does not
+modify the real Windows taskbar.
+
+## Companion Lab
+
+Companion Lab is shown at the bottom of the main Chat view in development builds only. Expand it to:
+
+- Preview the current BETA v0.1 buddy design reference.
+- Preview typed emotion/activity combinations.
+- Preview every legacy buddy state used by the current command bridge.
 - Show, hide, or focus the buddy window.
 - Run a mock streamed response without Ollama.
 - Simulate cancellation and provider errors.
+- Inspect proactive check-in templates and placement modes.
 - Inspect the current provider, model, request, and buddy state.
 
 ## Storage Lab
@@ -202,10 +252,11 @@ src-tauri/
 docs/           Product and engineering documentation
 ```
 
-The `main` and `buddy` windows load the same frontend bundle with different query parameters. The
-buddy is transparent, always on top, and excluded from the taskbar. Its physical screen position is
-stored locally in the operating system application config directory. Conversations are stored
-separately in the app-local SQLite database.
+The `buddy`, `bubble`, and `main` windows load the same frontend bundle with different query
+parameters. The buddy is transparent, always on top, and excluded from the taskbar. The bubble is a
+separate transparent taskbar-skipped window attached beside the buddy. Companion Home is a normal
+application window. The buddy's physical screen position is stored locally in the operating system
+application config directory. Conversations are stored separately in the app-local SQLite database.
 
 ## Known limitations
 
@@ -214,6 +265,11 @@ separately in the app-local SQLite database.
 - Model installation and Ollama startup remain manual.
 - Thinking content is never rendered as normal chat output.
 - The conversation database is not application-level encrypted yet.
+- Global shortcut registration is not implemented yet.
+- Launch-at-login is not implemented yet.
+- Native right-click buddy context menu is not implemented yet.
+- User-facing docking controls are not implemented yet.
+- Full manual desktop verification of Task 5 remains pending.
 - Journal, Reviews, and Settings remain placeholders.
 - The buddy artwork and animations are development placeholders.
 

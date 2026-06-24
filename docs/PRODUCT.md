@@ -14,18 +14,30 @@ platform.
 - Transparent about data sources and uncertainty.
 - Safe around financial and wallet data.
 
-## Foundation experience
+## Companion-first hierarchy
 
-The desktop application has two surfaces:
+The desktop creature is the primary product surface:
 
-- **Buddy:** a compact, transparent, always-on-top presence that can quickly open the main app.
-- **Main:** the full workspace with placeholders for Chat, Journal, Reviews, and Settings.
+```text
+Desktop creature first
+        |
+Attached conversation bubble second
+        |
+Companion Home third
+```
 
-The first companion milestone adds optional conversation through a locally running Ollama instance.
-Conversation history can be stored in a local SQLite database so users can close and restart the
-app without sending data to a cloud service. Temporary chat remains available for in-memory-only
-sessions. Exchange connections, wallets, authentication, cloud sync, and order execution remain out
-of scope.
+- **Desktop creature:** a compact, transparent, always-on-top buddy that lives beside the user and
+  can breathe, blink, look around, rest, sleep, wake, listen, think, and talk using deterministic
+  visual states.
+- **Attached conversation bubble:** a lightweight desktop bubble for everyday local conversation
+  without opening the full application.
+- **Companion Home:** the normal application window for history, privacy, storage, deeper
+  conversations, development labs, and future journal/review/settings work.
+
+The companion milestone keeps local conversation through a locally running Ollama instance and
+Rust-owned SQLite persistence. Temporary chat remains available for in-memory-only sessions.
+Exchange connections, wallets, authentication, cloud sync, long-term semantic memory, screen
+reading, global cursor tracking, telemetry, and order execution remain out of scope.
 
 ## Buddy visual direction
 

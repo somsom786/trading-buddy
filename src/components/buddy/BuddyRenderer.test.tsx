@@ -21,7 +21,7 @@ describe('BuddyRenderer', () => {
   it('opens on a stationary click', () => {
     const onActivate = vi.fn();
     render(<BuddyRenderer state="idle" companionService={service} onActivate={onActivate} />);
-    const buddy = screen.getByRole('button', { name: 'Open Trading Buddy' });
+    const buddy = screen.getByRole('button', { name: 'Talk to Trading Buddy' });
     fireEvent.pointerDown(buddy, { pointerId: 1, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(buddy, { pointerId: 1, clientX: 10, clientY: 10 });
     expect(onActivate).toHaveBeenCalledOnce();
@@ -30,7 +30,7 @@ describe('BuddyRenderer', () => {
   it('starts dragging without opening the main window', () => {
     const onActivate = vi.fn();
     render(<BuddyRenderer state="idle" companionService={service} onActivate={onActivate} />);
-    const buddy = screen.getByRole('button', { name: 'Open Trading Buddy' });
+    const buddy = screen.getByRole('button', { name: 'Talk to Trading Buddy' });
     fireEvent.pointerDown(buddy, { pointerId: 2, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(buddy, { pointerId: 2, clientX: 30, clientY: 30 });
     fireEvent.pointerUp(buddy, { pointerId: 2, clientX: 30, clientY: 30 });
