@@ -173,6 +173,24 @@ React cannot pass arbitrary URLs or raw provider request bodies. It sends typed 
 requests through `src/services/tauri/tradingService.ts`, and every native response passes runtime
 guards in `src/domain/trading/types.ts`. Financial values cross the Tauri boundary as strings.
 
+Task 9D adds a frontend-only desktop awareness layer on top of the same read-only native boundary:
+
+- `src/services/tradingRuntimeStore.ts` stores the selected account ID locally and broadcasts
+  same-window/storage events so Companion Home and the bubble converge on the same account.
+- `src/components/trading/TradingBubblePanel.tsx` renders compact account, position, fill,
+  funding, order, and sync cards for the selected saved account.
+- `src/services/tradingFacts.ts` loads only the fact groups needed by a deterministic trading
+  intent.
+- `src/domain/trading/context.ts` builds a bounded local-model context from saved facts only. It
+  labels exchange-reported values, fixture data, freshness, partial sync state, and read-only
+  execution capability, and excludes full public addresses, raw provider JSON, and internal row IDs.
+- `src/domain/trading/intents.ts` routes execution-like requests to deterministic refusal rather
+  than model generation.
+
+The context builder is deterministic TypeScript domain logic. It does not fetch live data, invoke
+tools, create memories, create journal entries, or authorize actions. It only prepares labelled
+saved facts for a local model request when a relevant fact intent is detected.
+
 No write or execution capability exists in the provider boundary. There are no order placement,
 order cancellation, transfer, withdrawal, signing, private-key, seed-phrase, exchange-secret,
 generic RPC, or generic HTTP proxy methods.

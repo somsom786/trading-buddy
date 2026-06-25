@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent } from 'react';
 import { buddyStateForLifecycle } from '../domain/companion/buddyState';
 import {
-  canSubmitMessage,
   conversationReducer,
   createChatMessage,
   createConversationSession,
@@ -11,6 +10,9 @@ import {
 import { LOCAL_AI_CONFIG } from '../domain/local-ai/config';
 import { selectPreferredModel } from '../domain/local-ai/modelSelection';
 import { COMPANION_SYSTEM_PROMPT } from '../domain/local-ai/systemPrompt';
+import { buildTradingContext } from '../domain/trading/context';
+import { readOnlyExecutionRefusal } from '../domain/trading/formatting';
+import { detectTradingIntent, type TradingIntent } from '../domain/trading/intents';
 import {
   normalizeLocalAiError,
   type LocalAiStatus,
@@ -30,6 +32,9 @@ import { tauriCompanionService, type CompanionService } from '../services/tauri/
 import { tauriLocalAiService, type LocalAiService } from '../services/tauri/localAiService';
 import { tauriStorageService, type StorageService } from '../services/tauri/storageService';
 import { tauriWindowService, type WindowService } from '../services/windowService';
+import { loadActiveTradingAccountId } from '../services/tradingRuntimeStore';
+import { fetchTradingFacts } from '../services/tradingFacts';
+import { tauriTradingService, type TradingService } from '../services/tauri/tradingService';
 import {
   buildMemoryContextForMessage,
   handleExplicitMemoryIntent,
@@ -38,6 +43,7 @@ import {
 } from '../services/memoryWorkflow';
 import { MemoryProposalCard } from '../components/memory/MemoryProposalCard';
 import { JournalSessionCard } from '../components/journal/JournalSessionCard';
+import { TradingBubblePanel } from '../components/trading/TradingBubblePanel';
 import { journalPromptsForKind, supportModeOpening } from '../domain/journal/flows';
 import { detectJournalIntent } from '../domain/journal/intent';
 import { assessJournalSafety } from '../domain/journal/safety';
@@ -51,11 +57,23 @@ import type { JournalKind, JournalMode } from '../domain/journal/types';
 
 type PersistenceMode = 'persistent' | 'temporary';
 
+const READ_ONLY_TRADING_RULES = `READ-ONLY TRADING RULES
+
+- Use only the supplied account facts.
+- Treat missing values as unavailable.
+- Do not invent prices, balances, PnL, leverage, or order state.
+- Do not calculate authoritative financial results.
+- Do not recommend buying, selling, leverage, or position changes.
+- Do not predict market movement.
+- Trading Buddy cannot place, close, cancel, or modify trades.
+- Mention stale, saved, fixture, or partial data when relevant.`;
+
 interface BubbleViewProps {
   localAiService?: LocalAiService;
   storageService?: StorageService;
   companionService?: CompanionService;
   windowService?: WindowService;
+  tradingService?: TradingService;
 }
 
 interface ActiveAssistantPersistence {
@@ -72,6 +90,7 @@ export function BubbleView({
   storageService = tauriStorageService,
   companionService = tauriCompanionService,
   windowService = tauriWindowService,
+  tradingService = tauriTradingService,
 }: BubbleViewProps) {
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
@@ -298,11 +317,33 @@ export function BubbleView({
     [flushAssistant, setBuddyState],
   );
 
+  const appendDeterministicReply = useCallback(
+    (userContent: string, assistantContent: string) => {
+      const requestId = createId('request');
+      const userMessage = createChatMessage('user', userContent);
+      const assistantMessage = createChatMessage('assistant', '');
+      activeRequestRef.current = requestId;
+      dispatch({
+        type: 'start_generation',
+        requestId,
+        userMessage,
+        assistantMessage,
+      });
+      handleStreamEvent({ type: 'content_delta', requestId, content: assistantContent });
+      handleStreamEvent({ type: 'completed', requestId });
+      activeRequestRef.current = null;
+      setInput('');
+      setBuddyState(buddyStateForLifecycle('response_started'));
+    },
+    [handleStreamEvent, setBuddyState],
+  );
+
   const send = async () => {
     const validation = validateMessageInput(input, LOCAL_AI_CONFIG.maxInputLength);
     if (!validation.valid || session.activeRequestId) {
       return;
     }
+    const tradingIntent = detectTradingIntent(validation.content);
     const journalIntent = detectJournalIntent(validation.content);
     if (journalIntent.type === 'start_journal') {
       startJournalSession(journalIntent.mode, journalIntent.kind);
@@ -315,7 +356,56 @@ export function BubbleView({
       setInput('');
       return;
     }
+    if (tradingIntent === 'unsupported_trade_execution') {
+      appendDeterministicReply(validation.content, readOnlyExecutionRefusal());
+      return;
+    }
+    if (tradingIntent === 'open_trading_home' || tradingIntent === 'connect_hyperliquid') {
+      await windowService.openMainWindow();
+      appendDeterministicReply(
+        validation.content,
+        'Opened Companion Home. Trading Buddy remains read-only and cannot execute trades.',
+      );
+      return;
+    }
+    if (tradingIntent === 'refresh_hyperliquid' || tradingIntent === 'cancel_hyperliquid_sync') {
+      const accountId = loadActiveTradingAccountId();
+      if (!accountId) {
+        appendDeterministicReply(
+          validation.content,
+          'No Hyperliquid account is selected. Open Trading to connect or select an account.',
+        );
+        return;
+      }
+      try {
+        if (tradingIntent === 'refresh_hyperliquid') {
+          void tradingService.sync(accountId);
+          appendDeterministicReply(
+            validation.content,
+            'Read-only refresh started for the selected Hyperliquid account. Use the Sync card to watch progress or stop it.',
+          );
+        } else {
+          await tradingService.cancelSync(accountId);
+          appendDeterministicReply(
+            validation.content,
+            'Stop requested for the selected Hyperliquid refresh. Saved data remains available.',
+          );
+        }
+      } catch (error) {
+        appendDeterministicReply(validation.content, errorMessage(error));
+      }
+      return;
+    }
     if (!session.selectedModel) {
+      if (isFactIntent(tradingIntent)) {
+        const accountId = loadActiveTradingAccountId();
+        appendDeterministicReply(
+          validation.content,
+          accountId
+            ? 'Local AI is offline, but your saved account fact cards are still available below.'
+            : 'Local AI is offline, and no Hyperliquid account is selected. Open Trading to connect or select an account.',
+        );
+      }
       return;
     }
     const requestId = createId('request');
@@ -324,6 +414,7 @@ export function BubbleView({
     let userMessage = createChatMessage('user', validation.content);
     let assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
+    let tradingContext: string | null = null;
     let memoryOptedOutForRequest = conversationMemoryOptOut;
     let memoryNotice: string | null = null;
 
@@ -362,48 +453,81 @@ export function BubbleView({
       };
     }
 
-    try {
-      const memoryContextResult = await buildMemoryContextForMessage({
-        storageService,
-        content: validation.content,
-        temporaryChat: mode === 'temporary',
-      });
-      memoryContext = memoryContextResult.context;
-      setUsedMemories(memoryContextResult.retrieved);
-      if (persistenceRef.current.requestId === requestId) {
-        persistenceRef.current.memoryIds = memoryContextResult.retrieved.map((memory) => memory.id);
+    if (isFactIntent(tradingIntent)) {
+      const accountId = loadActiveTradingAccountId();
+      if (!accountId) {
+        appendDeterministicReply(
+          validation.content,
+          'No Hyperliquid account is selected. Open Trading to connect or select an account.',
+        );
+        return;
       }
-      const forgetResult = await handleForgetMemoryIntent({
-        storageService,
-        content: validation.content,
-      });
-      if (forgetResult.notice) {
-        memoryNotice = forgetResult.notice;
+      try {
+        const facts = await fetchTradingFacts(tradingService, accountId, tradingIntent);
+        tradingContext = buildTradingContext(
+          {
+            accountId,
+            intent: tradingIntent,
+            maximumCharacters: 2400,
+            maximumPositions: 5,
+            maximumFills: 5,
+            maximumFundingRecords: 5,
+            maximumOrders: 5,
+          },
+          facts,
+        );
+      } catch (error) {
+        appendDeterministicReply(validation.content, errorMessage(error));
+        return;
       }
-      const proposalResult = await handleExplicitMemoryIntent({
-        storageService,
-        content: validation.content,
-        temporaryChat: mode === 'temporary',
-        sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-        sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
-        preferences: memoryContextResult.preferences,
-      });
-      if (proposalResult.proposal?.status === 'proposed') {
-        setPendingMemory(proposalResult.proposal);
-        void companionService.setState('thinking');
+    }
+
+    if (!isFactIntent(tradingIntent)) {
+      try {
+        const memoryContextResult = await buildMemoryContextForMessage({
+          storageService,
+          content: validation.content,
+          temporaryChat: mode === 'temporary',
+        });
+        memoryContext = memoryContextResult.context;
+        setUsedMemories(memoryContextResult.retrieved);
+        if (persistenceRef.current.requestId === requestId) {
+          persistenceRef.current.memoryIds = memoryContextResult.retrieved.map(
+            (memory) => memory.id,
+          );
+        }
+        const forgetResult = await handleForgetMemoryIntent({
+          storageService,
+          content: validation.content,
+        });
+        if (forgetResult.notice) {
+          memoryNotice = forgetResult.notice;
+        }
+        const proposalResult = await handleExplicitMemoryIntent({
+          storageService,
+          content: validation.content,
+          temporaryChat: mode === 'temporary',
+          sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+          preferences: memoryContextResult.preferences,
+        });
+        if (proposalResult.proposal?.status === 'proposed') {
+          setPendingMemory(proposalResult.proposal);
+          void companionService.setState('thinking');
+        }
+        if (proposalResult.usedOptOut === 'conversation') {
+          memoryOptedOutForRequest = true;
+          setConversationMemoryOptOut(true);
+        }
+        if (proposalResult.usedOptOut === 'message') {
+          memoryOptedOutForRequest = true;
+        }
+        if (proposalResult.notice) {
+          memoryNotice = proposalResult.notice;
+        }
+      } catch (error) {
+        setStorageError(normalizeStorageError(error));
       }
-      if (proposalResult.usedOptOut === 'conversation') {
-        memoryOptedOutForRequest = true;
-        setConversationMemoryOptOut(true);
-      }
-      if (proposalResult.usedOptOut === 'message') {
-        memoryOptedOutForRequest = true;
-      }
-      if (proposalResult.notice) {
-        memoryNotice = proposalResult.notice;
-      }
-    } catch (error) {
-      setStorageError(normalizeStorageError(error));
     }
 
     const request: LocalChatRequest = {
@@ -412,6 +536,12 @@ export function BubbleView({
       model: selectedModel,
       messages: [
         { role: 'system', content: COMPANION_SYSTEM_PROMPT },
+        ...(tradingContext
+          ? [
+              { role: 'system' as const, content: READ_ONLY_TRADING_RULES },
+              { role: 'system' as const, content: tradingContext },
+            ]
+          : []),
         ...(memoryContext ? [{ role: 'system' as const, content: memoryContext }] : []),
         ...session.messages
           .filter((message) => message.content)
@@ -435,28 +565,30 @@ export function BubbleView({
 
     try {
       await localAiService.streamChat(request, handleStreamEvent);
-      const settings = await storageService.getSettings();
-      void runBackgroundMemoryExtraction({
-        storageService,
-        localAiService,
-        content: validation.content,
-        model: selectedModel,
-        requestId: createId('memory_request'),
-        sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-        sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
-        temporaryChat: mode === 'temporary',
-        conversationOptedOut: memoryOptedOutForRequest,
-        preferences: settings.memoryPreferences,
-      })
-        .then((proposal) => {
-          if (proposal?.status === 'proposed') {
-            setPendingMemory(proposal);
-            void companionService.setState('thinking');
-          }
+      if (!isFactIntent(tradingIntent)) {
+        const settings = await storageService.getSettings();
+        void runBackgroundMemoryExtraction({
+          storageService,
+          localAiService,
+          content: validation.content,
+          model: selectedModel,
+          requestId: createId('memory_request'),
+          sourceConversationId: mode === 'persistent' ? conversationId : undefined,
+          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
+          temporaryChat: mode === 'temporary',
+          conversationOptedOut: memoryOptedOutForRequest,
+          preferences: settings.memoryPreferences,
         })
-        .catch((error: unknown) => {
-          setStorageError(normalizeStorageError(error));
-        });
+          .then((proposal) => {
+            if (proposal?.status === 'proposed') {
+              setPendingMemory(proposal);
+              void companionService.setState('thinking');
+            }
+          })
+          .catch((error: unknown) => {
+            setStorageError(normalizeStorageError(error));
+          });
+      }
     } catch (error) {
       handleStreamEvent({
         type: 'failed',
@@ -478,7 +610,17 @@ export function BubbleView({
   const handleInputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      if (canSubmitMessage(session, input, LOCAL_AI_CONFIG.maxInputLength)) {
+      const validation = validateMessageInput(input, LOCAL_AI_CONFIG.maxInputLength);
+      const tradingIntent = validation.valid ? detectTradingIntent(input) : 'not_trading_intent';
+      const journalIntent = validation.valid ? detectJournalIntent(input) : { type: 'none' };
+      if (
+        session.activeRequestId === null &&
+        validation.valid &&
+        (mode === 'temporary' || storageStatus?.available === true) &&
+        (session.selectedModel !== null ||
+          tradingIntent !== 'not_trading_intent' ||
+          journalIntent.type !== 'none')
+      ) {
         void send();
       }
     }
@@ -527,9 +669,20 @@ export function BubbleView({
     }
   };
 
+  const inputValidation = validateMessageInput(input, LOCAL_AI_CONFIG.maxInputLength);
+  const currentTradingIntent = inputValidation.valid
+    ? detectTradingIntent(input)
+    : 'not_trading_intent';
+  const currentJournalIntent = inputValidation.valid
+    ? detectJournalIntent(input)
+    : { type: 'none' };
   const canSend =
-    canSubmitMessage(session, input, LOCAL_AI_CONFIG.maxInputLength) &&
-    (mode === 'temporary' || storageStatus?.available === true);
+    session.activeRequestId === null &&
+    inputValidation.valid &&
+    (mode === 'temporary' || storageStatus?.available === true) &&
+    (session.selectedModel !== null ||
+      currentTradingIntent !== 'not_trading_intent' ||
+      currentJournalIntent.type !== 'none');
   const visibleMessages = session.messages.slice(-4);
   const modelLabel = session.selectedModel ?? 'No model selected';
   const journalActive =
@@ -658,6 +811,13 @@ export function BubbleView({
           </div>
         ) : null}
 
+        <TradingBubblePanel
+          windowService={windowService}
+          localAiOffline={
+            providerStatus.status === 'ollama_not_running' || providerStatus.status === 'error'
+          }
+        />
+
         <textarea
           value={input}
           rows={2}
@@ -715,4 +875,21 @@ function statusLabel(status: LocalAiStatus): string {
     case 'error':
       return 'needs attention';
   }
+}
+
+function isFactIntent(intent: TradingIntent): boolean {
+  return (
+    intent === 'show_account' ||
+    intent === 'show_positions' ||
+    intent === 'show_recent_fills' ||
+    intent === 'show_funding' ||
+    intent === 'show_open_orders'
+  );
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Trading facts are unavailable.';
 }

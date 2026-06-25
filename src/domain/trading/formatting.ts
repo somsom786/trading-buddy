@@ -24,5 +24,5 @@ export function freshnessLabel(freshness: TradingDataFreshness): string {
 }
 
 export function readOnlyExecutionRefusal(): string {
-  return 'Trading Buddy is currently read-only and cannot place, close, or modify trades.';
+  return 'Trading Buddy is read-only. It cannot place, close, cancel, or modify trades. I can show your saved account facts or help you review the decision.';
 }

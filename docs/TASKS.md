@@ -44,8 +44,32 @@
 - [x] Add coordinator and performance fixture tests.
 - [ ] Manually verify Trading Lab fixture creation, repeat sync, cancellation, and performance
       timings in the desktop app.
-- [ ] Add desktop buddy quick actions for read-only trading facts.
-- [ ] Add bounded local-Qwen trading context for locally stored read-only trading facts.
+- [x] Add desktop buddy quick actions for read-only trading facts.
+- [x] Add bounded local-Qwen trading context for locally stored read-only trading facts.
+- [ ] Complete optional live public-address QA when a test address is provided.
+
+## Task 9D - Desktop trading awareness and bounded context
+
+- [x] Preserve the strict read-only Hyperliquid boundary.
+- [x] Add deterministic active-account selection helpers.
+- [x] Persist and share the selected Hyperliquid account between Companion Home and the desktop
+      bubble.
+- [x] Add compact desktop bubble trading cards for account facts, positions, recent fills, funding,
+      open orders, and sync progress.
+- [x] Add selected-account refresh and cancel controls without adding any order/execution
+      capability.
+- [x] Add exact string-based funding total calculation for frontend display.
+- [x] Tighten trading intent detection and deterministic execution refusal.
+- [x] Add a bounded trading context builder for saved read-only facts.
+- [x] Route bubble trading fact questions through bounded context when a local model is selected.
+- [x] Keep trading fact cards and deterministic refusal useful when Ollama is offline.
+- [x] Keep trading facts out of automatic memory and journal proposal flows.
+- [x] Add Trading Lab bounded-context preview controls.
+- [x] Add frontend tests for active-account runtime helpers, context building, exact decimal sums,
+      and intent/refusal behavior.
+- [ ] Manually verify the new bubble trading cards in the real desktop WebView.
+- [ ] Manually verify the Trading Lab fixture smoke checklist in the real desktop WebView.
+- [ ] Record machine-specific performance fixture timings from the real desktop app.
 - [ ] Complete optional live public-address QA when a test address is provided.
 
 ## BETA v0.1 identity and progress journal

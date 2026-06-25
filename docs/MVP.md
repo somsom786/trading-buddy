@@ -116,5 +116,11 @@ work.
 - Show a minimal Companion Home Trading section with account summary, positions, fills, funding,
   open orders, freshness, stale/partial/error states, pause/resume/disconnect/delete controls, and
   explicit read-only language.
+- Share the selected account between Companion Home and the desktop bubble.
+- Show bounded read-only trading fact cards directly in the desktop bubble.
+- Build bounded local-model context from saved facts only, with read-only/staleness labels and no
+  full public address or internal row IDs.
+- Keep execution requests deterministic and model-free: refuse place/close/cancel/modify trade
+  requests.
 - Keep WebSocket live sync, charts, risk engines, trading recommendations, and execution out of
   scope.

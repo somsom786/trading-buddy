@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { freshnessLabel, formatDecimal } from '../../domain/trading/formatting';
+import { normalizeActiveAccountSelection } from '../../domain/trading/runtime';
 import type {
   HyperliquidAccountSummary,
   HyperliquidEnvironment,
@@ -10,6 +11,11 @@ import type {
   IntegrationAccount,
 } from '../../domain/trading/types';
 import { tauriTradingService, type TradingService } from '../../services/tauri/tradingService';
+import {
+  loadActiveTradingAccountId,
+  saveActiveTradingAccountId,
+  subscribeActiveTradingAccount,
+} from '../../services/tradingRuntimeStore';
 
 interface TradingPanelProps {
   tradingService?: TradingService;
@@ -17,7 +23,9 @@ interface TradingPanelProps {
 
 export function TradingPanel({ tradingService = tauriTradingService }: TradingPanelProps) {
   const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() =>
+    loadActiveTradingAccountId(),
+  );
   const [summary, setSummary] = useState<HyperliquidAccountSummary | null>(null);
   const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
   const [fills, setFills] = useState<HyperliquidFill[]>([]);
@@ -36,6 +44,12 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
   }, []);
 
   useEffect(() => {
+    return subscribeActiveTradingAccount((accountId) => {
+      setSelectedAccountId(accountId);
+    });
+  }, []);
+
+  useEffect(() => {
     if (selectedAccountId) {
       void refreshAccountDetail(selectedAccountId);
     }
@@ -48,7 +62,13 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
     try {
       const nextAccounts = await tradingService.listAccounts();
       setAccounts(nextAccounts);
-      setSelectedAccountId((current) => current ?? nextAccounts[0]?.id ?? null);
+      setSelectedAccountId((current) => {
+        const normalized = normalizeActiveAccountSelection(nextAccounts, current);
+        if (normalized !== current) {
+          saveActiveTradingAccountId(normalized);
+        }
+        return normalized;
+      });
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -86,7 +106,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
       });
       setNotice('Hyperliquid account saved locally. It is read-only.');
       await refreshAccounts();
-      setSelectedAccountId(account.id);
+      chooseAccount(account.id);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -136,6 +156,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
         await tradingService.disconnect(selectedAccountId);
       } else {
         await tradingService.deleteLocalData(selectedAccountId);
+        saveActiveTradingAccountId(null);
         setSelectedAccountId(null);
         setSummary(null);
       }
@@ -234,7 +255,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
               <select
                 value={selectedAccountId ?? ''}
                 onChange={(event) => {
-                  setSelectedAccountId(event.currentTarget.value);
+                  chooseAccount(event.currentTarget.value);
                 }}
               >
                 {accounts.map((account) => (
@@ -379,6 +400,10 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
       </div>
     </section>
   );
+}
+
+function chooseAccount(accountId: string | null) {
+  saveActiveTradingAccountId(accountId);
 }
 
 function MiniTable({ title, empty, rows }: { title: string; empty: string; rows: string[][] }) {

@@ -46,6 +46,12 @@ awareness. Users can save a public Hyperliquid address for mainnet or testnet, r
 read-only `/info` data, and view saved account summary, current positions, recent fills, funding,
 and open orders in Companion Home.
 
+Task 9D extends that awareness to the desktop companion surface. The bubble can show compact
+account, position, recent-fill, funding, open-order, and sync cards for the selected local account
+without requiring the model. When the user asks local-Qwen about saved trading facts, Buddy supplies
+a bounded context block that excludes full addresses and internal row IDs, labels fixture/staleness
+state, and repeats that execution capability is none.
+
 This does not make Buddy a trading bot. The app has no private-key fields, seed phrase fields,
 exchange API secrets, wallet signing, order placement, order cancellation, withdrawals, transfers,
 cloud relay, telemetry, WebSocket live sync, risk engine, recommendations, or autonomous trading.

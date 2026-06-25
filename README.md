@@ -127,6 +127,20 @@ Companion Home includes a minimal **Trading** section for Hyperliquid public acc
 - inspect saved account summary, current positions, recent fills, funding, and open orders;
 - create a synthetic fixture account in development builds.
 
+The desktop bubble also includes compact read-only trading cards for the currently selected account:
+
+- account summary and sync freshness;
+- current positions;
+- recent fills;
+- funding payments with exact string-based totals;
+- open orders;
+- refresh/cancel controls for the selected account only.
+
+These cards remain useful when Ollama is offline. For trading fact questions sent through the
+bubble, Buddy builds a bounded local context from saved facts and labels it as read-only,
+exchange-reported, and possibly stale before sending it to the selected local model. Requests to
+place, close, cancel, or modify trades bypass the model and receive a deterministic refusal.
+
 The integration is deliberately read-only. Trading Buddy cannot place, close, cancel, or modify
 orders; cannot sign transactions; cannot move funds; and never asks for private keys, seed phrases,
 exchange API secrets, or wallet approvals.
@@ -269,6 +283,11 @@ Companion Lab is shown at the bottom of the main Chat view in development builds
 Development builds also include **Journal Lab** for local journal diagnostics, bounded 100/1,000
 fixture generation, fixture cleanup, and FTS search checks.
 
+Development builds include **Trading Lab** for read-only Hyperliquid QA. It can create fixture
+accounts, run scenario syncs, cancel an active sync, inspect diagnostics/progress, and preview the
+bounded trading context that would be provided to the local model for account, position, fill,
+funding, or order questions.
+
 ## Storage Lab
 
 Storage Lab is also shown in development builds only. It exposes storage diagnostics that are safe
@@ -360,6 +379,9 @@ application config directory. Conversations are stored separately in the app-loc
 - Reviews and Settings remain placeholders.
 - Local-model-generated journal summaries/reflections are parsed in domain code but not yet wired
   into the live UX.
+- The desktop bubble can show saved read-only trading facts, but full manual WebView/tray fixture
+  QA remains pending.
+- Hyperliquid data is user-triggered/saved-state awareness, not WebSocket live sync.
 - The buddy artwork and animations are development placeholders.
 
 ## Buddy design direction

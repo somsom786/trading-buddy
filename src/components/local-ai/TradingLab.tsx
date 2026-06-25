@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { buildTradingContext } from '../../domain/trading/context';
+import type { TradingIntent } from '../../domain/trading/intents';
 import type {
   HyperliquidDiagnostics,
   HyperliquidSyncProgress,
@@ -6,6 +8,7 @@ import type {
   IntegrationAccount,
 } from '../../domain/trading/types';
 import { tauriTradingService, type TradingService } from '../../services/tauri/tradingService';
+import { fetchTradingFacts } from '../../services/tradingFacts';
 
 interface TradingLabProps {
   tradingService?: TradingService;
@@ -19,6 +22,9 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
   const [diagnostics, setDiagnostics] = useState<HyperliquidDiagnostics | null>(null);
   const [progress, setProgress] = useState<HyperliquidSyncProgress | null>(null);
   const [lastResult, setLastResult] = useState<HyperliquidSyncResult | null>(null);
+  const [contextIntent, setContextIntent] = useState<TradingIntent>('show_account');
+  const [contextBudget, setContextBudget] = useState(1600);
+  const [contextPreview, setContextPreview] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -107,6 +113,35 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
     }
   }
 
+  async function previewContext() {
+    if (!selectedAccountId) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const facts = await fetchTradingFacts(tradingService, selectedAccountId, contextIntent);
+      const context = buildTradingContext(
+        {
+          accountId: selectedAccountId,
+          intent: contextIntent,
+          maximumCharacters: contextBudget,
+          maximumPositions: 5,
+          maximumFills: 5,
+          maximumFundingRecords: 5,
+          maximumOrders: 5,
+        },
+        facts,
+      );
+      setContextPreview(context);
+      setNotice(`Context preview is ${String(context?.length ?? 0)} character(s).`);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId);
 
   return (
@@ -135,10 +170,22 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
               </select>
             </label>
             <div className="button-row">
-              <button type="button" disabled={busy} onClick={() => void addFixture()}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  void addFixture();
+                }}
+              >
                 Add fixture
               </button>
-              <button type="button" className="secondary-button" onClick={() => void refreshLab()}>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  void refreshLab();
+                }}
+              >
                 Refresh lab
               </button>
             </div>
@@ -170,7 +217,9 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
               <button
                 type="button"
                 disabled={busy || !selectedAccountId}
-                onClick={() => void syncSelected()}
+                onClick={() => {
+                  void syncSelected();
+                }}
               >
                 Sync once
               </button>
@@ -178,7 +227,9 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
                 type="button"
                 className="secondary-button"
                 disabled={busy || !selectedAccountId}
-                onClick={() => void syncSelected(true)}
+                onClick={() => {
+                  void syncSelected(true);
+                }}
               >
                 Sync twice
               </button>
@@ -186,7 +237,9 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
                 type="button"
                 className="stop-button"
                 disabled={!selectedAccountId}
-                onClick={() => void cancelSelected()}
+                onClick={() => {
+                  void cancelSelected();
+                }}
               >
                 Cancel active sync
               </button>
@@ -244,6 +297,53 @@ export function TradingLab({ tradingService = tauriTradingService }: TradingLabP
           <dt>Latest sync</dt>
           <dd>{diagnostics?.latestSyncStatus ?? 'none'}</dd>
         </dl>
+
+        <section className="trading-card trading-card--wide">
+          <h3>Bounded context preview</h3>
+          <div className="trading-grid">
+            <label>
+              Intent
+              <select
+                value={contextIntent}
+                onChange={(event) => {
+                  setContextIntent(event.currentTarget.value as TradingIntent);
+                }}
+              >
+                <option value="show_account">show_account</option>
+                <option value="show_positions">show_positions</option>
+                <option value="show_recent_fills">show_recent_fills</option>
+                <option value="show_funding">show_funding</option>
+                <option value="show_open_orders">show_open_orders</option>
+              </select>
+            </label>
+            <label>
+              Character budget
+              <input
+                type="number"
+                min={400}
+                max={4000}
+                value={contextBudget}
+                onChange={(event) => {
+                  setContextBudget(Number(event.currentTarget.value));
+                }}
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            disabled={busy || !selectedAccountId}
+            onClick={() => {
+              void previewContext();
+            }}
+          >
+            Preview bounded context
+          </button>
+          {contextPreview ? (
+            <pre className="trading-context-preview">{contextPreview}</pre>
+          ) : (
+            <p className="muted">No context preview yet.</p>
+          )}
+        </section>
 
         <p className="muted">
           Trading Lab is fixture-first and read-only. It does not expose private keys, signing,

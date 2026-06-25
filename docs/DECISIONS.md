@@ -528,3 +528,23 @@ Fixture accounts store `fixture_scenario` separately from `display_name` in SQLi
 Synthetic fixture addresses are deterministic per scenario so multiple QA scenarios can exist side
 by side without duplicate-account collisions. This keeps display names user-facing and keeps fixture
 behavior explicit.
+
+## 066 - Desktop trading awareness uses saved facts only
+
+**Status:** Accepted
+
+The desktop bubble can show Hyperliquid account, position, fill, funding, order, and sync cards,
+but it reads from the same local saved data exposed by narrow Tauri commands. It does not add
+WebSocket live sync, background monitoring, arbitrary URLs, screen reading, exchange app
+inspection, trading recommendations, or execution. This keeps the companion useful during desktop
+work without turning it into an autonomous market agent.
+
+## 067 - Trading context for local models is bounded and labelled
+
+**Status:** Accepted
+
+When a trading fact intent is detected, React may provide the selected local model with a bounded
+context block built from saved read-only facts. The builder excludes full public addresses,
+internal row IDs, raw provider JSON, and unbounded lists; labels fixture data, freshness, partial
+sync state, and exchange-reported values; and repeats that execution capability is none. Execution
+requests are refused deterministically without a model call.

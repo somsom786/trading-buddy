@@ -6,6 +6,22 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 25, 2026 - Desktop trading awareness checkpoint
+
+- Added shared active Hyperliquid account selection between Companion Home and the desktop bubble.
+- Added compact read-only desktop bubble cards for account facts, positions, recent fills, funding,
+  open orders, and sync progress.
+- Added selected-account refresh/cancel controls without adding any order execution, signing,
+  wallet, transfer, withdrawal, or generic RPC capability.
+- Added deterministic trading intents, model-free execution refusal, exact string-based funding
+  totals, and bounded local-Qwen trading context from saved facts only.
+- Added Trading Lab context preview controls and frontend domain tests for the new non-native
+  trading logic.
+- Remaining follow-up: direct manual WebView QA for bubble cards and Trading Lab fixture smoke,
+  machine-specific performance timing capture, and optional live public-address QA.
+- Detailed handoff report:
+  [`docs/reports/TASK-009D-desktop-trading-awareness.md`](reports/TASK-009D-desktop-trading-awareness.md)
+
 ### June 25, 2026 - Hyperliquid foundation hardening checkpoint
 
 - Added SQLite schema v6 for fixture scenario identity instead of storing scenario names as display
