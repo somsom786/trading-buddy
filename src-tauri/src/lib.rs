@@ -143,6 +143,8 @@ pub fn run() {
             commands::storage::delete_development_memory_fixtures,
             commands::storage::create_development_interrupted_fixture,
             trading::validate_hyperliquid_address,
+            trading::get_active_hyperliquid_account_id,
+            trading::set_active_hyperliquid_account_id,
             trading::create_hyperliquid_account,
             trading::list_hyperliquid_accounts,
             trading::get_hyperliquid_account_summary,

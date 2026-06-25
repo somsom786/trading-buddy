@@ -173,10 +173,12 @@ React cannot pass arbitrary URLs or raw provider request bodies. It sends typed 
 requests through `src/services/tauri/tradingService.ts`, and every native response passes runtime
 guards in `src/domain/trading/types.ts`. Financial values cross the Tauri boundary as strings.
 
-Task 9D adds a frontend-only desktop awareness layer on top of the same read-only native boundary:
+Task 9D added a frontend-only desktop awareness layer on top of the same read-only native boundary:
 
-- `src/services/tradingRuntimeStore.ts` stores the selected account ID locally and broadcasts
-  same-window/storage events so Companion Home and the bubble converge on the same account.
+- `src/services/tradingRuntimeStore.ts` reads and writes the selected account through Rust-owned
+  app settings and listens for sanitized native account-selection events so Companion Home and the
+  bubble converge on the same account. It only removes/migrates the old browser key once; browser
+  storage is no longer the durable source of truth.
 - `src/components/trading/TradingBubblePanel.tsx` renders compact account, position, fill,
   funding, order, and sync cards for the selected saved account.
 - `src/services/tradingFacts.ts` loads only the fact groups needed by a deterministic trading
@@ -190,6 +192,12 @@ Task 9D adds a frontend-only desktop awareness layer on top of the same read-onl
 The context builder is deterministic TypeScript domain logic. It does not fetch live data, invoke
 tools, create memories, create journal entries, or authorize actions. It only prepares labelled
 saved facts for a local model request when a relevant fact intent is detected.
+
+Task 9E E1 moves active-account selection into SQLite schema v7 as
+`app_settings.active_hyperliquid_account_id`, a nullable foreign key to `integration_accounts(id)`
+with `ON DELETE SET NULL`. Pause and disconnect preserve the selected account; deleting the account
+clears it. Rust exposes only typed get/set commands and emits an account-id-only event to the main
+and bubble windows. Invalid stored IDs are repaired by clearing the setting.
 
 No write or execution capability exists in the provider boundary. There are no order placement,
 order cancellation, transfer, withdrawal, signing, private-key, seed-phrase, exchange-secret,

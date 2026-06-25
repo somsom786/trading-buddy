@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub const CURRENT_SCHEMA_VERSION: i64 = 7;
 
 struct Migration {
     version: i64,
@@ -446,6 +446,14 @@ WHERE provider = 'hyperliquid'
 
 CREATE INDEX IF NOT EXISTS idx_integration_accounts_fixture_scenario
 ON integration_accounts(provider, is_fixture, fixture_scenario);
+"#,
+    },
+    Migration {
+        version: 7,
+        name: "active_trading_account_setting",
+        sql: r#"
+ALTER TABLE app_settings ADD COLUMN active_hyperliquid_account_id TEXT
+  REFERENCES integration_accounts(id) ON DELETE SET NULL;
 "#,
     },
 ];

@@ -96,6 +96,53 @@ pub fn get_account(
         .ok_or_else(TradingError::account_not_found)
 }
 
+pub fn active_account_id(connection: &Connection) -> Result<Option<String>, TradingError> {
+    let stored: Option<String> = connection
+        .query_row(
+            "SELECT active_hyperliquid_account_id FROM app_settings WHERE id = 1",
+            [],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .map_err(TradingError::from)?;
+    let Some(account_id) = stored else {
+        return Ok(None);
+    };
+    if hyperliquid_account_exists(connection, &account_id)? {
+        return Ok(Some(account_id));
+    }
+    connection
+        .execute(
+            "UPDATE app_settings SET active_hyperliquid_account_id = NULL WHERE id = 1",
+            [],
+        )
+        .map_err(write_error)?;
+    Ok(None)
+}
+
+pub fn set_active_account_id(
+    connection: &Connection,
+    account_id: Option<&str>,
+) -> Result<Option<String>, TradingError> {
+    if let Some(account_id) = account_id {
+        get_account(connection, account_id)?;
+        connection
+            .execute(
+                "UPDATE app_settings SET active_hyperliquid_account_id = ?1 WHERE id = 1",
+                params![account_id],
+            )
+            .map_err(write_error)?;
+        Ok(Some(account_id.to_owned()))
+    } else {
+        connection
+            .execute(
+                "UPDATE app_settings SET active_hyperliquid_account_id = NULL WHERE id = 1",
+                [],
+            )
+            .map_err(write_error)?;
+        Ok(None)
+    }
+}
+
 pub fn pause_account(
     connection: &Connection,
     account_id: &str,
@@ -843,6 +890,21 @@ fn bool_to_i64(value: bool) -> i64 {
     }
 }
 
+fn hyperliquid_account_exists(
+    connection: &Connection,
+    account_id: &str,
+) -> Result<bool, TradingError> {
+    let exists: Option<i64> = connection
+        .query_row(
+            "SELECT 1 FROM integration_accounts WHERE id = ?1 AND provider = ?2",
+            params![account_id, PROVIDER],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(TradingError::from)?;
+    Ok(exists.is_some())
+}
+
 fn is_unique_error(error: &rusqlite::Error) -> bool {
     matches!(
         error,
@@ -862,6 +924,8 @@ fn write_error(error: rusqlite::Error) -> TradingError {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use crate::storage::migrations::{configure_connection, run_migrations};
 
     use super::*;
@@ -897,6 +961,132 @@ mod tests {
         )
         .is_err());
         assert_eq!(account.fixture_scenario.as_deref(), Some("single_long"));
+    }
+
+    #[test]
+    fn persists_active_account_selection_and_clears_on_delete() {
+        let mut connection = database();
+        let account = create_account(
+            &mut connection,
+            HyperliquidEnvironment::Testnet,
+            SYNTHETIC_FIXTURE_ADDRESS,
+            Some("Fixture".to_owned()),
+            true,
+            Some("single_long".to_owned()),
+        )
+        .unwrap();
+
+        assert_eq!(
+            set_active_account_id(&connection, Some(&account.id)).unwrap(),
+            Some(account.id.clone())
+        );
+        assert_eq!(
+            active_account_id(&connection).unwrap().as_deref(),
+            Some(account.id.as_str())
+        );
+        let path = std::env::temp_dir().join(format!("trading-buddy-active-{}.db", Uuid::new_v4()));
+        let mut persisted = Connection::open(&path).expect("file database");
+        configure_connection(&persisted).expect("configure file");
+        run_migrations(&mut persisted).expect("migrate file");
+        let restarted_account = create_account(
+            &mut persisted,
+            HyperliquidEnvironment::Testnet,
+            SYNTHETIC_FIXTURE_ADDRESS,
+            Some("Fixture".to_owned()),
+            true,
+            Some("single_long".to_owned()),
+        )
+        .unwrap();
+        set_active_account_id(&persisted, Some(&restarted_account.id)).unwrap();
+        drop(persisted);
+
+        let mut restarted = Connection::open(&path).expect("reopen database");
+        configure_connection(&restarted).expect("configure reopened");
+        run_migrations(&mut restarted).expect("rerun migrations");
+        assert_eq!(
+            active_account_id(&restarted).unwrap().as_deref(),
+            Some(restarted_account.id.as_str())
+        );
+
+        delete_local_data(&mut restarted, &restarted_account.id).unwrap();
+        assert!(active_account_id(&restarted).unwrap().is_none());
+        drop(restarted);
+        cleanup_database_files(&path);
+    }
+
+    #[test]
+    fn rejects_and_repairs_invalid_active_account_selection() {
+        let connection = database();
+        assert!(set_active_account_id(&connection, Some("missing_account")).is_err());
+
+        connection
+            .pragma_update(None, "foreign_keys", "OFF")
+            .expect("disable fk for corruption fixture");
+        connection
+            .execute(
+                "UPDATE app_settings SET active_hyperliquid_account_id = 'missing_account' WHERE id = 1",
+                [],
+            )
+            .expect("write invalid setting");
+        connection
+            .pragma_update(None, "foreign_keys", "ON")
+            .expect("enable fk");
+
+        assert!(active_account_id(&connection).unwrap().is_none());
+        let stored: Option<String> = connection
+            .query_row(
+                "SELECT active_hyperliquid_account_id FROM app_settings WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(stored.is_none());
+    }
+
+    #[test]
+    fn switches_between_fixture_and_live_active_accounts() {
+        let mut connection = database();
+        let fixture = create_account(
+            &mut connection,
+            HyperliquidEnvironment::Testnet,
+            SYNTHETIC_FIXTURE_ADDRESS,
+            Some("Fixture".to_owned()),
+            true,
+            Some("single_long".to_owned()),
+        )
+        .unwrap();
+        let live = create_account(
+            &mut connection,
+            HyperliquidEnvironment::Mainnet,
+            "0x1111111111111111111111111111111111111111",
+            Some("Live public".to_owned()),
+            false,
+            None,
+        )
+        .unwrap();
+
+        set_active_account_id(&connection, Some(&fixture.id)).unwrap();
+        assert_eq!(
+            active_account_id(&connection).unwrap().as_deref(),
+            Some(fixture.id.as_str())
+        );
+        set_active_account_id(&connection, Some(&live.id)).unwrap();
+        assert_eq!(
+            active_account_id(&connection).unwrap().as_deref(),
+            Some(live.id.as_str())
+        );
+        disconnect_account(&connection, &live.id).unwrap();
+        assert_eq!(
+            active_account_id(&connection).unwrap().as_deref(),
+            Some(live.id.as_str())
+        );
+        assert!(set_active_account_id(&connection, None).unwrap().is_none());
+    }
+
+    fn cleanup_database_files(path: &std::path::Path) {
+        let _ = fs::remove_file(path);
+        let _ = fs::remove_file(format!("{}-wal", path.display()));
+        let _ = fs::remove_file(format!("{}-shm", path.display()));
     }
 
     #[test]

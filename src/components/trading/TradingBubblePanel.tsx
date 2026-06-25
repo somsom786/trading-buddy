@@ -39,9 +39,7 @@ export function TradingBubblePanel({
 }: TradingBubblePanelProps) {
   const [view, setView] = useState<BubbleTradingView | null>(null);
   const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
-  const [activeAccountId, setActiveAccountId] = useState<string | null>(() =>
-    loadActiveTradingAccountId(),
-  );
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [summary, setSummary] = useState<HyperliquidAccountSummary | null>(null);
   const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
   const [fills, setFills] = useState<HyperliquidFill[]>([]);
@@ -102,12 +100,10 @@ export function TradingBubblePanel({
     try {
       const nextAccounts = await tradingService.listAccounts();
       setAccounts(nextAccounts);
-      const normalized = normalizeActiveAccountSelection(
-        nextAccounts,
-        loadActiveTradingAccountId(),
-      );
-      if (normalized !== loadActiveTradingAccountId()) {
-        saveActiveTradingAccountId(normalized);
+      const persisted = await loadActiveTradingAccountId(tradingService);
+      const normalized = normalizeActiveAccountSelection(nextAccounts, persisted);
+      if (normalized !== persisted) {
+        await saveActiveTradingAccountId(normalized, tradingService);
       }
       setActiveAccountId(normalized);
       setError(null);

@@ -118,7 +118,8 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     evening_review_time,
                     journal_check_in_cooldown_minutes,
                     show_mood_prompt,
-                    show_energy_prompt
+                    show_energy_prompt,
+                    active_hyperliquid_account_id
              FROM app_settings WHERE id = 1",
             [],
             |row| {
@@ -167,6 +168,7 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     row.get::<_, i64>(37)?,
                     row.get::<_, i64>(38)?,
                     row.get::<_, i64>(39)?,
+                    row.get::<_, Option<String>>(40)?,
                 ))
             },
         )
@@ -213,6 +215,7 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                 journal_check_in_cooldown_minutes,
                 show_mood_prompt,
                 show_energy_prompt,
+                active_hyperliquid_account_id,
             )| {
                 let companion_preferences = CompanionPreferences {
                     buddy_visible: buddy_visible == 1,
@@ -276,6 +279,7 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     ambient_animations_enabled: animations == 1,
                     conversation_retention_policy: ConversationRetentionPolicy::from_db(&policy)?,
                     last_opened_conversation_id,
+                    active_hyperliquid_account_id,
                     companion_preferences,
                     memory_preferences,
                     journal_preferences,

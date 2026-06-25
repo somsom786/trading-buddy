@@ -151,6 +151,7 @@ export interface AppSettings {
   ambientAnimationsEnabled: boolean;
   conversationRetentionPolicy: RetentionPolicy;
   lastOpenedConversationId?: string;
+  activeHyperliquidAccountId?: string;
   companionPreferences: CompanionPreferences;
   memoryPreferences: MemoryPreferences;
   journalPreferences: JournalPreferences;
@@ -334,6 +335,7 @@ export function isAppSettings(value: unknown): value is AppSettings {
     typeof value.ambientAnimationsEnabled === 'boolean' &&
     retentionPolicies.has(value.conversationRetentionPolicy as RetentionPolicy) &&
     optionalString(value.lastOpenedConversationId) &&
+    optionalString(value.activeHyperliquidAccountId) &&
     isCompanionPreferences(value.companionPreferences) &&
     isMemoryPreferences(value.memoryPreferences) &&
     isJournalPreferences(value.journalPreferences)

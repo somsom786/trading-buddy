@@ -72,6 +72,40 @@
 - [ ] Record machine-specific performance fixture timings from the real desktop app.
 - [ ] Complete optional live public-address QA when a test address is provided.
 
+## Task 9E - Live sync and reconstruction foundation
+
+### E1 - Rust-owned active-account setting
+
+- [x] Create Task 9E QA plan and journal.
+- [x] Run and record baseline validation.
+- [x] Add schema v7 for `app_settings.active_hyperliquid_account_id`.
+- [x] Add typed read/update commands for active Hyperliquid account selection.
+- [x] Emit sanitized active-account change events to Companion Home and the desktop bubble.
+- [x] Remove browser `localStorage` as the durable active-account source of truth.
+- [x] Migrate/remove the legacy Task 9D browser key once where safe.
+- [x] Preserve selection on pause/disconnect.
+- [x] Clear selection on account deletion through the app-settings foreign key.
+- [x] Repair invalid stored account IDs by clearing the setting.
+- [x] Add Rust and frontend tests for active-account persistence and migration behavior.
+- [ ] Manually verify active-account cross-window behavior in the real desktop WebView.
+
+### E2+ - Still pending
+
+- [ ] Research and document the current official Hyperliquid WebSocket contract.
+- [ ] Add official allowlisted WebSocket host mapping.
+- [ ] Add typed read-only subscription model.
+- [ ] Add Rust-owned live connection lifecycle and generation IDs.
+- [ ] Add bounded reconnect and stale-generation rejection.
+- [ ] Add HTTP reconciliation after startup/reconnect/resume.
+- [ ] Add controlled live persistence strategy.
+- [ ] Add trade-episode reconstruction schema and engine.
+- [ ] Add trading-session reconstruction schema and engine.
+- [ ] Add Companion Home live-state, episode, and session UX.
+- [ ] Add desktop live-status/recent-episode/current-session cards.
+- [ ] Extend bounded local-Qwen context with derived reconstruction facts.
+- [ ] Add WebSocket fixture lab and performance fixtures.
+- [ ] Complete manual fixture QA and optional live public-account QA.
+
 ## BETA v0.1 identity and progress journal
 
 - [x] Label the in-development desktop project BETA v0.1.

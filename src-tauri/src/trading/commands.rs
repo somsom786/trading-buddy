@@ -1,4 +1,5 @@
-use tauri::State;
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::storage::errors::StorageError;
 use crate::storage::StorageService;
@@ -19,6 +20,15 @@ use super::{
     validation::{normalize_hyperliquid_address, shorten_address},
 };
 
+const ACTIVE_TRADING_ACCOUNT_EVENT: &str = "trading-buddy://active-trading-account-changed";
+const TRADING_EVENT_TARGETS: &[&str] = &["main", "bubble"];
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveTradingAccountChanged {
+    account_id: Option<String>,
+}
+
 #[tauri::command]
 pub fn validate_hyperliquid_address(address: String) -> HyperliquidAddressValidation {
     match normalize_hyperliquid_address(&address) {
@@ -35,6 +45,33 @@ pub fn validate_hyperliquid_address(address: String) -> HyperliquidAddressValida
             error: Some(error.user_message),
         },
     }
+}
+
+#[tauri::command]
+pub async fn get_active_hyperliquid_account_id(
+    service: State<'_, StorageService>,
+) -> Result<Option<String>, TradingError> {
+    service
+        .run(|connection, _| repository::active_account_id(connection).map_err(to_storage_error))
+        .await
+        .map_err(TradingError::from_storage_read)
+}
+
+#[tauri::command]
+pub async fn set_active_hyperliquid_account_id(
+    account_id: Option<String>,
+    service: State<'_, StorageService>,
+    app: AppHandle,
+) -> Result<Option<String>, TradingError> {
+    let active_account_id = service
+        .run(move |connection, _| {
+            repository::set_active_account_id(connection, account_id.as_deref())
+                .map_err(to_storage_error)
+        })
+        .await
+        .map_err(TradingError::from_storage_write)?;
+    emit_active_account_changed(&app, active_account_id.clone());
+    Ok(active_account_id)
 }
 
 #[tauri::command]
@@ -219,13 +256,20 @@ pub async fn disconnect_hyperliquid_account(
 pub async fn delete_hyperliquid_local_data(
     account_id: String,
     service: State<'_, StorageService>,
+    app: AppHandle,
 ) -> Result<(), TradingError> {
     service
         .run(move |connection, _| {
             repository::delete_local_data(connection, &account_id).map_err(to_storage_error)
         })
         .await
-        .map_err(TradingError::from_storage_write)
+        .map_err(TradingError::from_storage_write)?;
+    let active_account_id = service
+        .run(|connection, _| repository::active_account_id(connection).map_err(to_storage_error))
+        .await
+        .map_err(TradingError::from_storage_read)?;
+    emit_active_account_changed(&app, active_account_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -313,4 +357,11 @@ fn _environment_from_string(value: &str) -> Result<HyperliquidEnvironment, Tradi
 
 fn to_storage_error(error: TradingError) -> StorageError {
     StorageError::invalid_request(error.to_string())
+}
+
+fn emit_active_account_changed(app: &AppHandle, account_id: Option<String>) {
+    let payload = ActiveTradingAccountChanged { account_id };
+    for target in TRADING_EVENT_TARGETS {
+        let _ = app.emit_to(*target, ACTIVE_TRADING_ACCOUNT_EVENT, payload.clone());
+    }
 }

@@ -141,6 +141,10 @@ bubble, Buddy builds a bounded local context from saved facts and labels it as r
 exchange-reported, and possibly stale before sending it to the selected local model. Requests to
 place, close, cancel, or modify trades bypass the model and receive a deterministic refusal.
 
+The selected Hyperliquid account is stored in Rust-owned SQLite app settings and shared between
+Companion Home and the desktop bubble. Older development builds used a browser storage key; current
+builds remove/migrate that legacy value instead of keeping it as a second source of truth.
+
 The integration is deliberately read-only. Trading Buddy cannot place, close, cancel, or modify
 orders; cannot sign transactions; cannot move funds; and never asks for private keys, seed phrases,
 exchange API secrets, or wallet approvals.

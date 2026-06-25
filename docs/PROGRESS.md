@@ -6,6 +6,22 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 25, 2026 - Task 9E E1 active-account persistence checkpoint
+
+- Moved the active Hyperliquid account selection from frontend browser storage into Rust-owned
+  SQLite app settings.
+- Added schema v7, typed read/update commands, invalid-selection repair, delete-clearing via
+  foreign key, and sanitized cross-window account-selection events.
+- Kept a one-time cleanup path for the old Task 9D browser key so there are not two durable sources
+  of truth.
+- Updated Companion Home, desktop bubble cards, and deterministic trading fact paths to read the
+  active account from Rust.
+- Remaining Task 9E work: official WebSocket research, live read-only sync, reconnect, HTTP
+  reconciliation, trade-episode reconstruction, trading-session reconstruction, live UX, fixture
+  lab, performance timings, and manual/live QA.
+- Detailed handoff report:
+  [`docs/reports/TASK-009E-live-sync-trade-reconstruction.md`](reports/TASK-009E-live-sync-trade-reconstruction.md)
+
 ### June 25, 2026 - Desktop trading awareness checkpoint
 
 - Added shared active Hyperliquid account selection between Companion Home and the desktop bubble.

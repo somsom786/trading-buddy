@@ -548,3 +548,17 @@ context block built from saved read-only facts. The builder excludes full public
 internal row IDs, raw provider JSON, and unbounded lists; labels fixture data, freshness, partial
 sync state, and exchange-reported values; and repeats that execution capability is none. Execution
 requests are refused deterministically without a model call.
+
+## 068 - Active trading account selection is Rust-owned
+
+**Status:** Accepted
+
+Task 9D used browser storage for the selected Hyperliquid account because desktop trading cards
+were frontend-only. Task 9E moves that selection into the Rust-owned SQLite `app_settings` row as a
+nullable foreign key to `integration_accounts`. This creates one durable source of truth shared by
+Companion Home and the desktop bubble, lets account deletion clear the selection automatically, and
+keeps future live-sync/reconstruction coordinators from depending on WebView-local state.
+
+The frontend may migrate and remove the old browser key once, but it no longer treats
+`localStorage` as authoritative. Active-account changes are sent to windows as sanitized account-ID
+events, not raw account records or provider payloads.

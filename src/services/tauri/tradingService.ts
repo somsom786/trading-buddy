@@ -34,6 +34,8 @@ export interface TradingService {
     fixtureScenario?: string;
   }): Promise<IntegrationAccount>;
   listAccounts(): Promise<IntegrationAccount[]>;
+  getActiveAccountId(): Promise<string | null>;
+  setActiveAccountId(accountId: string | null): Promise<string | null>;
   summary(accountId: string): Promise<HyperliquidAccountSummary>;
   sync(accountId: string): Promise<HyperliquidSyncResult>;
   cancelSync(accountId: string): Promise<HyperliquidSyncProgress>;
@@ -63,6 +65,16 @@ export const tauriTradingService: TradingService = {
   },
   listAccounts() {
     return invokeChecked('list_hyperliquid_accounts', undefined, isAccountArray);
+  },
+  getActiveAccountId() {
+    return invokeChecked('get_active_hyperliquid_account_id', undefined, isOptionalStringResponse);
+  },
+  setActiveAccountId(accountId) {
+    return invokeChecked(
+      'set_active_hyperliquid_account_id',
+      { accountId },
+      isOptionalStringResponse,
+    );
   },
   summary(accountId) {
     return invokeChecked(
@@ -159,3 +171,5 @@ const isOpenOrderArray = (value: unknown): value is HyperliquidOpenOrder[] =>
   Array.isArray(value) && value.every(isHyperliquidOpenOrder);
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === 'string');
+const isOptionalStringResponse = (value: unknown): value is string | null =>
+  value === null || typeof value === 'string';

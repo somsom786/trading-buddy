@@ -577,6 +577,8 @@ pub struct AppSettings {
     pub conversation_retention_policy: ConversationRetentionPolicy,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_opened_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_hyperliquid_account_id: Option<String>,
     pub companion_preferences: CompanionPreferences,
     pub memory_preferences: MemoryPreferences,
     pub journal_preferences: JournalPreferences,

@@ -23,9 +23,7 @@ interface TradingPanelProps {
 
 export function TradingPanel({ tradingService = tauriTradingService }: TradingPanelProps) {
   const [accounts, setAccounts] = useState<IntegrationAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(() =>
-    loadActiveTradingAccountId(),
-  );
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [summary, setSummary] = useState<HyperliquidAccountSummary | null>(null);
   const [positions, setPositions] = useState<HyperliquidPosition[]>([]);
   const [fills, setFills] = useState<HyperliquidFill[]>([]);
@@ -62,13 +60,12 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
     try {
       const nextAccounts = await tradingService.listAccounts();
       setAccounts(nextAccounts);
-      setSelectedAccountId((current) => {
-        const normalized = normalizeActiveAccountSelection(nextAccounts, current);
-        if (normalized !== current) {
-          saveActiveTradingAccountId(normalized);
-        }
-        return normalized;
-      });
+      const persisted = await loadActiveTradingAccountId(tradingService);
+      const normalized = normalizeActiveAccountSelection(nextAccounts, persisted);
+      if (normalized !== persisted) {
+        await saveActiveTradingAccountId(normalized, tradingService);
+      }
+      setSelectedAccountId(normalized);
     } catch (caught) {
       setError(errorMessage(caught));
     }
@@ -106,7 +103,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
       });
       setNotice('Hyperliquid account saved locally. It is read-only.');
       await refreshAccounts();
-      chooseAccount(account.id);
+      await chooseAccount(account.id, tradingService);
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -156,7 +153,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
         await tradingService.disconnect(selectedAccountId);
       } else {
         await tradingService.deleteLocalData(selectedAccountId);
-        saveActiveTradingAccountId(null);
+        await saveActiveTradingAccountId(null, tradingService);
         setSelectedAccountId(null);
         setSummary(null);
       }
@@ -255,7 +252,7 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
               <select
                 value={selectedAccountId ?? ''}
                 onChange={(event) => {
-                  chooseAccount(event.currentTarget.value);
+                  void chooseAccount(event.currentTarget.value, tradingService);
                 }}
               >
                 {accounts.map((account) => (
@@ -402,8 +399,8 @@ export function TradingPanel({ tradingService = tauriTradingService }: TradingPa
   );
 }
 
-function chooseAccount(accountId: string | null) {
-  saveActiveTradingAccountId(accountId);
+async function chooseAccount(accountId: string | null, tradingService: TradingService) {
+  await saveActiveTradingAccountId(accountId, tradingService);
 }
 
 function MiniTable({ title, empty, rows }: { title: string; empty: string; rows: string[][] }) {

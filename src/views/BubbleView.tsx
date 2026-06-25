@@ -369,7 +369,7 @@ export function BubbleView({
       return;
     }
     if (tradingIntent === 'refresh_hyperliquid' || tradingIntent === 'cancel_hyperliquid_sync') {
-      const accountId = loadActiveTradingAccountId();
+      const accountId = await loadActiveTradingAccountId(tradingService);
       if (!accountId) {
         appendDeterministicReply(
           validation.content,
@@ -398,7 +398,7 @@ export function BubbleView({
     }
     if (!session.selectedModel) {
       if (isFactIntent(tradingIntent)) {
-        const accountId = loadActiveTradingAccountId();
+        const accountId = await loadActiveTradingAccountId(tradingService);
         appendDeterministicReply(
           validation.content,
           accountId
@@ -408,13 +408,42 @@ export function BubbleView({
       }
       return;
     }
+    let preparedTradingContext: string | null = null;
+    if (isFactIntent(tradingIntent)) {
+      const accountId = await loadActiveTradingAccountId(tradingService);
+      if (!accountId) {
+        appendDeterministicReply(
+          validation.content,
+          'No Hyperliquid account is selected. Open Trading to connect or select an account.',
+        );
+        return;
+      }
+      try {
+        const facts = await fetchTradingFacts(tradingService, accountId, tradingIntent);
+        preparedTradingContext = buildTradingContext(
+          {
+            accountId,
+            intent: tradingIntent,
+            maximumCharacters: 2400,
+            maximumPositions: 5,
+            maximumFills: 5,
+            maximumFundingRecords: 5,
+            maximumOrders: 5,
+          },
+          facts,
+        );
+      } catch (error) {
+        appendDeterministicReply(validation.content, errorMessage(error));
+        return;
+      }
+    }
     const requestId = createId('request');
     const selectedModel = session.selectedModel;
     let conversationId = session.id;
     let userMessage = createChatMessage('user', validation.content);
     let assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
-    let tradingContext: string | null = null;
+    const tradingContext: string | null = preparedTradingContext;
     let memoryOptedOutForRequest = conversationMemoryOptOut;
     let memoryNotice: string | null = null;
 
@@ -451,35 +480,6 @@ export function BubbleView({
         content: '',
         memoryIds: [],
       };
-    }
-
-    if (isFactIntent(tradingIntent)) {
-      const accountId = loadActiveTradingAccountId();
-      if (!accountId) {
-        appendDeterministicReply(
-          validation.content,
-          'No Hyperliquid account is selected. Open Trading to connect or select an account.',
-        );
-        return;
-      }
-      try {
-        const facts = await fetchTradingFacts(tradingService, accountId, tradingIntent);
-        tradingContext = buildTradingContext(
-          {
-            accountId,
-            intent: tradingIntent,
-            maximumCharacters: 2400,
-            maximumPositions: 5,
-            maximumFills: 5,
-            maximumFundingRecords: 5,
-            maximumOrders: 5,
-          },
-          facts,
-        );
-      } catch (error) {
-        appendDeterministicReply(validation.content, errorMessage(error));
-        return;
-      }
     }
 
     if (!isFactIntent(tradingIntent)) {
