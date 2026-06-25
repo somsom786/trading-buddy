@@ -19,7 +19,7 @@ export function MainView({ windowService = tauriWindowService, ...workspaceProps
           <span className="brand__mark">TB</span>
           <div>
             <strong>Companion Home</strong>
-            <small>BETA v0.1 · Desktop buddy first</small>
+            <small>BETA v0.2 · Desktop buddy first</small>
           </div>
         </div>
 

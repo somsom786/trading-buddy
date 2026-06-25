@@ -1,6 +1,6 @@
 # Product
 
-**Current development label:** BETA v0.1
+**Current development label:** BETA v0.2
 
 Trading Buddy is a private desktop companion that helps active crypto traders think more clearly,
 record decisions, and review their behavior without handing sensitive context to a cloud-first

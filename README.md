@@ -1,11 +1,11 @@
-# Trading Buddy — BETA v0.1
+# Trading Buddy — BETA v0.2
 
 A local-first desktop companion for crypto traders. The application connects only to a locally
 running Ollama service for companion chat. Conversations, memories, and journal entries are stored
 in a local SQLite database owned by the Rust/Tauri layer. It has no cloud inference, account, API
 token, exchange, wallet, authentication, telemetry, or trading functionality.
 
-This repository is currently labeled **BETA v0.1** while the product direction and companion
+This repository is currently labeled **BETA v0.2** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
@@ -241,7 +241,7 @@ modify the real Windows taskbar.
 
 Companion Lab is shown at the bottom of the main Chat view in development builds only. Expand it to:
 
-- Preview the current BETA v0.1 buddy design reference.
+- Preview the current buddy design reference, originally captured during BETA v0.1.
 - Preview typed emotion/activity combinations.
 - Preview every legacy buddy state used by the current command bridge.
 - Show, hide, or focus the buddy window.

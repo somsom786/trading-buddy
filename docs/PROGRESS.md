@@ -1,10 +1,17 @@
 # Progress Journal
 
-## BETA v0.1
+## BETA v0.2
 
-Trading Buddy is currently in active development under the label **BETA v0.1**. This journal
+Trading Buddy is currently in active development under the label **BETA v0.2**. This journal
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
+
+### June 25, 2026 - BETA v0.2 label update
+
+- Updated the current README and user-facing app labels from BETA v0.1 to BETA v0.2.
+- Kept historical BETA v0.1 milestone reports and concept-art filenames intact.
+- Detailed handoff report:
+  [`docs/reports/TASK-009B-beta-v0.2-readme-label.md`](reports/TASK-009B-beta-v0.2-readme-label.md)
 
 ### June 25, 2026 - Conversational journaling foundation
 
