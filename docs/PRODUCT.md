@@ -57,6 +57,23 @@ Companion Home now includes **What Buddy Knows About Me**, where users can inspe
 confirm, edit, reject, delete, delete all, and separately export memory records. The desktop bubble
 can show a polite one-at-a-time memory proposal without opening Companion Home.
 
+## Conversational journaling foundation
+
+Task 8 adds the first durable journal foundation. Journal entries are separate from saved chat and
+separate from memory by default. The user has to explicitly save a draft or completed entry; the
+model cannot silently turn a conversation into journal history.
+
+The desktop bubble can start a local guided or free-write journal session from phrases such as
+`let's journal`, `daily check-in`, or `review my trading`. Companion Home includes a local journal
+library for search, draft filtering, reading, editing, deletion, and export. The journal schema
+supports IDs, drafts, completed entries, local FTS search, optional mood/energy/stress/confidence
+ratings, private-by-default entries, and `trading_session` reflections for future trade linking.
+
+Journal content remains local in Rust-owned SQLite. Safe source links can reference a saved
+conversation/message and detach automatically if that source conversation is deleted. Journal text
+does not become companion memory unless a future explicit opt-in workflow proposes it through the
+same validated memory boundary.
+
 ## Buddy visual direction
 
 ![Buddy BETA v0.1 design reference](../public/design/buddy-concept-beta-v0.1.png)

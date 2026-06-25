@@ -200,6 +200,42 @@ retrieval timing. Richer user-facing conflict resolution, selectable bulk-forget
 cross-WebView synchronization tests, and complete manually driven local-Qwen WebView QA remain
 pending.
 
+## Conversational journal
+
+Task 8 adds a local journal subsystem that stays separate from chat transcripts and companion
+memory. React coordinates the session UX, but durable journal persistence lives behind Rust
+repository functions and typed Tauri commands.
+
+The pipeline is:
+
+```text
+desktop bubble or Companion Home
+  -> deterministic journal intent/session/domain logic
+  -> typed storage service boundary
+  -> Rust commands
+  -> SQLite journal repository
+  -> local export/search/diagnostics
+```
+
+SQLite schema version 4 adds:
+
+- journal preferences on `app_settings`;
+- `journal_entries` with stable IDs, kind/status/source fields, optional ratings, privacy flags,
+  completion timestamps, and `ON DELETE SET NULL` source links to conversations/messages;
+- `journal_tags` and `journal_entry_tags` for normalized local tags;
+- `journal_fts`, an FTS5 table synced by triggers plus explicit tag updates;
+- indexes for status/kind/date/source/tag lookup.
+
+The journal repository supports create, update with stale-write protection, get, bounded list,
+local FTS search, delete-one, delete-all, JSON/Markdown export, diagnostics, and bounded
+development fixtures. `trading_session` is a first-class journal kind so future trade episodes can
+link to user-written plans and reflections without changing the journal identity model.
+
+Journal model output is not authoritative. Frontend domain parsers accept only bounded strict JSON
+for summary/reflection/daily-review suggestions, and invalid output is ignored. Journal entries are
+private by default and do not become memories unless a future explicit opt-in workflow sends a
+validated proposal through the memory subsystem.
+
 ## Companion state and cross-window contracts
 
 Buddy states are a closed TypeScript union. Input and generation lifecycle events map

@@ -3,8 +3,10 @@ import {
   decorateStoredMessageContent,
   isAppSettings,
   isCompanionPreferences,
+  isJournalPreferences,
   isConversationDetail,
   isDevelopmentFixtureResult,
+  isJournalEntry,
   isStorageError,
   isStorageDiagnostics,
   messageStatusNote,
@@ -12,6 +14,7 @@ import {
   type StoredMessage,
 } from './types';
 import { defaultMemoryPreferences } from '../memory/types';
+import { defaultJournalPreferences } from '../journal/types';
 
 const companionPreferences = {
   buddyVisible: true,
@@ -68,6 +71,7 @@ describe('storage frontend types', () => {
         selectedLocalModel: 'qwen3:4b',
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
+        journalPreferences: defaultJournalPreferences,
       }),
     ).toBe(true);
     expect(
@@ -76,6 +80,7 @@ describe('storage frontend types', () => {
         conversationRetentionPolicy: 'delete_everything_whenever',
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
+        journalPreferences: defaultJournalPreferences,
       }),
     ).toBe(false);
   });
@@ -94,6 +99,33 @@ describe('storage frontend types', () => {
         quietHoursStart: '7:00',
       }),
     ).toBe(false);
+  });
+
+  it('validates journal preferences and journal entries at the native boundary', () => {
+    expect(isJournalPreferences(defaultJournalPreferences)).toBe(true);
+    expect(
+      isJournalPreferences({
+        ...defaultJournalPreferences,
+        journalCheckInCooldownMinutes: 5,
+      }),
+    ).toBe(false);
+    expect(
+      isJournalEntry({
+        id: 'journal-1',
+        kind: 'trading_session',
+        title: 'Session review',
+        body: 'I followed my risk rule and stopped after two trades.',
+        status: 'completed',
+        sourceKind: 'desktop_guided',
+        occurredAt: '2026-06-23T00:00:00Z',
+        createdAt: '2026-06-23T00:00:00Z',
+        updatedAt: '2026-06-23T00:00:00Z',
+        completedAt: '2026-06-23T00:00:00Z',
+        allowMemoryCandidates: false,
+        isPrivate: true,
+        tags: ['trading'],
+      }),
+    ).toBe(true);
   });
 
   it('validates persisted conversations with messages', () => {

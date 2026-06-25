@@ -9,13 +9,18 @@ use super::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
         CompanionPlacementMode, CompanionPreferences, ConversationDetail, ConversationExport,
         ConversationExportFile, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
-        DevelopmentMemoryFixtureResult, Memory, MemoryApprovalMode, MemoryCategory,
+        DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
+        DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult, JournalDiagnostics,
+        JournalEntry, JournalEntryDraft, JournalEntrySummary, JournalEntryUpdate,
+        JournalExportFile, JournalKind, JournalListOptions, JournalMode, JournalPreferences,
+        JournalSort, JournalSourceKind, JournalStatus, Memory, MemoryApprovalMode, MemoryCategory,
         MemoryDiagnostics, MemoryDraft, MemoryExportFile, MemoryListOptions, MemoryPreferences,
         MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
         MessageExport, PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
         RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
-        StoredMessageStatus, MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH,
+        StoredMessageStatus, MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH,
+        MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH,
+        MAX_JOURNAL_TITLE_LENGTH, MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH,
         MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
@@ -102,7 +107,18 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     show_memory_used_indicator,
                     memory_candidate_notifications,
                     temporary_memory_default_expiry_days,
-                    use_memories_in_temporary_chat
+                    use_memories_in_temporary_chat,
+                    journaling_enabled,
+                    default_journal_mode,
+                    default_entry_private,
+                    allow_memory_candidates_from_journal,
+                    daily_check_in_enabled,
+                    daily_check_in_time,
+                    evening_review_enabled,
+                    evening_review_time,
+                    journal_check_in_cooldown_minutes,
+                    show_mood_prompt,
+                    show_energy_prompt
              FROM app_settings WHERE id = 1",
             [],
             |row| {
@@ -140,6 +156,17 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     row.get::<_, i64>(26)?,
                     row.get::<_, i64>(27)?,
                     row.get::<_, i64>(28)?,
+                    row.get::<_, i64>(29)?,
+                    row.get::<_, String>(30)?,
+                    row.get::<_, i64>(31)?,
+                    row.get::<_, i64>(32)?,
+                    row.get::<_, i64>(33)?,
+                    row.get::<_, Option<String>>(34)?,
+                    row.get::<_, i64>(35)?,
+                    row.get::<_, Option<String>>(36)?,
+                    row.get::<_, i64>(37)?,
+                    row.get::<_, i64>(38)?,
+                    row.get::<_, i64>(39)?,
                 ))
             },
         )
@@ -175,6 +202,17 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                 memory_candidate_notifications,
                 temporary_memory_default_expiry_days,
                 use_memories_in_temporary_chat,
+                journaling_enabled,
+                default_journal_mode,
+                default_entry_private,
+                allow_memory_candidates_from_journal,
+                daily_check_in_enabled,
+                daily_check_in_time,
+                evening_review_enabled,
+                evening_review_time,
+                journal_check_in_cooldown_minutes,
+                show_mood_prompt,
+                show_energy_prompt,
             )| {
                 let companion_preferences = CompanionPreferences {
                     buddy_visible: buddy_visible == 1,
@@ -216,6 +254,23 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     use_memories_in_temporary_chat: use_memories_in_temporary_chat == 1,
                 };
                 validate_memory_preferences(&memory_preferences)?;
+                let journal_preferences = JournalPreferences {
+                    journaling_enabled: journaling_enabled == 1,
+                    default_journal_mode: JournalMode::from_db(&default_journal_mode)?,
+                    default_entry_private: default_entry_private == 1,
+                    allow_memory_candidates_from_journal: allow_memory_candidates_from_journal == 1,
+                    daily_check_in_enabled: daily_check_in_enabled == 1,
+                    daily_check_in_time,
+                    evening_review_enabled: evening_review_enabled == 1,
+                    evening_review_time,
+                    journal_check_in_cooldown_minutes: bounded_u32(
+                        journal_check_in_cooldown_minutes,
+                        "journal check-in cooldown setting",
+                    )?,
+                    show_mood_prompt: show_mood_prompt == 1,
+                    show_energy_prompt: show_energy_prompt == 1,
+                };
+                validate_journal_preferences(&journal_preferences)?;
                 Ok(AppSettings {
                     selected_local_model,
                     ambient_animations_enabled: animations == 1,
@@ -223,6 +278,7 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     last_opened_conversation_id,
                     companion_preferences,
                     memory_preferences,
+                    journal_preferences,
                 })
             },
         )
@@ -339,6 +395,44 @@ pub fn set_memory_preferences(
                 bool_to_db(preferences.memory_candidate_notifications),
                 preferences.temporary_memory_default_expiry_days,
                 bool_to_db(preferences.use_memories_in_temporary_chat),
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    settings(connection)
+}
+
+pub fn set_journal_preferences(
+    connection: &Connection,
+    preferences: JournalPreferences,
+) -> Result<AppSettings, StorageError> {
+    validate_journal_preferences(&preferences)?;
+    connection
+        .execute(
+            "UPDATE app_settings
+             SET journaling_enabled = ?1,
+                 default_journal_mode = ?2,
+                 default_entry_private = ?3,
+                 allow_memory_candidates_from_journal = ?4,
+                 daily_check_in_enabled = ?5,
+                 daily_check_in_time = ?6,
+                 evening_review_enabled = ?7,
+                 evening_review_time = ?8,
+                 journal_check_in_cooldown_minutes = ?9,
+                 show_mood_prompt = ?10,
+                 show_energy_prompt = ?11
+             WHERE id = 1",
+            params![
+                bool_to_db(preferences.journaling_enabled),
+                preferences.default_journal_mode.as_db(),
+                bool_to_db(preferences.default_entry_private),
+                bool_to_db(preferences.allow_memory_candidates_from_journal),
+                bool_to_db(preferences.daily_check_in_enabled),
+                preferences.daily_check_in_time,
+                bool_to_db(preferences.evening_review_enabled),
+                preferences.evening_review_time,
+                preferences.journal_check_in_cooldown_minutes,
+                bool_to_db(preferences.show_mood_prompt),
+                bool_to_db(preferences.show_energy_prompt),
             ],
         )
         .map_err(StorageError::from_sql_write)?;
@@ -1130,6 +1224,458 @@ pub fn export_memory_file(
     })
 }
 
+pub fn create_journal_entry(
+    connection: &mut Connection,
+    draft: JournalEntryDraft,
+) -> Result<JournalEntry, StorageError> {
+    validate_journal_draft(&draft)?;
+    let now = timestamp();
+    let id = generate_id("journal");
+    let occurred_at = draft.occurred_at.unwrap_or_else(|| now.clone());
+    let completed_at = if draft.status == JournalStatus::Completed {
+        Some(now.clone())
+    } else {
+        None
+    };
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    transaction
+        .execute(
+            "INSERT INTO journal_entries (
+                id, kind, title, body, summary, status, source_kind, source_conversation_id,
+                source_message_id, mood, energy, stress, confidence, occurred_at, created_at,
+                updated_at, completed_at, allow_memory_candidates, is_private
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+            params![
+                id,
+                draft.kind.as_db(),
+                truncate_chars(draft.title.trim(), MAX_JOURNAL_TITLE_LENGTH),
+                draft.body.trim(),
+                draft.summary.as_deref().map(str::trim),
+                draft.status.as_db(),
+                draft.source_kind.as_db(),
+                draft.source_conversation_id,
+                draft.source_message_id,
+                draft.mood,
+                draft.energy,
+                draft.stress,
+                draft.confidence,
+                occurred_at,
+                now,
+                now,
+                completed_at,
+                bool_to_db(draft.allow_memory_candidates),
+                bool_to_db(draft.is_private),
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    set_journal_tags(&transaction, &id, &draft.tags)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    get_journal_entry(connection, &id)
+}
+
+pub fn update_journal_entry(
+    connection: &mut Connection,
+    update: JournalEntryUpdate,
+) -> Result<JournalEntry, StorageError> {
+    validate_identifier(&update.entry_id, "journal entry ID")?;
+    validate_journal_update(&update)?;
+    let now = timestamp();
+    let completed_at = if update.status == JournalStatus::Completed {
+        Some(now.clone())
+    } else {
+        None
+    };
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let changed = transaction
+        .execute(
+            "UPDATE journal_entries
+             SET kind = ?1,
+                 title = ?2,
+                 body = ?3,
+                 summary = ?4,
+                 status = ?5,
+                 mood = ?6,
+                 energy = ?7,
+                 stress = ?8,
+                 confidence = ?9,
+                 updated_at = ?10,
+                 completed_at = CASE WHEN ?5 = 'completed' THEN COALESCE(completed_at, ?11) ELSE NULL END,
+                 allow_memory_candidates = ?12,
+                 is_private = ?13
+             WHERE id = ?14 AND updated_at = ?15",
+            params![
+                update.kind.as_db(),
+                truncate_chars(update.title.trim(), MAX_JOURNAL_TITLE_LENGTH),
+                update.body.trim(),
+                update.summary.as_deref().map(str::trim),
+                update.status.as_db(),
+                update.mood,
+                update.energy,
+                update.stress,
+                update.confidence,
+                now,
+                completed_at,
+                bool_to_db(update.allow_memory_candidates),
+                bool_to_db(update.is_private),
+                update.entry_id,
+                update.expected_updated_at,
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request(
+            "Journal entry changed before this save completed. Reload and try again.",
+        ));
+    }
+    set_journal_tags(&transaction, &update.entry_id, &update.tags)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    get_journal_entry(connection, &update.entry_id)
+}
+
+pub fn get_journal_entry(
+    connection: &Connection,
+    entry_id: &str,
+) -> Result<JournalEntry, StorageError> {
+    validate_identifier(entry_id, "journal entry ID")?;
+    let mut entry = connection
+        .query_row(
+            "SELECT id, kind, title, body, summary, status, source_kind, source_conversation_id,
+                    source_message_id, mood, energy, stress, confidence, occurred_at, created_at,
+                    updated_at, completed_at, allow_memory_candidates, is_private
+             FROM journal_entries WHERE id = ?1",
+            params![entry_id],
+            map_journal_entry_without_tags,
+        )
+        .map_err(|error| match error {
+            rusqlite::Error::QueryReturnedNoRows => {
+                StorageError::invalid_request("Journal entry was not found.")
+            }
+            other => StorageError::from_sql_read(other),
+        })?;
+    entry.tags = journal_tags_for_entry(connection, entry_id)?;
+    Ok(entry)
+}
+
+pub fn list_journal_entries(
+    connection: &Connection,
+    options: JournalListOptions,
+) -> Result<Vec<JournalEntrySummary>, StorageError> {
+    let limit = options.limit.clamp(1, MAX_PAGE_LIMIT);
+    let offset = options.offset.min(10_000);
+    if let Some(query) = &options.query {
+        validate_journal_search(query)?;
+    }
+    let status = options.status.as_ref().map(JournalStatus::as_db);
+    let kind = options.kind.as_ref().map(JournalKind::as_db);
+    let tag = options
+        .tag
+        .as_ref()
+        .map(|value| normalize_journal_tag(value));
+    if let Some(value) = &tag {
+        validate_normalized_journal_tag(value)?;
+    }
+    let order = match options.sort {
+        JournalSort::Newest => "DESC",
+        JournalSort::Oldest => "ASC",
+    };
+    let mut sql = "SELECT e.id, e.kind, e.title, substr(e.body, 1, 220), e.summary, e.status,
+                e.occurred_at, e.updated_at, e.is_private, e.allow_memory_candidates,
+                e.mood, e.energy
+         FROM journal_entries e
+         WHERE (?1 IS NULL OR e.status = ?1)
+           AND (?2 IS NULL OR e.kind = ?2)
+           AND (?3 = 1 OR e.is_private = 0)
+           AND (?4 = 1 OR e.status != 'discarded')
+           AND (?5 IS NULL OR e.occurred_at >= ?5)
+           AND (?6 IS NULL OR e.occurred_at <= ?6)
+           AND (?7 IS NULL OR EXISTS (
+             SELECT 1 FROM journal_entry_tags jet
+             JOIN journal_tags jt ON jt.id = jet.tag_id
+             WHERE jet.entry_id = e.id AND jt.value = ?7
+           ))"
+    .to_owned();
+    if options
+        .query
+        .as_ref()
+        .is_some_and(|query| !query.trim().is_empty())
+    {
+        sql.push_str(
+            " AND e.id IN (
+                SELECT entry_id FROM journal_fts WHERE journal_fts MATCH ?8
+              )",
+        );
+    }
+    sql.push_str(&format!(
+        " ORDER BY e.occurred_at {order}, e.id ASC LIMIT ?9 OFFSET ?10"
+    ));
+    let fts_query = options
+        .query
+        .as_ref()
+        .map(|query| journal_fts_query(query))
+        .unwrap_or_default();
+    let mut statement = connection
+        .prepare(&sql)
+        .map_err(StorageError::from_sql_read)?;
+    let mut summaries = collect_rows(
+        statement
+            .query_map(
+                params![
+                    status,
+                    kind,
+                    bool_to_db(options.include_private),
+                    bool_to_db(options.include_discarded),
+                    options.from_date,
+                    options.to_date,
+                    tag,
+                    fts_query,
+                    limit,
+                    offset,
+                ],
+                |row| {
+                    Ok(JournalEntrySummary {
+                        id: row.get(0)?,
+                        kind: JournalKind::from_db(row.get::<_, String>(1)?.as_str())
+                            .map_err(to_sql_conversion_error)?,
+                        title: row.get(2)?,
+                        preview: row.get(3)?,
+                        summary: row.get(4)?,
+                        status: JournalStatus::from_db(row.get::<_, String>(5)?.as_str())
+                            .map_err(to_sql_conversion_error)?,
+                        occurred_at: row.get(6)?,
+                        updated_at: row.get(7)?,
+                        is_private: row.get::<_, i64>(8)? == 1,
+                        allow_memory_candidates: row.get::<_, i64>(9)? == 1,
+                        tags: Vec::new(),
+                        mood: row.get(10)?,
+                        energy: row.get(11)?,
+                    })
+                },
+            )
+            .map_err(StorageError::from_sql_read)?,
+    )?;
+    for summary in &mut summaries {
+        summary.tags = journal_tags_for_entry(connection, &summary.id)?;
+    }
+    Ok(summaries)
+}
+
+pub fn delete_journal_entry(connection: &Connection, entry_id: &str) -> Result<(), StorageError> {
+    validate_identifier(entry_id, "journal entry ID")?;
+    let changed = connection
+        .execute(
+            "DELETE FROM journal_entries WHERE id = ?1",
+            params![entry_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request(
+            "Journal entry was not found.",
+        ));
+    }
+    connection
+        .execute(
+            "DELETE FROM journal_tags
+             WHERE id NOT IN (SELECT DISTINCT tag_id FROM journal_entry_tags)",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    Ok(())
+}
+
+pub fn delete_all_journal_entries(
+    connection: &mut Connection,
+) -> Result<DeleteAllJournalResult, StorageError> {
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let deleted = transaction
+        .execute("DELETE FROM journal_entries", [])
+        .map_err(StorageError::from_sql_write)? as u32;
+    transaction
+        .execute(
+            "DELETE FROM journal_tags
+             WHERE id NOT IN (SELECT DISTINCT tag_id FROM journal_entry_tags)",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    Ok(DeleteAllJournalResult {
+        deleted_entries: deleted,
+    })
+}
+
+pub fn export_journal_file(
+    connection: &Connection,
+    include_private: bool,
+) -> Result<JournalExportFile, StorageError> {
+    let summaries = list_journal_entries(
+        connection,
+        JournalListOptions {
+            status: None,
+            kind: None,
+            query: None,
+            tag: None,
+            from_date: None,
+            to_date: None,
+            include_private,
+            include_discarded: false,
+            sort: JournalSort::Newest,
+            limit: MAX_PAGE_LIMIT,
+            offset: 0,
+        },
+    )?;
+    let mut entries = Vec::new();
+    for summary in summaries {
+        entries.push(get_journal_entry(connection, &summary.id)?);
+    }
+    Ok(JournalExportFile {
+        format: "trading-buddy-journal".to_owned(),
+        version: 1,
+        exported_at: timestamp(),
+        entries,
+    })
+}
+
+pub fn journal_diagnostics(connection: &Connection) -> Result<JournalDiagnostics, StorageError> {
+    let count_status = |status: &str| -> Result<u32, StorageError> {
+        connection
+            .query_row(
+                "SELECT COUNT(*) FROM journal_entries WHERE status = ?1",
+                params![status],
+                |row| row.get::<_, u32>(0),
+            )
+            .map_err(StorageError::from_sql_read)
+    };
+    let total_count = connection
+        .query_row("SELECT COUNT(*) FROM journal_entries", [], |row| {
+            row.get::<_, u32>(0)
+        })
+        .map_err(StorageError::from_sql_read)?;
+    let private_count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM journal_entries WHERE is_private = 1",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let fixture_count = connection
+        .query_row(
+            "SELECT COUNT(*) FROM journal_entries
+             WHERE source_kind = 'user_created'
+               AND title LIKE 'Development journal fixture %'",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let tag_count = connection
+        .query_row("SELECT COUNT(*) FROM journal_tags", [], |row| {
+            row.get::<_, u32>(0)
+        })
+        .map_err(StorageError::from_sql_read)?;
+    let fts_available = connection
+        .query_row(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'journal_fts'",
+            [],
+            |row| row.get::<_, u32>(0),
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)?
+        .is_some();
+    Ok(JournalDiagnostics {
+        total_count,
+        draft_count: count_status("draft")?,
+        completed_count: count_status("completed")?,
+        discarded_count: count_status("discarded")?,
+        private_count,
+        fixture_count,
+        tag_count,
+        fts_available,
+    })
+}
+
+pub fn create_development_journal_fixtures(
+    connection: &mut Connection,
+    requested_count: u32,
+) -> Result<DevelopmentJournalFixtureResult, StorageError> {
+    let count = requested_count.clamp(1, 1_000);
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    let now = timestamp();
+    for index in 0..count {
+        let id = generate_id("journal");
+        let kind = match index % 5 {
+            0 => JournalKind::FreeReflection,
+            1 => JournalKind::DailyCheckIn,
+            2 => JournalKind::Idea,
+            3 => JournalKind::TradingSession,
+            _ => JournalKind::EndOfDayReview,
+        };
+        let title = format!("Development journal fixture {:04}", index + 1);
+        let body = format!(
+            "Development fixture journal entry {}. This is synthetic local QA data with unicode 🌙 and bounded content.",
+            index + 1
+        );
+        transaction
+            .execute(
+                "INSERT INTO journal_entries (
+                    id, kind, title, body, status, source_kind, occurred_at, created_at, updated_at,
+                    completed_at, allow_memory_candidates, is_private
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, 'user_created', ?6, ?7, ?8, ?9, 0, 1)",
+                params![
+                    id,
+                    kind.as_db(),
+                    title,
+                    body,
+                    if index % 9 == 0 { "draft" } else { "completed" },
+                    now,
+                    now,
+                    now,
+                    if index % 9 == 0 {
+                        None::<String>
+                    } else {
+                        Some(now.clone())
+                    },
+                ],
+            )
+            .map_err(StorageError::from_sql_write)?;
+        set_journal_tags(&transaction, &id, &["fixture".to_owned(), "qa".to_owned()])?;
+    }
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    Ok(DevelopmentJournalFixtureResult {
+        created_entries: count,
+        deleted_entries: 0,
+    })
+}
+
+pub fn delete_development_journal_fixtures(
+    connection: &Connection,
+) -> Result<DevelopmentJournalFixtureResult, StorageError> {
+    let deleted = connection
+        .execute(
+            "DELETE FROM journal_entries
+             WHERE source_kind = 'user_created'
+               AND title LIKE 'Development journal fixture %'",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)? as u32;
+    connection
+        .execute(
+            "DELETE FROM journal_tags
+             WHERE id NOT IN (SELECT DISTINCT tag_id FROM journal_entry_tags)",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    Ok(DevelopmentJournalFixtureResult {
+        created_entries: 0,
+        deleted_entries: deleted,
+    })
+}
+
 pub fn memory_diagnostics(connection: &Connection) -> Result<MemoryDiagnostics, StorageError> {
     let count_for = |status: &str| -> Result<u32, StorageError> {
         connection
@@ -1560,6 +2106,112 @@ fn map_memory(row: &rusqlite::Row<'_>) -> rusqlite::Result<Memory> {
     })
 }
 
+fn map_journal_entry_without_tags(row: &rusqlite::Row<'_>) -> rusqlite::Result<JournalEntry> {
+    Ok(JournalEntry {
+        id: row.get(0)?,
+        kind: JournalKind::from_db(row.get::<_, String>(1)?.as_str())
+            .map_err(to_sql_conversion_error)?,
+        title: row.get(2)?,
+        body: row.get(3)?,
+        summary: row.get(4)?,
+        status: JournalStatus::from_db(row.get::<_, String>(5)?.as_str())
+            .map_err(to_sql_conversion_error)?,
+        source_kind: JournalSourceKind::from_db(row.get::<_, String>(6)?.as_str())
+            .map_err(to_sql_conversion_error)?,
+        source_conversation_id: row.get(7)?,
+        source_message_id: row.get(8)?,
+        mood: row.get(9)?,
+        energy: row.get(10)?,
+        stress: row.get(11)?,
+        confidence: row.get(12)?,
+        occurred_at: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        completed_at: row.get(16)?,
+        allow_memory_candidates: row.get::<_, i64>(17)? == 1,
+        is_private: row.get::<_, i64>(18)? == 1,
+        tags: Vec::new(),
+    })
+}
+
+fn journal_tags_for_entry(
+    connection: &Connection,
+    entry_id: &str,
+) -> Result<Vec<String>, StorageError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT jt.value
+             FROM journal_entry_tags jet
+             JOIN journal_tags jt ON jt.id = jet.tag_id
+             WHERE jet.entry_id = ?1
+             ORDER BY jt.value ASC",
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let tags = collect_rows(
+        statement
+            .query_map(params![entry_id], |row| row.get(0))
+            .map_err(StorageError::from_sql_read)?,
+    )?;
+    Ok(tags)
+}
+
+fn set_journal_tags(
+    transaction: &rusqlite::Transaction<'_>,
+    entry_id: &str,
+    tags: &[String],
+) -> Result<(), StorageError> {
+    validate_journal_tags(tags)?;
+    transaction
+        .execute(
+            "DELETE FROM journal_entry_tags WHERE entry_id = ?1",
+            params![entry_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    let now = timestamp();
+    let normalized_tags = normalize_journal_tags(tags)?;
+    for tag in &normalized_tags {
+        let existing_id: Option<String> = transaction
+            .query_row(
+                "SELECT id FROM journal_tags WHERE value = ?1",
+                params![tag],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(StorageError::from_sql_read)?;
+        let tag_id = existing_id.unwrap_or_else(|| generate_id("journal_tag"));
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO journal_tags (id, value, created_at)
+                 VALUES (?1, ?2, ?3)",
+                params![tag_id, tag, now],
+            )
+            .map_err(StorageError::from_sql_write)?;
+        transaction
+            .execute(
+                "INSERT OR IGNORE INTO journal_entry_tags (entry_id, tag_id)
+                 VALUES (?1, ?2)",
+                params![entry_id, tag_id],
+            )
+            .map_err(StorageError::from_sql_write)?;
+    }
+    transaction
+        .execute(
+            "UPDATE journal_fts
+             SET tags = ?1
+             WHERE entry_id = ?2",
+            params![normalized_tags.join(" "), entry_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    transaction
+        .execute(
+            "DELETE FROM journal_tags
+             WHERE id NOT IN (SELECT DISTINCT tag_id FROM journal_entry_tags)",
+            [],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    Ok(())
+}
+
 fn update_memory_status(
     connection: &Connection,
     memory_id: &str,
@@ -1723,6 +2375,134 @@ fn validate_memory_preferences(preferences: &MemoryPreferences) -> Result<(), St
     Ok(())
 }
 
+fn validate_journal_preferences(preferences: &JournalPreferences) -> Result<(), StorageError> {
+    if !(15..=1_440).contains(&preferences.journal_check_in_cooldown_minutes) {
+        return Err(StorageError::invalid_request(
+            "Journal check-in cooldown must be between 15 minutes and 24 hours.",
+        ));
+    }
+    if let Some(value) = &preferences.daily_check_in_time {
+        validate_clock_time(value)?;
+    }
+    if let Some(value) = &preferences.evening_review_time {
+        validate_clock_time(value)?;
+    }
+    Ok(())
+}
+
+fn validate_journal_draft(draft: &JournalEntryDraft) -> Result<(), StorageError> {
+    validate_journal_title(&draft.title)?;
+    validate_journal_body(&draft.body, &draft.status)?;
+    validate_journal_summary(draft.summary.as_deref())?;
+    validate_journal_ratings(draft.mood, draft.energy, draft.stress, draft.confidence)?;
+    validate_journal_tags(&draft.tags)?;
+    if let Some(id) = &draft.source_conversation_id {
+        validate_identifier(id, "source conversation ID")?;
+    }
+    if let Some(id) = &draft.source_message_id {
+        validate_identifier(id, "source message ID")?;
+    }
+    Ok(())
+}
+
+fn validate_journal_update(update: &JournalEntryUpdate) -> Result<(), StorageError> {
+    validate_journal_title(&update.title)?;
+    validate_journal_body(&update.body, &update.status)?;
+    validate_journal_summary(update.summary.as_deref())?;
+    validate_journal_ratings(update.mood, update.energy, update.stress, update.confidence)?;
+    validate_journal_tags(&update.tags)?;
+    Ok(())
+}
+
+fn validate_journal_title(title: &str) -> Result<(), StorageError> {
+    let trimmed = title.trim();
+    if trimmed.is_empty() {
+        return Err(StorageError::invalid_request(
+            "Journal title cannot be empty.",
+        ));
+    }
+    if trimmed.chars().count() > MAX_JOURNAL_TITLE_LENGTH {
+        return Err(StorageError::invalid_request("Journal title is too long."));
+    }
+    Ok(())
+}
+
+fn validate_journal_body(body: &str, status: &JournalStatus) -> Result<(), StorageError> {
+    let trimmed = body.trim();
+    if *status == JournalStatus::Completed && trimmed.is_empty() {
+        return Err(StorageError::invalid_request(
+            "Completed journal entries need body text.",
+        ));
+    }
+    if trimmed.chars().count() > MAX_JOURNAL_BODY_LENGTH {
+        return Err(StorageError::invalid_request("Journal entry is too long."));
+    }
+    if looks_like_secret(trimmed) {
+        return Err(StorageError::invalid_request(
+            "Secrets should not be saved in journal entries.",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_journal_summary(summary: Option<&str>) -> Result<(), StorageError> {
+    if let Some(value) = summary {
+        if value.chars().count() > MAX_JOURNAL_SUMMARY_LENGTH {
+            return Err(StorageError::invalid_request(
+                "Journal summary is too long.",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_journal_ratings(
+    mood: Option<u32>,
+    energy: Option<u32>,
+    stress: Option<u32>,
+    confidence: Option<u32>,
+) -> Result<(), StorageError> {
+    for rating in [mood, energy, stress, confidence].into_iter().flatten() {
+        if !(1..=5).contains(&rating) {
+            return Err(StorageError::invalid_request(
+                "Journal ratings must be between 1 and 5.",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_journal_tags(tags: &[String]) -> Result<(), StorageError> {
+    let normalized = normalize_journal_tags(tags)?;
+    if normalized.len() > MAX_JOURNAL_TAGS {
+        return Err(StorageError::invalid_request(
+            "Journal entries support up to 12 tags.",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_normalized_journal_tag(tag: &str) -> Result<(), StorageError> {
+    if tag.is_empty() || tag.chars().count() > MAX_JOURNAL_TAG_LENGTH {
+        return Err(StorageError::invalid_request("Journal tag is invalid."));
+    }
+    if !tag.chars().all(|character| {
+        character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+    }) {
+        return Err(StorageError::invalid_request("Journal tag is invalid."));
+    }
+    Ok(())
+}
+
+fn validate_journal_search(query: &str) -> Result<(), StorageError> {
+    if query.chars().count() > MAX_JOURNAL_SEARCH_LENGTH {
+        return Err(StorageError::invalid_request(
+            "Journal search query is too long.",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_memory_draft(draft: &MemoryDraft) -> Result<(), StorageError> {
     if draft.source_kind == MemorySourceKind::SystemObservation {
         return Err(StorageError::invalid_request(
@@ -1814,6 +2594,49 @@ fn normalize_memory_content(content: &str) -> String {
         .join(" ")
         .trim()
         .to_ascii_lowercase()
+}
+
+fn normalize_journal_tag(tag: &str) -> String {
+    tag.trim()
+        .to_ascii_lowercase()
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn normalize_journal_tags(tags: &[String]) -> Result<Vec<String>, StorageError> {
+    let mut normalized = Vec::new();
+    for tag in tags {
+        let value = normalize_journal_tag(tag);
+        if value.is_empty() {
+            continue;
+        }
+        validate_normalized_journal_tag(&value)?;
+        if !normalized.contains(&value) {
+            normalized.push(value);
+        }
+    }
+    Ok(normalized)
+}
+
+fn journal_fts_query(query: &str) -> String {
+    query
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|token| token.chars().count() >= 2)
+        .take(12)
+        .map(|token| format!("{}*", token.to_ascii_lowercase()))
+        .collect::<Vec<_>>()
+        .join(" OR ")
 }
 
 fn memory_query_tokens(query: &str) -> Vec<String> {
@@ -2176,6 +2999,27 @@ mod tests {
         }
     }
 
+    fn journal_draft(title: &str, body: &str, status: JournalStatus) -> JournalEntryDraft {
+        JournalEntryDraft {
+            kind: JournalKind::TradingSession,
+            title: title.to_owned(),
+            body: body.to_owned(),
+            summary: Some("Synthetic reflection summary.".to_owned()),
+            status,
+            source_kind: JournalSourceKind::DesktopGuided,
+            source_conversation_id: None,
+            source_message_id: None,
+            mood: Some(3),
+            energy: Some(4),
+            stress: Some(2),
+            confidence: Some(3),
+            occurred_at: Some("2026-06-25T10:00:00Z".to_owned()),
+            allow_memory_candidates: false,
+            is_private: true,
+            tags: vec!["trading".to_owned(), "process".to_owned()],
+        }
+    }
+
     #[test]
     fn persists_memory_preferences() {
         let connection = database();
@@ -2198,6 +3042,181 @@ mod tests {
         );
         assert!(!updated.memory_preferences.memory_candidate_notifications);
         assert!(updated.memory_preferences.use_memories_in_temporary_chat);
+    }
+
+    #[test]
+    fn persists_journal_preferences() {
+        let connection = database();
+        let mut preferences = settings(&connection).expect("settings").journal_preferences;
+        assert!(preferences.journaling_enabled);
+        assert_eq!(preferences.default_journal_mode, JournalMode::Guided);
+        assert!(preferences.default_entry_private);
+
+        preferences.default_journal_mode = JournalMode::FreeWrite;
+        preferences.allow_memory_candidates_from_journal = true;
+        preferences.daily_check_in_enabled = true;
+        preferences.daily_check_in_time = Some("08:30".to_owned());
+        preferences.evening_review_enabled = true;
+        preferences.evening_review_time = Some("21:15".to_owned());
+        preferences.journal_check_in_cooldown_minutes = 240;
+
+        let updated = set_journal_preferences(&connection, preferences).expect("update");
+        assert_eq!(
+            updated.journal_preferences.default_journal_mode,
+            JournalMode::FreeWrite
+        );
+        assert!(
+            updated
+                .journal_preferences
+                .allow_memory_candidates_from_journal
+        );
+        assert_eq!(
+            updated.journal_preferences.daily_check_in_time.as_deref(),
+            Some("08:30")
+        );
+        assert_eq!(
+            updated
+                .journal_preferences
+                .journal_check_in_cooldown_minutes,
+            240
+        );
+    }
+
+    #[test]
+    fn manages_journal_lifecycle_search_export_and_delete() {
+        let mut connection = database();
+        let entry = create_journal_entry(
+            &mut connection,
+            journal_draft(
+                "Trading session review",
+                "I followed my risk rule and stopped after two trades.",
+                JournalStatus::Completed,
+            ),
+        )
+        .expect("create journal");
+        assert_eq!(entry.kind, JournalKind::TradingSession);
+        assert_eq!(entry.status, JournalStatus::Completed);
+        assert!(entry.completed_at.is_some());
+        assert_eq!(entry.tags, vec!["process".to_owned(), "trading".to_owned()]);
+
+        let search_results = list_journal_entries(
+            &connection,
+            JournalListOptions {
+                status: Some(JournalStatus::Completed),
+                kind: Some(JournalKind::TradingSession),
+                query: Some("risk trades".to_owned()),
+                tag: Some("trading".to_owned()),
+                from_date: None,
+                to_date: None,
+                include_private: true,
+                include_discarded: false,
+                sort: JournalSort::Newest,
+                limit: 10,
+                offset: 0,
+            },
+        )
+        .expect("search");
+        assert_eq!(search_results.len(), 1);
+        assert_eq!(search_results[0].id, entry.id);
+
+        let updated = update_journal_entry(
+            &mut connection,
+            JournalEntryUpdate {
+                entry_id: entry.id.clone(),
+                kind: JournalKind::TradingSession,
+                title: "Updated session review".to_owned(),
+                body: "I followed the risk rule and reviewed the trade after closing.".to_owned(),
+                summary: Some("Updated summary.".to_owned()),
+                status: JournalStatus::Draft,
+                mood: None,
+                energy: None,
+                stress: None,
+                confidence: None,
+                allow_memory_candidates: true,
+                is_private: true,
+                tags: vec!["review".to_owned()],
+                expected_updated_at: entry.updated_at.clone(),
+            },
+        )
+        .expect("update");
+        assert_eq!(updated.status, JournalStatus::Draft);
+        assert!(updated.completed_at.is_none());
+        assert_eq!(updated.tags, vec!["review".to_owned()]);
+
+        let export = export_journal_file(&connection, true).expect("export");
+        assert_eq!(export.format, "trading-buddy-journal");
+        assert_eq!(export.entries.len(), 1);
+
+        delete_journal_entry(&connection, &entry.id).expect("delete");
+        assert_eq!(
+            journal_diagnostics(&connection)
+                .expect("diagnostics")
+                .total_count,
+            0
+        );
+        assert_eq!(
+            journal_diagnostics(&connection)
+                .expect("diagnostics")
+                .tag_count,
+            0
+        );
+    }
+
+    #[test]
+    fn journal_sources_detach_when_conversation_is_deleted() {
+        let mut connection = database();
+        let prepared =
+            prepare_generation(&mut connection, generation("Review trading")).expect("prepare");
+        let mut draft = journal_draft(
+            "Conversation sourced journal",
+            "This reflection came from a saved conversation.",
+            JournalStatus::Completed,
+        );
+        draft.source_kind = JournalSourceKind::ConversationConversion;
+        draft.source_conversation_id = Some(prepared.conversation.id.clone());
+        draft.source_message_id = Some(prepared.user_message.id.clone());
+        let entry = create_journal_entry(&mut connection, draft).expect("journal");
+
+        delete_conversation(&connection, &prepared.conversation.id).expect("delete conversation");
+        let detached = get_journal_entry(&connection, &entry.id).expect("detached");
+        assert!(detached.source_conversation_id.is_none());
+        assert!(detached.source_message_id.is_none());
+    }
+
+    #[test]
+    fn journal_diagnostics_and_development_fixtures_are_bounded() {
+        let mut connection = database();
+        create_development_journal_fixtures(&mut connection, 1_500).expect("fixtures");
+        let diagnostics = journal_diagnostics(&connection).expect("diagnostics");
+        assert_eq!(diagnostics.fixture_count, 1_000);
+        assert_eq!(diagnostics.total_count, 1_000);
+        assert!(diagnostics.fts_available);
+        assert!(diagnostics.tag_count > 0);
+
+        let retrieved = list_journal_entries(
+            &connection,
+            JournalListOptions {
+                status: None,
+                kind: Some(JournalKind::TradingSession),
+                query: Some("bounded content".to_owned()),
+                tag: Some("fixture".to_owned()),
+                from_date: None,
+                to_date: None,
+                include_private: true,
+                include_discarded: false,
+                sort: JournalSort::Newest,
+                limit: 8,
+                offset: 0,
+            },
+        )
+        .expect("retrieve fixtures");
+        assert!(!retrieved.is_empty());
+
+        let deleted = delete_development_journal_fixtures(&connection).expect("delete fixtures");
+        assert_eq!(deleted.deleted_entries, 1_000);
+        let after = journal_diagnostics(&connection).expect("diagnostics after delete");
+        assert_eq!(after.fixture_count, 0);
+        assert_eq!(after.tag_count, 0);
     }
 
     #[test]

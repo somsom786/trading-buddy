@@ -7,11 +7,14 @@ use crate::storage::{
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionPreferences,
         ConversationDetail, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
-        DevelopmentMemoryFixtureResult, ExportResult, Memory, MemoryCategory, MemoryDiagnostics,
-        MemoryDraft, MemoryExportResult, MemoryListOptions, MemoryPreferences, MemorySensitivity,
-        MemoryUsageRecord, MemoryUsageRequest, PrepareGenerationRequest, PrepareGenerationResponse,
-        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageStatus,
+        DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
+        DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult, ExportResult,
+        JournalDiagnostics, JournalEntry, JournalEntryDraft, JournalEntrySummary,
+        JournalEntryUpdate, JournalExportResult, JournalListOptions, JournalPreferences, Memory,
+        MemoryCategory, MemoryDiagnostics, MemoryDraft, MemoryExportResult, MemoryListOptions,
+        MemoryPreferences, MemorySensitivity, MemoryUsageRecord, MemoryUsageRequest,
+        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
+        RetrievedMemory, StorageDiagnostics, StorageStatus,
     },
     repository, StorageService,
 };
@@ -88,6 +91,16 @@ pub async fn set_memory_preferences(
 ) -> Result<AppSettings, StorageError> {
     service
         .run(move |connection, _| repository::set_memory_preferences(connection, preferences))
+        .await
+}
+
+#[tauri::command]
+pub async fn set_journal_preferences(
+    preferences: JournalPreferences,
+    service: State<'_, StorageService>,
+) -> Result<AppSettings, StorageError> {
+    service
+        .run(move |connection, _| repository::set_journal_preferences(connection, preferences))
         .await
 }
 
@@ -503,6 +516,183 @@ pub async fn export_memories(
 }
 
 #[tauri::command]
+pub async fn create_journal_entry(
+    draft: JournalEntryDraft,
+    service: State<'_, StorageService>,
+) -> Result<JournalEntry, StorageError> {
+    service
+        .run(move |connection, _| repository::create_journal_entry(connection, draft))
+        .await
+}
+
+#[tauri::command]
+pub async fn update_journal_entry(
+    update: JournalEntryUpdate,
+    service: State<'_, StorageService>,
+) -> Result<JournalEntry, StorageError> {
+    service
+        .run(move |connection, _| repository::update_journal_entry(connection, update))
+        .await
+}
+
+#[tauri::command]
+pub async fn get_journal_entry(
+    entry_id: String,
+    service: State<'_, StorageService>,
+) -> Result<JournalEntry, StorageError> {
+    service
+        .run(move |connection, _| repository::get_journal_entry(connection, &entry_id))
+        .await
+}
+
+#[tauri::command]
+pub async fn list_journal_entries(
+    options: JournalListOptions,
+    service: State<'_, StorageService>,
+) -> Result<Vec<JournalEntrySummary>, StorageError> {
+    service
+        .run(move |connection, _| repository::list_journal_entries(connection, options))
+        .await
+}
+
+#[tauri::command]
+pub async fn delete_journal_entry(
+    entry_id: String,
+    service: State<'_, StorageService>,
+) -> Result<(), StorageError> {
+    service
+        .run(move |connection, _| repository::delete_journal_entry(connection, &entry_id))
+        .await
+}
+
+#[tauri::command]
+pub async fn delete_all_journal_entries(
+    service: State<'_, StorageService>,
+) -> Result<DeleteAllJournalResult, StorageError> {
+    service
+        .run(|connection, _| repository::delete_all_journal_entries(connection))
+        .await
+}
+
+#[tauri::command]
+pub async fn export_journal_json(
+    include_private: bool,
+    service: State<'_, StorageService>,
+) -> Result<Option<JournalExportResult>, StorageError> {
+    let file_path = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("JSON", &["json"])
+            .set_file_name("trading-buddy-journal.json")
+            .save_file()
+    })
+    .await
+    .map_err(|error| StorageError::export_failed(error.to_string()))?;
+
+    let Some(file_path) = file_path else {
+        return Ok(None);
+    };
+    let display_path = file_path.display().to_string();
+    let file_name = file_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("trading-buddy-journal.json")
+        .to_owned();
+    let exported = service
+        .run(move |connection, _| {
+            let export = repository::export_journal_file(connection, include_private)?;
+            let json = serde_json::to_string_pretty(&export)
+                .map_err(|error| StorageError::export_failed(error.to_string()))?;
+            fs::write(&file_path, json)
+                .map_err(|error| StorageError::export_failed(error.to_string()))?;
+            Ok(export.entries.len() as u32)
+        })
+        .await?;
+    Ok(Some(JournalExportResult {
+        exported_entries: exported,
+        file_path: display_path,
+        file_name,
+    }))
+}
+
+#[tauri::command]
+pub async fn export_journal_markdown(
+    include_private: bool,
+    service: State<'_, StorageService>,
+) -> Result<Option<JournalExportResult>, StorageError> {
+    let file_path = tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .add_filter("Markdown", &["md"])
+            .set_file_name("trading-buddy-journal.md")
+            .save_file()
+    })
+    .await
+    .map_err(|error| StorageError::export_failed(error.to_string()))?;
+
+    let Some(file_path) = file_path else {
+        return Ok(None);
+    };
+    let display_path = file_path.display().to_string();
+    let file_name = file_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("trading-buddy-journal.md")
+        .to_owned();
+    let exported = service
+        .run(move |connection, _| {
+            let export = repository::export_journal_file(connection, include_private)?;
+            fs::write(&file_path, journal_export_markdown(&export.entries))
+                .map_err(|error| StorageError::export_failed(error.to_string()))?;
+            Ok(export.entries.len() as u32)
+        })
+        .await?;
+    Ok(Some(JournalExportResult {
+        exported_entries: exported,
+        file_path: display_path,
+        file_name,
+    }))
+}
+
+#[tauri::command]
+pub async fn get_journal_diagnostics(
+    service: State<'_, StorageService>,
+) -> Result<JournalDiagnostics, StorageError> {
+    service
+        .run(|connection, _| repository::journal_diagnostics(connection))
+        .await
+}
+
+#[tauri::command]
+pub async fn create_development_journal_fixtures(
+    count: u32,
+    service: State<'_, StorageService>,
+) -> Result<DevelopmentJournalFixtureResult, StorageError> {
+    if !cfg!(debug_assertions) {
+        return Err(StorageError::invalid_request(
+            "Development journal fixtures are available only in debug builds.",
+        ));
+    }
+    service
+        .run(move |connection, _| {
+            repository::create_development_journal_fixtures(connection, count)
+        })
+        .await
+}
+
+#[tauri::command]
+pub async fn delete_development_journal_fixtures(
+    service: State<'_, StorageService>,
+) -> Result<DevelopmentJournalFixtureResult, StorageError> {
+    if !cfg!(debug_assertions) {
+        return Err(StorageError::invalid_request(
+            "Development journal fixtures are available only in debug builds.",
+        ));
+    }
+    service
+        .run(|connection, _| repository::delete_development_journal_fixtures(connection))
+        .await
+}
+
+#[tauri::command]
 pub async fn get_memory_diagnostics(
     service: State<'_, StorageService>,
 ) -> Result<MemoryDiagnostics, StorageError> {
@@ -552,4 +742,40 @@ pub async fn create_development_interrupted_fixture(
     service
         .run(|connection, _| repository::create_development_interrupted_fixture(connection))
         .await
+}
+
+fn journal_export_markdown(entries: &[JournalEntry]) -> String {
+    let mut output = String::from("# Trading Buddy Journal Export\n\n");
+    output.push_str("This file was exported locally. It is not uploaded by Trading Buddy.\n\n");
+    for entry in entries {
+        output.push_str("## ");
+        output.push_str(&entry.title);
+        output.push_str("\n\n");
+        output.push_str("- Kind: ");
+        output.push_str(entry.kind.as_db());
+        output.push('\n');
+        output.push_str("- Status: ");
+        output.push_str(entry.status.as_db());
+        output.push('\n');
+        output.push_str("- Occurred: ");
+        output.push_str(&entry.occurred_at);
+        output.push('\n');
+        output.push_str("- Private: ");
+        output.push_str(if entry.is_private { "yes" } else { "no" });
+        output.push('\n');
+        if !entry.tags.is_empty() {
+            output.push_str("- Tags: ");
+            output.push_str(&entry.tags.join(", "));
+            output.push('\n');
+        }
+        if let Some(summary) = &entry.summary {
+            output.push_str("\nSummary:\n\n");
+            output.push_str(summary);
+            output.push_str("\n\n");
+        }
+        output.push_str("\nEntry:\n\n");
+        output.push_str(&entry.body);
+        output.push_str("\n\n---\n\n");
+    }
+    output
 }

@@ -6,6 +6,7 @@ import type { LocalAiService } from '../../services/tauri/localAiService';
 import type { StorageService } from '../../services/tauri/storageService';
 import type { WindowService } from '../../services/windowService';
 import { defaultMemoryPreferences } from '../../domain/memory/types';
+import { defaultJournalPreferences } from '../../domain/journal/types';
 import { ChatWorkspace } from './ChatWorkspace';
 
 const companionService: CompanionService = {
@@ -114,6 +115,7 @@ function createStorageService(): {
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
     }),
     setSelectedModel: vi.fn().mockResolvedValue({
       selectedLocalModel: 'qwen3:4b',
@@ -121,18 +123,28 @@ function createStorageService(): {
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
     }),
     setCompanionPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
     }),
     setMemoryPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
       conversationRetentionPolicy: 'keep_until_delete',
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
+    }),
+    setJournalPreferences: vi.fn().mockResolvedValue({
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
     }),
     setRetentionPolicy: vi.fn().mockResolvedValue({ removedConversations: 0 }),
     applyRetentionCleanup: vi.fn().mockResolvedValue({ removedConversations: 0 }),
@@ -166,6 +178,32 @@ function createStorageService(): {
     recordMemoryUsage: vi.fn().mockResolvedValue(undefined),
     listMemoryUsageRecords: vi.fn().mockResolvedValue([]),
     exportMemories: vi.fn().mockResolvedValue(null),
+    createJournalEntry: vi.fn(),
+    updateJournalEntry: vi.fn(),
+    getJournalEntry: vi.fn(),
+    listJournalEntries: vi.fn().mockResolvedValue([]),
+    deleteJournalEntry: vi.fn().mockResolvedValue(undefined),
+    deleteAllJournalEntries: vi.fn().mockResolvedValue({ deletedEntries: 0 }),
+    exportJournalJson: vi.fn().mockResolvedValue(null),
+    exportJournalMarkdown: vi.fn().mockResolvedValue(null),
+    getJournalDiagnostics: vi.fn().mockResolvedValue({
+      totalCount: 0,
+      draftCount: 0,
+      completedCount: 0,
+      discardedCount: 0,
+      privateCount: 0,
+      fixtureCount: 0,
+      tagCount: 0,
+      ftsAvailable: true,
+    }),
+    createDevelopmentJournalFixtures: vi.fn().mockResolvedValue({
+      createdEntries: 0,
+      deletedEntries: 0,
+    }),
+    deleteDevelopmentJournalFixtures: vi.fn().mockResolvedValue({
+      createdEntries: 0,
+      deletedEntries: 0,
+    }),
     getMemoryDiagnostics: vi.fn().mockResolvedValue({
       totalCount: 0,
       proposedCount: 0,

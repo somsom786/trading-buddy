@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 3;
+pub const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 struct Migration {
     version: i64,
@@ -171,6 +171,103 @@ CREATE INDEX IF NOT EXISTS idx_memories_sensitivity ON memories(sensitivity, sta
 CREATE INDEX IF NOT EXISTS idx_memories_source_conversation ON memories(source_conversation_id);
 CREATE INDEX IF NOT EXISTS idx_memory_usage_memory ON memory_usage_records(memory_id, used_at DESC);
 CREATE INDEX IF NOT EXISTS idx_memory_usage_conversation ON memory_usage_records(conversation_id, used_at DESC);
+"#,
+    },
+    Migration {
+        version: 4,
+        name: "conversational_journaling",
+        sql: r#"
+ALTER TABLE app_settings ADD COLUMN journaling_enabled INTEGER NOT NULL DEFAULT 1 CHECK (journaling_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN default_journal_mode TEXT NOT NULL DEFAULT 'guided'
+  CHECK (default_journal_mode IN ('guided', 'free_write', 'quick_check_in', 'end_of_day'));
+ALTER TABLE app_settings ADD COLUMN default_entry_private INTEGER NOT NULL DEFAULT 1 CHECK (default_entry_private IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN allow_memory_candidates_from_journal INTEGER NOT NULL DEFAULT 0 CHECK (allow_memory_candidates_from_journal IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN daily_check_in_enabled INTEGER NOT NULL DEFAULT 0 CHECK (daily_check_in_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN daily_check_in_time TEXT;
+ALTER TABLE app_settings ADD COLUMN evening_review_enabled INTEGER NOT NULL DEFAULT 0 CHECK (evening_review_enabled IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN evening_review_time TEXT;
+ALTER TABLE app_settings ADD COLUMN journal_check_in_cooldown_minutes INTEGER NOT NULL DEFAULT 180
+  CHECK (journal_check_in_cooldown_minutes BETWEEN 15 AND 1440);
+ALTER TABLE app_settings ADD COLUMN show_mood_prompt INTEGER NOT NULL DEFAULT 1 CHECK (show_mood_prompt IN (0, 1));
+ALTER TABLE app_settings ADD COLUMN show_energy_prompt INTEGER NOT NULL DEFAULT 1 CHECK (show_energy_prompt IN (0, 1));
+
+CREATE TABLE IF NOT EXISTS journal_entries (
+  id TEXT PRIMARY KEY NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN (
+    'free_reflection',
+    'daily_check_in',
+    'end_of_day_review',
+    'idea',
+    'life',
+    'money',
+    'trading_session',
+    'gratitude',
+    'decision',
+    'other'
+  )),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  summary TEXT,
+  status TEXT NOT NULL CHECK (status IN ('draft', 'completed', 'discarded')),
+  source_kind TEXT NOT NULL CHECK (source_kind IN (
+    'desktop_guided',
+    'desktop_free_write',
+    'companion_home',
+    'conversation_conversion',
+    'user_created'
+  )),
+  source_conversation_id TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+  source_message_id TEXT REFERENCES messages(id) ON DELETE SET NULL,
+  mood INTEGER CHECK (mood BETWEEN 1 AND 5),
+  energy INTEGER CHECK (energy BETWEEN 1 AND 5),
+  stress INTEGER CHECK (stress BETWEEN 1 AND 5),
+  confidence INTEGER CHECK (confidence BETWEEN 1 AND 5),
+  occurred_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT,
+  allow_memory_candidates INTEGER NOT NULL DEFAULT 0 CHECK (allow_memory_candidates IN (0, 1)),
+  is_private INTEGER NOT NULL DEFAULT 1 CHECK (is_private IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS journal_tags (
+  id TEXT PRIMARY KEY NOT NULL,
+  value TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS journal_entry_tags (
+  entry_id TEXT NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES journal_tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (entry_id, tag_id)
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS journal_fts
+USING fts5(entry_id UNINDEXED, title, body, summary, tags);
+
+CREATE TRIGGER IF NOT EXISTS journal_entries_ai AFTER INSERT ON journal_entries BEGIN
+  INSERT INTO journal_fts(entry_id, title, body, summary, tags)
+  VALUES (new.id, new.title, new.body, COALESCE(new.summary, ''), '');
+END;
+
+CREATE TRIGGER IF NOT EXISTS journal_entries_au AFTER UPDATE OF title, body, summary ON journal_entries BEGIN
+  UPDATE journal_fts
+  SET title = new.title,
+      body = new.body,
+      summary = COALESCE(new.summary, '')
+  WHERE entry_id = new.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS journal_entries_ad AFTER DELETE ON journal_entries BEGIN
+  DELETE FROM journal_fts WHERE entry_id = old.id;
+END;
+
+CREATE INDEX IF NOT EXISTS idx_journal_entries_status_updated ON journal_entries(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_kind_status ON journal_entries(kind, status, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_occurred ON journal_entries(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_source_conversation ON journal_entries(source_conversation_id);
+CREATE INDEX IF NOT EXISTS idx_journal_tags_value ON journal_tags(value);
+CREATE INDEX IF NOT EXISTS idx_journal_entry_tags_tag ON journal_entry_tags(tag_id, entry_id);
 "#,
     },
 ];

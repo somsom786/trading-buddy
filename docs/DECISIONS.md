@@ -425,3 +425,52 @@ understanding.
 The development Memory Lab exposes bounded diagnostics, fixture generation, fixture cleanup, and
 retrieval timing only in development builds. It exists to prove memory reliability at 100 and 1,000
 local memories without turning the user-facing memory panel into a dashboard.
+
+## 054 - Journal is separate from chat and memory
+
+**Status:** Accepted
+
+Journal entries are their own local records rather than renamed conversations or memories. A chat
+transcript preserves dialogue, a memory preserves small user-approved facts, and a journal entry
+preserves user-authored reflection. Keeping the stores separate makes deletion, export, search,
+privacy, and future trade-linking easier to audit.
+
+## 055 - Journal save is explicit
+
+**Status:** Accepted
+
+The desktop bubble can start a guided or free-write journal session, but the user must choose
+**Save draft**, **Save entry**, or **Discard**. The app does not silently convert emotional or
+trading conversations into durable journal records.
+
+## 056 - `trading_session` journal kind now, trade links later
+
+**Status:** Accepted
+
+The journal schema includes a `trading_session` kind before exchange integrations exist. This gives
+future read-only trading intelligence a stable target for pre-trade plans, post-trade reviews, and
+session reflections without requiring a journal migration during the Hyperliquid milestone.
+
+## 057 - SQLite FTS for local journal search
+
+**Status:** Accepted
+
+SQLite FTS5 is used for bounded local journal search. It stays inside the Rust-owned database,
+requires no cloud service, and avoids adding a search dependency before journal usage patterns are
+proven.
+
+## 058 - Model journal output must be strictly parsed
+
+**Status:** Accepted
+
+Local model suggestions for journal summaries, reflections, or daily reviews are treated as
+untrusted. Only bounded strict JSON that passes TypeScript domain validation can be surfaced as a
+suggestion, and the user still edits/saves before durable state changes.
+
+## 059 - Journal Lab is development-only
+
+**Status:** Accepted
+
+Journal diagnostics and 100/1,000 fixture generation are exposed only in development builds. They
+exist to test search, storage, and cleanup behavior without turning the user-facing journal into a
+database dashboard.

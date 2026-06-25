@@ -37,6 +37,17 @@ import {
   runBackgroundMemoryExtraction,
 } from '../services/memoryWorkflow';
 import { MemoryProposalCard } from '../components/memory/MemoryProposalCard';
+import { JournalSessionCard } from '../components/journal/JournalSessionCard';
+import { journalPromptsForKind, supportModeOpening } from '../domain/journal/flows';
+import { detectJournalIntent } from '../domain/journal/intent';
+import { assessJournalSafety } from '../domain/journal/safety';
+import {
+  createIdleJournalSession,
+  journalSessionReducer,
+  journalSessionToDraft,
+  sessionHasMeaningfulContent,
+} from '../domain/journal/session';
+import type { JournalKind, JournalMode } from '../domain/journal/types';
 
 type PersistenceMode = 'persistent' | 'temporary';
 
@@ -75,6 +86,7 @@ export function BubbleView({
   const [pendingMemory, setPendingMemory] = useState<Memory | null>(null);
   const [usedMemories, setUsedMemories] = useState<RetrievedMemory[]>([]);
   const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
+  const [journalSession, setJournalSession] = useState(createIdleJournalSession);
   const activeRequestRef = useRef<string | null>(null);
   const selectedModelRef = useRef<string | null>(null);
   const persistenceRef = useRef<ActiveAssistantPersistence | null>(null);
@@ -89,6 +101,61 @@ export function BubbleView({
       void companionService.setState(eventState);
     },
     [companionService],
+  );
+
+  const dispatchJournal = useCallback((event: Parameters<typeof journalSessionReducer>[1]) => {
+    setJournalSession((current) => journalSessionReducer(current, event));
+  }, []);
+
+  const startJournalSession = useCallback(
+    (mode: JournalMode, kind: JournalKind) => {
+      if (storageStatus?.available !== true) {
+        setStorageError(normalizeStorageError('Local storage is required before journaling.'));
+        return;
+      }
+      dispatchJournal({
+        type: 'start',
+        id: createId('journal_session'),
+        mode,
+        kind,
+        now: new Date().toISOString(),
+        isPrivate: true,
+      });
+      setStorageNotice(`${supportModeOpening('listen')} Save or discard when you are ready.`);
+      setBuddyState('thinking');
+    },
+    [dispatchJournal, setBuddyState, storageStatus?.available],
+  );
+
+  const saveJournalSession = useCallback(
+    async (status: 'draft' | 'completed') => {
+      if (!sessionHasMeaningfulContent(journalSession)) {
+        dispatchJournal({ type: 'error', message: 'Write a little before saving this journal.' });
+        return;
+      }
+      dispatchJournal({ type: 'saving' });
+      const safety = assessJournalSafety(journalSession.draftBody);
+      const draft = journalSessionToDraft(journalSession);
+      draft.status = status;
+      if (safety.blockMemorySuggestion) {
+        draft.allowMemoryCandidates = false;
+      }
+      try {
+        const entry = await storageService.createJournalEntry(draft);
+        dispatchJournal({ type: 'saved', entryId: entry.id });
+        setStorageNotice(
+          `${status === 'draft' ? 'Journal draft saved' : 'Journal entry saved'}.${
+            safety.message ? ` ${safety.message}` : ''
+          }`,
+        );
+        setBuddyState(status === 'completed' ? 'happy' : 'idle');
+      } catch (error) {
+        const normalized = normalizeStorageError(error);
+        dispatchJournal({ type: 'error', message: normalized.userMessage });
+        setStorageError(normalized);
+      }
+    },
+    [dispatchJournal, journalSession, setBuddyState, storageService],
   );
 
   const refreshModels = useCallback(async () => {
@@ -233,7 +300,22 @@ export function BubbleView({
 
   const send = async () => {
     const validation = validateMessageInput(input, LOCAL_AI_CONFIG.maxInputLength);
-    if (!validation.valid || !session.selectedModel || session.activeRequestId) {
+    if (!validation.valid || session.activeRequestId) {
+      return;
+    }
+    const journalIntent = detectJournalIntent(validation.content);
+    if (journalIntent.type === 'start_journal') {
+      startJournalSession(journalIntent.mode, journalIntent.kind);
+      setInput('');
+      return;
+    }
+    if (journalIntent.type === 'discard_journal') {
+      dispatchJournal({ type: 'discard' });
+      setStorageNotice('Journal session discarded.');
+      setInput('');
+      return;
+    }
+    if (!session.selectedModel) {
       return;
     }
     const requestId = createId('request');
@@ -450,6 +532,13 @@ export function BubbleView({
     (mode === 'temporary' || storageStatus?.available === true);
   const visibleMessages = session.messages.slice(-4);
   const modelLabel = session.selectedModel ?? 'No model selected';
+  const journalActive =
+    journalSession.status === 'active' ||
+    journalSession.status === 'reviewing' ||
+    journalSession.status === 'saving' ||
+    journalSession.status === 'error';
+  const currentJournalPrompt =
+    journalPromptsForKind(journalSession.kind)[journalSession.promptIndex] ?? null;
 
   return (
     <main className="bubble-view" aria-label="Trading Buddy conversation bubble">
@@ -509,6 +598,47 @@ export function BubbleView({
               ))}
             </ul>
           </details>
+        ) : null}
+
+        {journalActive ? (
+          <JournalSessionCard
+            session={journalSession}
+            currentPrompt={currentJournalPrompt}
+            onBodyChange={(body) => {
+              dispatchJournal({ type: 'set_body', body });
+            }}
+            onAppend={() => {
+              dispatchJournal({ type: 'next_prompt' });
+            }}
+            onNextPrompt={() => {
+              dispatchJournal({ type: 'next_prompt' });
+            }}
+            onSwitchToFreeWrite={() => {
+              dispatchJournal({ type: 'set_mode', mode: 'free_write' });
+            }}
+            onSupportModeChange={(supportMode) => {
+              dispatchJournal({ type: 'set_support_mode', supportMode });
+              setStorageNotice(supportModeOpening(supportMode));
+            }}
+            onRatingChange={(field, value) => {
+              dispatchJournal({ type: 'set_ratings', [field]: value });
+            }}
+            onSaveDraft={() => {
+              void saveJournalSession('draft');
+            }}
+            onSaveComplete={() => {
+              void saveJournalSession('completed');
+            }}
+            onDiscard={() => {
+              if (
+                !sessionHasMeaningfulContent(journalSession) ||
+                window.confirm('Discard this unsaved journal session?')
+              ) {
+                dispatchJournal({ type: 'discard' });
+                setStorageNotice('Journal session discarded.');
+              }
+            }}
+          />
         ) : null}
 
         {storageNotice ? <div className="storage-notice">{storageNotice}</div> : null}

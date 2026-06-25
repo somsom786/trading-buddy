@@ -6,6 +6,7 @@ import type { LocalAiService } from '../services/tauri/localAiService';
 import type { StorageService } from '../services/tauri/storageService';
 import type { WindowService } from '../services/windowService';
 import { defaultMemoryPreferences } from '../domain/memory/types';
+import { defaultJournalPreferences } from '../domain/journal/types';
 import { BubbleView } from './BubbleView';
 
 const companionService: CompanionService = {
@@ -62,6 +63,7 @@ function createStorageService(): {
   service: StorageService;
   prepareGeneration: ReturnType<typeof vi.fn>;
   completeAssistant: ReturnType<typeof vi.fn>;
+  createJournalEntry: ReturnType<typeof vi.fn>;
 } {
   const now = '2026-06-23T00:00:00Z';
   const prepareGeneration = vi.fn((request) =>
@@ -99,9 +101,25 @@ function createStorageService(): {
     }),
   );
   const completeAssistant = vi.fn().mockResolvedValue(undefined);
+  const createJournalEntry = vi.fn().mockResolvedValue({
+    id: 'journal-1',
+    kind: 'free_reflection',
+    title: 'Journal entry',
+    body: 'Journal body',
+    status: 'completed',
+    sourceKind: 'desktop_guided',
+    occurredAt: now,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: now,
+    allowMemoryCandidates: false,
+    isPrivate: true,
+    tags: [],
+  });
   return {
     prepareGeneration,
     completeAssistant,
+    createJournalEntry,
     service: {
       status: vi.fn().mockResolvedValue({ available: true, schemaVersion: 2 }),
       diagnostics: vi.fn(),
@@ -111,10 +129,12 @@ function createStorageService(): {
         conversationRetentionPolicy: 'keep_until_delete',
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
+        journalPreferences: defaultJournalPreferences,
       }),
       setSelectedModel: vi.fn(),
       setCompanionPreferences: vi.fn(),
       setMemoryPreferences: vi.fn(),
+      setJournalPreferences: vi.fn(),
       setRetentionPolicy: vi.fn(),
       applyRetentionCleanup: vi.fn(),
       listConversations: vi.fn(),
@@ -147,6 +167,32 @@ function createStorageService(): {
       recordMemoryUsage: vi.fn().mockResolvedValue(undefined),
       listMemoryUsageRecords: vi.fn().mockResolvedValue([]),
       exportMemories: vi.fn().mockResolvedValue(null),
+      createJournalEntry,
+      updateJournalEntry: vi.fn(),
+      getJournalEntry: vi.fn(),
+      listJournalEntries: vi.fn().mockResolvedValue([]),
+      deleteJournalEntry: vi.fn(),
+      deleteAllJournalEntries: vi.fn().mockResolvedValue({ deletedEntries: 0 }),
+      exportJournalJson: vi.fn().mockResolvedValue(null),
+      exportJournalMarkdown: vi.fn().mockResolvedValue(null),
+      getJournalDiagnostics: vi.fn().mockResolvedValue({
+        totalCount: 0,
+        draftCount: 0,
+        completedCount: 0,
+        discardedCount: 0,
+        privateCount: 0,
+        fixtureCount: 0,
+        tagCount: 0,
+        ftsAvailable: true,
+      }),
+      createDevelopmentJournalFixtures: vi.fn().mockResolvedValue({
+        createdEntries: 0,
+        deletedEntries: 0,
+      }),
+      deleteDevelopmentJournalFixtures: vi.fn().mockResolvedValue({
+        createdEntries: 0,
+        deletedEntries: 0,
+      }),
       getMemoryDiagnostics: vi.fn().mockResolvedValue({
         totalCount: 0,
         proposedCount: 0,
@@ -234,5 +280,45 @@ describe('BubbleView', () => {
     await waitFor(() => {
       expect(openMainWindow).toHaveBeenCalledOnce();
     });
+  });
+
+  it('starts and explicitly saves a desktop journal session without calling local AI', async () => {
+    const user = userEvent.setup();
+    const { service: storageService, createJournalEntry } = createStorageService();
+    const streamChat = vi.fn();
+    render(
+      <BubbleView
+        localAiService={{
+          listModels: vi.fn().mockResolvedValue([{ name: 'qwen3:4b' }]),
+          streamChat,
+          cancel: vi.fn(),
+        }}
+        storageService={storageService}
+        companionService={companionService}
+        windowService={createWindowService().service}
+      />,
+    );
+
+    await screen.findByText('local AI ready');
+    await user.type(screen.getByRole('textbox', { name: 'Message Buddy' }), "let's journal");
+    await user.keyboard('{Enter}');
+
+    await screen.findByText('Buddy is journaling with you');
+    await user.type(
+      screen.getByRole('textbox', { name: 'Journal text' }),
+      'I followed my plan and stopped after the second trade.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save entry' }));
+
+    await screen.findByText(/Journal entry saved\./);
+    expect(createJournalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'free_reflection',
+        status: 'completed',
+        body: 'I followed my plan and stopped after the second trade.',
+        isPrivate: true,
+      }),
+    );
+    expect(streamChat).not.toHaveBeenCalled();
   });
 });

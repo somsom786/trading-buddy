@@ -1,5 +1,26 @@
 import type { ChatMessage } from '../local-ai/types';
 import {
+  defaultJournalPreferences,
+  journalKinds,
+  journalModes,
+  journalSourceKinds,
+  journalStatuses,
+  type DeleteAllJournalResult,
+  type DevelopmentJournalFixtureResult,
+  type JournalDiagnostics,
+  type JournalEntry,
+  type JournalEntryDraft,
+  type JournalEntrySummary,
+  type JournalEntryUpdate,
+  type JournalExportResult,
+  type JournalKind,
+  type JournalListOptions,
+  type JournalMode,
+  type JournalPreferences,
+  type JournalSourceKind,
+  type JournalStatus,
+} from '../journal/types';
+import {
   defaultMemoryPreferences,
   memoryApprovalModes,
   memoryCategories,
@@ -24,8 +45,22 @@ import {
 } from '../memory/types';
 
 export type {
+  DeleteAllJournalResult,
   DeleteAllMemoriesResult,
+  DevelopmentJournalFixtureResult,
   DevelopmentMemoryFixtureResult,
+  JournalDiagnostics,
+  JournalEntry,
+  JournalEntryDraft,
+  JournalEntrySummary,
+  JournalEntryUpdate,
+  JournalExportResult,
+  JournalKind,
+  JournalListOptions,
+  JournalMode,
+  JournalPreferences,
+  JournalSourceKind,
+  JournalStatus,
   Memory,
   MemoryApprovalMode,
   MemoryCategory,
@@ -118,6 +153,7 @@ export interface AppSettings {
   lastOpenedConversationId?: string;
   companionPreferences: CompanionPreferences;
   memoryPreferences: MemoryPreferences;
+  journalPreferences: JournalPreferences;
 }
 
 export interface ConversationSummary {
@@ -299,7 +335,8 @@ export function isAppSettings(value: unknown): value is AppSettings {
     retentionPolicies.has(value.conversationRetentionPolicy as RetentionPolicy) &&
     optionalString(value.lastOpenedConversationId) &&
     isCompanionPreferences(value.companionPreferences) &&
-    isMemoryPreferences(value.memoryPreferences)
+    isMemoryPreferences(value.memoryPreferences) &&
+    isJournalPreferences(value.journalPreferences)
   );
 }
 
@@ -404,6 +441,27 @@ export function normalizeMemoryPreferences(value: unknown): MemoryPreferences {
   return isMemoryPreferences(value) ? value : defaultMemoryPreferences;
 }
 
+export function isJournalPreferences(value: unknown): value is JournalPreferences {
+  return (
+    isRecord(value) &&
+    typeof value.journalingEnabled === 'boolean' &&
+    journalModes.has(value.defaultJournalMode as JournalMode) &&
+    typeof value.defaultEntryPrivate === 'boolean' &&
+    typeof value.allowMemoryCandidatesFromJournal === 'boolean' &&
+    typeof value.dailyCheckInEnabled === 'boolean' &&
+    optionalString(value.dailyCheckInTime) &&
+    typeof value.eveningReviewEnabled === 'boolean' &&
+    optionalString(value.eveningReviewTime) &&
+    isBoundedNumber(value.journalCheckInCooldownMinutes, 15, 1_440) &&
+    typeof value.showMoodPrompt === 'boolean' &&
+    typeof value.showEnergyPrompt === 'boolean'
+  );
+}
+
+export function normalizeJournalPreferences(value: unknown): JournalPreferences {
+  return isJournalPreferences(value) ? value : defaultJournalPreferences;
+}
+
 export function isMemory(value: unknown): value is Memory {
   return (
     isRecord(value) &&
@@ -450,6 +508,90 @@ export function isMemoryUsageRecord(value: unknown): value is MemoryUsageRecord 
     optionalString(value.assistantMessageId) &&
     typeof value.usedAt === 'string' &&
     typeof value.reasonCode === 'string'
+  );
+}
+
+export function isJournalEntry(value: unknown): value is JournalEntry {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    journalKinds.has(value.kind as JournalKind) &&
+    typeof value.title === 'string' &&
+    typeof value.body === 'string' &&
+    optionalString(value.summary) &&
+    journalStatuses.has(value.status as JournalStatus) &&
+    journalSourceKinds.has(value.sourceKind as JournalSourceKind) &&
+    optionalString(value.sourceConversationId) &&
+    optionalString(value.sourceMessageId) &&
+    optionalRating(value.mood) &&
+    optionalRating(value.energy) &&
+    optionalRating(value.stress) &&
+    optionalRating(value.confidence) &&
+    typeof value.occurredAt === 'string' &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string' &&
+    optionalString(value.completedAt) &&
+    typeof value.allowMemoryCandidates === 'boolean' &&
+    typeof value.isPrivate === 'boolean' &&
+    Array.isArray(value.tags) &&
+    value.tags.every((tag) => typeof tag === 'string')
+  );
+}
+
+export function isJournalEntrySummary(value: unknown): value is JournalEntrySummary {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    journalKinds.has(value.kind as JournalKind) &&
+    typeof value.title === 'string' &&
+    typeof value.preview === 'string' &&
+    optionalString(value.summary) &&
+    journalStatuses.has(value.status as JournalStatus) &&
+    typeof value.occurredAt === 'string' &&
+    typeof value.updatedAt === 'string' &&
+    typeof value.isPrivate === 'boolean' &&
+    typeof value.allowMemoryCandidates === 'boolean' &&
+    Array.isArray(value.tags) &&
+    value.tags.every((tag) => typeof tag === 'string') &&
+    optionalRating(value.mood) &&
+    optionalRating(value.energy)
+  );
+}
+
+export function isJournalDiagnostics(value: unknown): value is JournalDiagnostics {
+  return (
+    isRecord(value) &&
+    typeof value.totalCount === 'number' &&
+    typeof value.draftCount === 'number' &&
+    typeof value.completedCount === 'number' &&
+    typeof value.discardedCount === 'number' &&
+    typeof value.privateCount === 'number' &&
+    typeof value.fixtureCount === 'number' &&
+    typeof value.tagCount === 'number' &&
+    typeof value.ftsAvailable === 'boolean'
+  );
+}
+
+export function isDeleteAllJournalResult(value: unknown): value is DeleteAllJournalResult {
+  return isRecord(value) && typeof value.deletedEntries === 'number';
+}
+
+export function isJournalExportResult(value: unknown): value is JournalExportResult {
+  return (
+    isRecord(value) &&
+    typeof value.exportedEntries === 'number' &&
+    typeof value.filePath === 'string' &&
+    typeof value.fileName === 'string'
+  );
+}
+
+export function isDevelopmentJournalFixtureResult(
+  value: unknown,
+): value is DevelopmentJournalFixtureResult {
+  return (
+    isRecord(value) &&
+    typeof value.createdEntries === 'number' &&
+    typeof value.deletedEntries === 'number'
   );
 }
 
@@ -533,6 +675,13 @@ function isMemorySourceKind(value: unknown): value is MemorySourceKind {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === 'string';
+}
+
+function optionalRating(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 5)
+  );
 }
 
 function isBoundedNumber(value: unknown, min: number, max: number): value is number {

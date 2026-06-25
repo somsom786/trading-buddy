@@ -4,10 +4,16 @@ import {
   isConversationDetail,
   isConversationSummary,
   isDeleteAllResult,
+  isDeleteAllJournalResult,
   isDeleteAllMemoriesResult,
   isExportResult,
   isDevelopmentFixtureResult,
+  isDevelopmentJournalFixtureResult,
   isDevelopmentMemoryFixtureResult,
+  isJournalDiagnostics,
+  isJournalEntry,
+  isJournalEntrySummary,
+  isJournalExportResult,
   isMemory,
   isMemoryDiagnostics,
   isMemoryExportResult,
@@ -25,11 +31,21 @@ import {
   type CompanionPreferences,
   type ConversationDetail,
   type ConversationSummary,
+  type DeleteAllJournalResult,
   type DeleteAllMemoriesResult,
   type DeleteAllResult,
   type DevelopmentFixtureResult,
+  type DevelopmentJournalFixtureResult,
   type DevelopmentMemoryFixtureResult,
   type ExportResult,
+  type JournalDiagnostics,
+  type JournalEntry,
+  type JournalEntryDraft,
+  type JournalEntrySummary,
+  type JournalEntryUpdate,
+  type JournalExportResult,
+  type JournalListOptions,
+  type JournalPreferences,
   type Memory,
   type MemoryCategory,
   type MemoryDiagnostics,
@@ -56,6 +72,7 @@ export interface StorageService {
   setSelectedModel(modelName: string | null): Promise<AppSettings>;
   setCompanionPreferences(preferences: CompanionPreferences): Promise<AppSettings>;
   setMemoryPreferences(preferences: MemoryPreferences): Promise<AppSettings>;
+  setJournalPreferences(preferences: JournalPreferences): Promise<AppSettings>;
   setRetentionPolicy(policy: RetentionPolicy): Promise<RetentionCleanupResult>;
   applyRetentionCleanup(): Promise<RetentionCleanupResult>;
   listConversations(options: {
@@ -108,6 +125,17 @@ export interface StorageService {
     limit?: number;
   }): Promise<MemoryUsageRecord[]>;
   exportMemories(includeSensitive: boolean): Promise<MemoryExportResult | null>;
+  createJournalEntry(draft: JournalEntryDraft): Promise<JournalEntry>;
+  updateJournalEntry(update: JournalEntryUpdate): Promise<JournalEntry>;
+  getJournalEntry(entryId: string): Promise<JournalEntry>;
+  listJournalEntries(options: JournalListOptions): Promise<JournalEntrySummary[]>;
+  deleteJournalEntry(entryId: string): Promise<void>;
+  deleteAllJournalEntries(): Promise<DeleteAllJournalResult>;
+  exportJournalJson(includePrivate: boolean): Promise<JournalExportResult | null>;
+  exportJournalMarkdown(includePrivate: boolean): Promise<JournalExportResult | null>;
+  getJournalDiagnostics(): Promise<JournalDiagnostics>;
+  createDevelopmentJournalFixtures(count: number): Promise<DevelopmentJournalFixtureResult>;
+  deleteDevelopmentJournalFixtures(): Promise<DevelopmentJournalFixtureResult>;
   getMemoryDiagnostics(): Promise<MemoryDiagnostics>;
   createDevelopmentMemoryFixtures(count: number): Promise<DevelopmentMemoryFixtureResult>;
   deleteDevelopmentMemoryFixtures(): Promise<DevelopmentMemoryFixtureResult>;
@@ -137,6 +165,10 @@ export const tauriStorageService: StorageService = {
 
   async setMemoryPreferences(preferences) {
     return invokeChecked('set_memory_preferences', { preferences }, isAppSettings);
+  },
+
+  async setJournalPreferences(preferences) {
+    return invokeChecked('set_journal_preferences', { preferences }, isAppSettings);
   },
 
   async setRetentionPolicy(policy) {
@@ -303,6 +335,71 @@ export const tauriStorageService: StorageService = {
       return value;
     }
     throw new StorageException(normalizeStorageError('Invalid memory export response.'));
+  },
+
+  async createJournalEntry(draft) {
+    return invokeChecked('create_journal_entry', { draft }, isJournalEntry);
+  },
+
+  async updateJournalEntry(update) {
+    return invokeChecked('update_journal_entry', { update }, isJournalEntry);
+  },
+
+  async getJournalEntry(entryId) {
+    return invokeChecked('get_journal_entry', { entryId }, isJournalEntry);
+  },
+
+  async listJournalEntries(options) {
+    return invokeChecked(
+      'list_journal_entries',
+      { options },
+      (value): value is JournalEntrySummary[] =>
+        Array.isArray(value) && value.every(isJournalEntrySummary),
+    );
+  },
+
+  async deleteJournalEntry(entryId) {
+    await invokeWrapped('delete_journal_entry', { entryId });
+  },
+
+  async deleteAllJournalEntries() {
+    return invokeChecked('delete_all_journal_entries', undefined, isDeleteAllJournalResult);
+  },
+
+  async exportJournalJson(includePrivate) {
+    const value = await invokeWrapped<unknown>('export_journal_json', { includePrivate });
+    if (value === null || isJournalExportResult(value)) {
+      return value;
+    }
+    throw new StorageException(normalizeStorageError('Invalid journal JSON export response.'));
+  },
+
+  async exportJournalMarkdown(includePrivate) {
+    const value = await invokeWrapped<unknown>('export_journal_markdown', { includePrivate });
+    if (value === null || isJournalExportResult(value)) {
+      return value;
+    }
+    throw new StorageException(normalizeStorageError('Invalid journal Markdown export response.'));
+  },
+
+  async getJournalDiagnostics() {
+    return invokeChecked('get_journal_diagnostics', undefined, isJournalDiagnostics);
+  },
+
+  async createDevelopmentJournalFixtures(count) {
+    return invokeChecked(
+      'create_development_journal_fixtures',
+      { count },
+      isDevelopmentJournalFixtureResult,
+    );
+  },
+
+  async deleteDevelopmentJournalFixtures() {
+    return invokeChecked(
+      'delete_development_journal_fixtures',
+      undefined,
+      isDevelopmentJournalFixtureResult,
+    );
   },
 
   async getMemoryDiagnostics() {

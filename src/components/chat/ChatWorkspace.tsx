@@ -49,6 +49,7 @@ import {
   runBackgroundMemoryExtraction,
 } from '../../services/memoryWorkflow';
 import { BuddyLab } from '../local-ai/BuddyLab';
+import { JournalLab } from '../local-ai/JournalLab';
 import { MemoryLab } from '../local-ai/MemoryLab';
 import { StorageLab } from '../local-ai/StorageLab';
 import { ChatComposer } from './ChatComposer';
@@ -57,6 +58,8 @@ import { MessageList } from './MessageList';
 import { ModelSelector } from './ModelSelector';
 import { MemoryPanel } from '../memory/MemoryPanel';
 import { MemoryProposalCard } from '../memory/MemoryProposalCard';
+import { JournalPanel } from '../journal/JournalPanel';
+import type { JournalDiagnostics, JournalEntrySummary } from '../../domain/journal/types';
 import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
 
 const CHECKPOINT_CHAR_THRESHOLD = 500;
@@ -94,6 +97,7 @@ export function ChatWorkspace({
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [storageDiagnostics, setStorageDiagnostics] = useState<StorageDiagnostics | null>(null);
   const [memoryDiagnostics, setMemoryDiagnostics] = useState<MemoryDiagnostics | null>(null);
+  const [journalDiagnostics, setJournalDiagnostics] = useState<JournalDiagnostics | null>(null);
   const [storageError, setStorageError] = useState<StorageError | null>(null);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
@@ -138,6 +142,7 @@ export function ChatWorkspace({
       const diagnostics = await storageService.diagnostics();
       setStorageDiagnostics(diagnostics);
       setMemoryDiagnostics(await storageService.getMemoryDiagnostics());
+      setJournalDiagnostics(await storageService.getJournalDiagnostics());
       if (diagnostics.error) {
         setStorageError(diagnostics.error);
       }
@@ -919,6 +924,37 @@ export function ChatWorkspace({
     });
   };
 
+  const generateJournalFixtures = async (count: number) => {
+    try {
+      const result = await storageService.createDevelopmentJournalFixtures(count);
+      await refreshDiagnostics();
+      setStorageNotice(`Created ${String(result.createdEntries)} journal fixture(s).`);
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const deleteJournalFixtures = async () => {
+    try {
+      const result = await storageService.deleteDevelopmentJournalFixtures();
+      await refreshDiagnostics();
+      setStorageNotice(`Deleted ${String(result.deletedEntries)} journal fixture(s).`);
+    } catch (error) {
+      setStorageError(normalizeStorageError(error));
+    }
+  };
+
+  const searchJournalLabResults = async (query: string): Promise<JournalEntrySummary[]> => {
+    return storageService.listJournalEntries({
+      query,
+      includePrivate: true,
+      includeDiscarded: false,
+      sort: 'newest',
+      limit: 8,
+      offset: 0,
+    });
+  };
+
   const exportConversations = async () => {
     if (exporting) {
       return;
@@ -1294,11 +1330,18 @@ export function ChatWorkspace({
         </details>
 
         {storageAvailable ? (
-          <MemoryPanel
-            storageService={storageService}
-            onNotice={setStorageNotice}
-            onError={setStorageError}
-          />
+          <>
+            <JournalPanel
+              storageService={storageService}
+              onNotice={setStorageNotice}
+              onError={setStorageError}
+            />
+            <MemoryPanel
+              storageService={storageService}
+              onNotice={setStorageNotice}
+              onError={setStorageError}
+            />
+          </>
         ) : null}
 
         {import.meta.env.DEV ? (
@@ -1323,6 +1366,15 @@ export function ChatWorkspace({
               onGenerateFixtures={generateMemoryFixtures}
               onDeleteFixtures={deleteMemoryFixtures}
               onRetrieve={retrieveMemoryLabResults}
+            />
+            <JournalLab
+              diagnostics={journalDiagnostics}
+              onRefresh={() => {
+                void refreshDiagnostics();
+              }}
+              onGenerateFixtures={generateJournalFixtures}
+              onDeleteFixtures={deleteJournalFixtures}
+              onSearch={searchJournalLabResults}
             />
             <BuddyLab
               buddyState={buddyState}

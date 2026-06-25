@@ -916,7 +916,9 @@ button {
 
 .memory-proposal,
 .memory-used-indicator,
-.memory-panel {
+.memory-panel,
+.journal-panel,
+.journal-session-card {
   border: 1px solid #2d3850;
   border-radius: 13px;
   background: #111722;
@@ -977,7 +979,8 @@ button {
   color: #7f899f;
 }
 
-.memory-panel {
+.memory-panel,
+.journal-panel {
   display: grid;
   gap: 12px;
   padding: 14px;
@@ -1032,6 +1035,121 @@ button {
 .memory-settings {
   display: grid;
   gap: 10px;
+}
+
+.journal-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
+  gap: 12px;
+}
+
+.journal-list-item {
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  color: #dfe7f7;
+  text-align: left;
+  border: 1px solid #253049;
+  border-radius: 12px;
+  background: #0e131d;
+}
+
+.journal-list-item span,
+.journal-list-item small,
+.journal-entry-detail .muted {
+  color: #8793aa;
+}
+
+.journal-entry-detail {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-height: 220px;
+  padding: 12px;
+  color: #dfe7f7;
+  border: 1px solid #253049;
+  border-radius: 12px;
+  background: #0e131d;
+}
+
+.journal-entry-detail h3,
+.journal-entry-detail p {
+  margin: 0;
+}
+
+.journal-entry-detail pre {
+  overflow: auto;
+  max-height: 320px;
+  margin: 0;
+  padding: 10px;
+  color: #f2f5fb;
+  white-space: pre-wrap;
+  border-radius: 9px;
+  background: #090d14;
+}
+
+.journal-session-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.journal-session-card blockquote {
+  margin: 0;
+  padding: 8px 10px;
+  color: #edf2fb;
+  border-left: 3px solid #a896ff;
+  border-radius: 8px;
+  background: #171e2c;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  color: #aeb9cc;
+  font-size: 12px;
+}
+
+.field input,
+.field textarea,
+.journal-ratings select {
+  padding: 8px 10px;
+  color: #e8eef9;
+  border: 1px solid #30394d;
+  border-radius: 9px;
+  outline: none;
+  background: #0e131d;
+}
+
+.journal-session-card textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.journal-mode-row,
+.journal-ratings {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.journal-ratings label {
+  display: grid;
+  gap: 4px;
+  color: #8f9ab0;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.secondary-button.active {
+  color: #07111a !important;
+  background: #85f2cf !important;
+}
+
+.error-text {
+  margin: 0;
+  color: #ffb6b6;
+  font-size: 12px;
 }
 
 .memory-row {

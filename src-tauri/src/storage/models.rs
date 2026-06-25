@@ -8,6 +8,12 @@ pub const MAX_MODEL_NAME_LENGTH: usize = 128;
 pub const MAX_PAGE_LIMIT: u32 = 100;
 pub const MAX_MEMORY_CONTENT_LENGTH: usize = 600;
 pub const MAX_MEMORY_SEARCH_LENGTH: usize = 200;
+pub const MAX_JOURNAL_BODY_LENGTH: usize = 20_000;
+pub const MAX_JOURNAL_TITLE_LENGTH: usize = 120;
+pub const MAX_JOURNAL_SUMMARY_LENGTH: usize = 1_000;
+pub const MAX_JOURNAL_TAG_LENGTH: usize = 32;
+pub const MAX_JOURNAL_TAGS: usize = 12;
+pub const MAX_JOURNAL_SEARCH_LENGTH: usize = 200;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -189,6 +195,152 @@ pub enum MemoryApprovalMode {
     ManualOnly,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalMode {
+    Guided,
+    FreeWrite,
+    QuickCheckIn,
+    EndOfDay,
+}
+
+impl JournalMode {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "guided" => Ok(Self::Guided),
+            "free_write" => Ok(Self::FreeWrite),
+            "quick_check_in" => Ok(Self::QuickCheckIn),
+            "end_of_day" => Ok(Self::EndOfDay),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported journal mode: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Guided => "guided",
+            Self::FreeWrite => "free_write",
+            Self::QuickCheckIn => "quick_check_in",
+            Self::EndOfDay => "end_of_day",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalKind {
+    FreeReflection,
+    DailyCheckIn,
+    EndOfDayReview,
+    Idea,
+    Life,
+    Money,
+    TradingSession,
+    Gratitude,
+    Decision,
+    Other,
+}
+
+impl JournalKind {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "free_reflection" => Ok(Self::FreeReflection),
+            "daily_check_in" => Ok(Self::DailyCheckIn),
+            "end_of_day_review" => Ok(Self::EndOfDayReview),
+            "idea" => Ok(Self::Idea),
+            "life" => Ok(Self::Life),
+            "money" => Ok(Self::Money),
+            "trading_session" => Ok(Self::TradingSession),
+            "gratitude" => Ok(Self::Gratitude),
+            "decision" => Ok(Self::Decision),
+            "other" => Ok(Self::Other),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported journal kind: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::FreeReflection => "free_reflection",
+            Self::DailyCheckIn => "daily_check_in",
+            Self::EndOfDayReview => "end_of_day_review",
+            Self::Idea => "idea",
+            Self::Life => "life",
+            Self::Money => "money",
+            Self::TradingSession => "trading_session",
+            Self::Gratitude => "gratitude",
+            Self::Decision => "decision",
+            Self::Other => "other",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalStatus {
+    Draft,
+    Completed,
+    Discarded,
+}
+
+impl JournalStatus {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "draft" => Ok(Self::Draft),
+            "completed" => Ok(Self::Completed),
+            "discarded" => Ok(Self::Discarded),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported journal status: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Completed => "completed",
+            Self::Discarded => "discarded",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalSourceKind {
+    DesktopGuided,
+    DesktopFreeWrite,
+    CompanionHome,
+    ConversationConversion,
+    UserCreated,
+}
+
+impl JournalSourceKind {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "desktop_guided" => Ok(Self::DesktopGuided),
+            "desktop_free_write" => Ok(Self::DesktopFreeWrite),
+            "companion_home" => Ok(Self::CompanionHome),
+            "conversation_conversion" => Ok(Self::ConversationConversion),
+            "user_created" => Ok(Self::UserCreated),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported journal source kind: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::DesktopGuided => "desktop_guided",
+            Self::DesktopFreeWrite => "desktop_free_write",
+            Self::CompanionHome => "companion_home",
+            Self::ConversationConversion => "conversation_conversion",
+            Self::UserCreated => "user_created",
+        }
+    }
+}
+
 impl MemoryApprovalMode {
     pub fn from_db(value: &str) -> Result<Self, StorageError> {
         match value {
@@ -221,6 +373,24 @@ pub struct MemoryPreferences {
     pub memory_candidate_notifications: bool,
     pub temporary_memory_default_expiry_days: u32,
     pub use_memories_in_temporary_chat: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalPreferences {
+    pub journaling_enabled: bool,
+    pub default_journal_mode: JournalMode,
+    pub default_entry_private: bool,
+    pub allow_memory_candidates_from_journal: bool,
+    pub daily_check_in_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub daily_check_in_time: Option<String>,
+    pub evening_review_enabled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub evening_review_time: Option<String>,
+    pub journal_check_in_cooldown_minutes: u32,
+    pub show_mood_prompt: bool,
+    pub show_energy_prompt: bool,
 }
 
 impl CompanionPlacementMode {
@@ -409,6 +579,7 @@ pub struct AppSettings {
     pub last_opened_conversation_id: Option<String>,
     pub companion_preferences: CompanionPreferences,
     pub memory_preferences: MemoryPreferences,
+    pub journal_preferences: JournalPreferences,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -543,6 +714,186 @@ pub struct MemoryExportFile {
     pub exported_at: String,
     pub settings: MemoryPreferences,
     pub memories: Vec<Memory>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalEntry {
+    pub id: String,
+    pub kind: JournalKind,
+    pub title: String,
+    pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    pub status: JournalStatus,
+    pub source_kind: JournalSourceKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mood: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stress: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<u32>,
+    pub occurred_at: String,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+    pub allow_memory_candidates: bool,
+    pub is_private: bool,
+    pub tags: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalEntryDraft {
+    pub kind: JournalKind,
+    pub title: String,
+    pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    pub status: JournalStatus,
+    pub source_kind: JournalSourceKind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mood: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stress: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub occurred_at: Option<String>,
+    pub allow_memory_candidates: bool,
+    pub is_private: bool,
+    pub tags: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalEntryUpdate {
+    pub entry_id: String,
+    pub kind: JournalKind,
+    pub title: String,
+    pub body: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    pub status: JournalStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mood: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stress: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<u32>,
+    pub allow_memory_candidates: bool,
+    pub is_private: bool,
+    pub tags: Vec<String>,
+    pub expected_updated_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalEntrySummary {
+    pub id: String,
+    pub kind: JournalKind,
+    pub title: String,
+    pub preview: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    pub status: JournalStatus,
+    pub occurred_at: String,
+    pub updated_at: String,
+    pub is_private: bool,
+    pub allow_memory_candidates: bool,
+    pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mood: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub energy: Option<u32>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalListOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<JournalStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<JournalKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub from_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub to_date: Option<String>,
+    pub include_private: bool,
+    pub include_discarded: bool,
+    pub sort: JournalSort,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JournalSort {
+    Newest,
+    Oldest,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteAllJournalResult {
+    pub deleted_entries: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalExportResult {
+    pub exported_entries: u32,
+    pub file_path: String,
+    pub file_name: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalDiagnostics {
+    pub total_count: u32,
+    pub draft_count: u32,
+    pub completed_count: u32,
+    pub discarded_count: u32,
+    pub private_count: u32,
+    pub fixture_count: u32,
+    pub tag_count: u32,
+    pub fts_available: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DevelopmentJournalFixtureResult {
+    pub created_entries: u32,
+    pub deleted_entries: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JournalExportFile {
+    pub format: String,
+    pub version: u32,
+    #[serde(rename = "exportedAt")]
+    pub exported_at: String,
+    pub entries: Vec<JournalEntry>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]

@@ -1,9 +1,9 @@
 # Trading Buddy — BETA v0.1
 
 A local-first desktop companion for crypto traders. The application connects only to a locally
-running Ollama service for companion chat. Conversations are stored in a local SQLite database
-owned by the Rust/Tauri layer. It has no cloud inference, account, API token, exchange, wallet,
-authentication, telemetry, or trading functionality.
+running Ollama service for companion chat. Conversations, memories, and journal entries are stored
+in a local SQLite database owned by the Rust/Tauri layer. It has no cloud inference, account, API
+token, exchange, wallet, authentication, telemetry, or trading functionality.
 
 This repository is currently labeled **BETA v0.1** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
@@ -158,6 +158,31 @@ seed phrases, private keys, passwords, API keys, authentication tokens, recovery
 credentials. Obvious fake-secret-shaped content is rejected deterministically in tests and at the
 storage boundary.
 
+## Local journal
+
+The journal is separate from chat history and companion memory. Entries are private by default and
+are written only after an explicit user action.
+
+In the desktop bubble, type prompts such as:
+
+```text
+let's journal
+daily check-in
+review my trading
+```
+
+Buddy opens a compact guided or free-write journal card. You can write locally, optionally add
+ratings, and choose **Save draft**, **Save entry**, or **Discard**. Saving does not require the
+model, and journal text does not become memory unless a future explicit opt-in workflow proposes
+that through the memory system.
+
+Companion Home includes a **Journal** panel for local search, draft filtering, reading, simple body
+editing, deletion, delete-all, and JSON/Markdown export through native save-file dialogs.
+
+The schema includes `trading_session` entries so future read-only trading integrations can link a
+trade/session to the user's own plan or reflection. No exchange connection, wallet access, API key,
+or trading action exists in this checkpoint.
+
 ## Local data and privacy controls
 
 The database filename is `trading-buddy.db` and is created in Tauri's application-specific local
@@ -224,6 +249,9 @@ Companion Lab is shown at the bottom of the main Chat view in development builds
 - Simulate cancellation and provider errors.
 - Inspect proactive check-in templates and placement modes.
 - Inspect the current provider, model, request, and buddy state.
+
+Development builds also include **Journal Lab** for local journal diagnostics, bounded 100/1,000
+fixture generation, fixture cleanup, and FTS search checks.
 
 ## Storage Lab
 
@@ -313,7 +341,9 @@ application config directory. Conversations are stored separately in the app-loc
 - Native right-click buddy context menu is not implemented yet.
 - User-facing docking controls are not implemented yet.
 - Full manual desktop verification of Task 5 remains pending.
-- Journal, Reviews, and Settings remain placeholders.
+- Reviews and Settings remain placeholders.
+- Local-model-generated journal summaries/reflections are parsed in domain code but not yet wired
+  into the live UX.
 - The buddy artwork and animations are development placeholders.
 
 ## Buddy design direction

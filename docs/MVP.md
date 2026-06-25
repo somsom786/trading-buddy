@@ -88,3 +88,17 @@ work.
 - Keep temporary chats isolated by default: no durable memory creation, and existing memories are
   used only if the user enables that setting.
 - Keep secrets prohibited and sensitive memories disabled by default.
+
+## Conversational journal milestone
+
+- Add Rust-owned SQLite journal entries with stable IDs, `draft`, `completed`, and `discarded`
+  statuses, private-by-default storage, and safe source links to conversations/messages.
+- Include a `trading_session` journal kind so future read-only trading intelligence can link trade
+  episodes to user-written plans and reflections.
+- Provide desktop-bubble journaling that starts from deterministic intents, keeps writing local,
+  and requires explicit **Save draft**, **Save entry**, or **Discard**.
+- Provide Companion Home journal access with local search, draft filtering, entry reading/editing,
+  deletion, delete-all, and local JSON/Markdown export.
+- Keep journal, memory, and chat separate unless a future explicit opt-in workflow bridges them.
+- Validate model-generated journal summaries/reviews as untrusted structured JSON before they can
+  affect state.

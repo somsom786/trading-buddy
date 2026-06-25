@@ -256,3 +256,35 @@ acceptance items remain pending and are recommended for Task 7 rather than being
 
 Task 7 hardens memory reliability and adds development tooling. The remaining unchecked items need
 direct human WebView interaction or additional UX design rather than silent automation claims.
+
+## Task 8 - Conversational Journaling Foundation
+
+- [x] Inspect Task 8 gate before starting Hyperliquid work.
+- [x] Add schema v4 with journal preferences, journal entries, tags, entry tags, FTS search, and
+      source links that detach when conversations/messages are deleted.
+- [x] Keep journal persistence behind Rust repository functions and typed Tauri commands.
+- [x] Add stable journal IDs, `draft`, `completed`, and `discarded` statuses.
+- [x] Add `trading_session` as a first-class journal kind for future trade-journal linking.
+- [x] Add explicit create/update/get/list/search/delete/delete-all/export/diagnostics operations.
+- [x] Add bounded development journal fixtures and cleanup.
+- [x] Add TypeScript journal domain modules for types, deterministic intent detection, guided
+      flows, session reducer, strict local-model JSON parsers, and safety helpers.
+- [x] Add desktop-bubble journal access with guided/free-write writing, optional ratings, and
+      explicit **Save draft**, **Save entry**, and **Discard** controls.
+- [x] Add Companion Home journal access with local search, draft filtering, read/edit/delete,
+      delete-all, and local JSON/Markdown export.
+- [x] Add development-only Journal Lab for diagnostics, 100/1,000 fixtures, cleanup, and search.
+- [x] Add frontend tests for journal intent, sessions, strict parsers, safety, and desktop-bubble
+      save behavior.
+- [x] Add Rust tests for journal preferences, lifecycle, search, export, source detachment, and
+      fixture bounds/cleanup.
+- [ ] Complete a fully driven real-desktop journal write/search/export/delete QA session in the
+      WebView UI.
+- [ ] Add local-model-generated journal summaries/reflections to the live UX.
+- [ ] Add conversion from selected conversation content into a user-edited journal entry.
+- [ ] Add future trade-episode/session linking after read-only trading data exists.
+
+Task 8 is now a coherent journal foundation and satisfies the Task 9 gate minimum for durable
+journal entries, trading-session entries, drafts/completed entries, explicit save, local search,
+stable IDs, safe source-linking, desktop bubble access, and Companion Home access. Hyperliquid work
+has not begun in this checkpoint.

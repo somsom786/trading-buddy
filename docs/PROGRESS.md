@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.1**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 25, 2026 - Conversational journaling foundation
+
+- Verified that Task 8 was partially implemented in the worktree and stopped the Task 9
+  Hyperliquid scope at the required gate.
+- Added durable local journal entries with stable IDs, drafts, completed entries, `trading_session`
+  kind, local FTS search, safe source links, tags, privacy flags, diagnostics, fixtures, and export.
+- Added desktop-bubble journal sessions with deterministic journal intents and explicit save,
+  draft, and discard controls.
+- Added Companion Home journal library access and a development-only Journal Lab.
+- Added frontend journal domain tests and Rust journal repository tests.
+- Hyperliquid API research and trading integration work have not begun yet.
+- Detailed handoff report:
+  [`docs/reports/TASK-008-conversational-journaling-foundation.md`](reports/TASK-008-conversational-journaling-foundation.md)
+
 ### June 24, 2026 - Memory reliability hardening
 
 - Added deterministic memory conflict classification for duplicate, update, conflict, and unrelated
