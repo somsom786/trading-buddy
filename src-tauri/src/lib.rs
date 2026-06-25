@@ -1,6 +1,7 @@
 mod commands;
 mod local_ai;
 mod storage;
+mod trading;
 mod window_manager;
 
 use tauri::Manager;
@@ -139,7 +140,23 @@ pub fn run() {
             commands::storage::get_memory_diagnostics,
             commands::storage::create_development_memory_fixtures,
             commands::storage::delete_development_memory_fixtures,
-            commands::storage::create_development_interrupted_fixture
+            commands::storage::create_development_interrupted_fixture,
+            trading::validate_hyperliquid_address,
+            trading::create_hyperliquid_account,
+            trading::list_hyperliquid_accounts,
+            trading::get_hyperliquid_account_summary,
+            trading::sync_hyperliquid_account,
+            trading::cancel_hyperliquid_sync,
+            trading::pause_hyperliquid_account,
+            trading::resume_hyperliquid_account,
+            trading::disconnect_hyperliquid_account,
+            trading::delete_hyperliquid_local_data,
+            trading::list_hyperliquid_positions,
+            trading::list_hyperliquid_fills,
+            trading::list_hyperliquid_funding,
+            trading::list_hyperliquid_open_orders,
+            trading::get_hyperliquid_sync_diagnostics,
+            trading::list_hyperliquid_fixture_scenarios
         ])
         .run(tauri::generate_context!())
         .expect("error while running Trading Buddy");

@@ -1,0 +1,14 @@
+[
+  {
+    "coin": "ETH",
+    "side": "A",
+    "limitPx": "3500.0000",
+    "sz": "0.1000",
+    "oid": 3001,
+    "timestamp": 1700007200000,
+    "reduceOnly": true,
+    "origSz": "0.1000",
+    "orderType": "Limit",
+    "triggerPx": "0.0"
+  }
+]

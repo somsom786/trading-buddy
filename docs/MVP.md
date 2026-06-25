@@ -102,3 +102,19 @@ work.
 - Keep journal, memory, and chat separate unless a future explicit opt-in workflow bridges them.
 - Validate model-generated journal summaries/reviews as untrusted structured JSON before they can
   affect state.
+
+## Read-only Hyperliquid milestone
+
+- Add typed mainnet/testnet environments mapped only to official allowlisted Hyperliquid hosts.
+- Validate public account addresses locally without network access.
+- Store read-only integration accounts in Rust-owned SQLite with no credentials or secrets.
+- Synchronize official read-only `/info` data for metadata, all mids, clearinghouse/account state,
+  fills, funding, and open orders.
+- Persist exact decimal strings across Rust, SQLite, and React; display formatting is separate from
+  stored values.
+- Provide fixture-backed sync with synthetic data for development and tests.
+- Show a minimal Companion Home Trading section with account summary, positions, fills, funding,
+  open orders, freshness, stale/partial/error states, pause/resume/disconnect/delete controls, and
+  explicit read-only language.
+- Keep WebSocket live sync, charts, risk engines, trading recommendations, and execution out of
+  scope.

@@ -474,3 +474,37 @@ suggestion, and the user still edits/saves before durable state changes.
 Journal diagnostics and 100/1,000 fixture generation are exposed only in development builds. They
 exist to test search, storage, and cleanup behavior without turning the user-facing journal into a
 database dashboard.
+
+## 060 - Hyperliquid starts read-only
+
+**Status:** Accepted
+
+Hyperliquid is the first trading integration, but Task 9B exposes only official read-only `info`
+requests. The application has no private-key fields, seed phrase fields, wallet signing, exchange
+API secrets, order placement, order cancellation, withdrawals, transfers, agent approval, generic
+RPC, or generic HTTP proxying. Future execution would require a separate explicit product decision.
+
+## 061 - Official host allowlist for Hyperliquid
+
+**Status:** Accepted
+
+The frontend passes only typed `mainnet` or `testnet` values. Rust maps those values internally to
+`https://api.hyperliquid.xyz/info` and `https://api.hyperliquid-testnet.xyz/info`. React cannot
+override the URL or provide arbitrary request bodies.
+
+## 062 - Decimal strings for authoritative trading values
+
+**Status:** Accepted
+
+Provider prices, sizes, account values, PnL, fees, funding, leverage, and margin values are
+validated as decimal strings in Rust, stored as text in SQLite, and sent to React as strings.
+JavaScript performs display formatting only. This avoids accidental binary floating-point rounding
+for financial truth.
+
+## 063 - Fixture sync before live QA
+
+**Status:** Accepted
+
+Task 9B includes synthetic provider-shaped Hyperliquid fixtures and fixture-backed sync so
+development and CI can prove parsing, persistence, and idempotency without using a real account.
+Optional live QA requires an explicit public address and never uses credentials.

@@ -1,0 +1,12 @@
+[
+  {
+    "delta": {
+      "coin": "ETH",
+      "usdc": "-0.020000",
+      "szi": "0.5000",
+      "fundingRate": "0.000100"
+    },
+    "hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "time": 1700003600000
+  }
+]

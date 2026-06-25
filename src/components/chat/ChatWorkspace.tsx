@@ -59,6 +59,7 @@ import { ModelSelector } from './ModelSelector';
 import { MemoryPanel } from '../memory/MemoryPanel';
 import { MemoryProposalCard } from '../memory/MemoryProposalCard';
 import { JournalPanel } from '../journal/JournalPanel';
+import { TradingPanel } from '../trading/TradingPanel';
 import type { JournalDiagnostics, JournalEntrySummary } from '../../domain/journal/types';
 import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
 
@@ -1331,6 +1332,7 @@ export function ChatWorkspace({
 
         {storageAvailable ? (
           <>
+            <TradingPanel />
             <JournalPanel
               storageService={storageService}
               onNotice={setStorageNotice}

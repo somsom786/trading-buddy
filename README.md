@@ -2,8 +2,9 @@
 
 A local-first desktop companion for crypto traders. The application connects only to a locally
 running Ollama service for companion chat. Conversations, memories, and journal entries are stored
-in a local SQLite database owned by the Rust/Tauri layer. It has no cloud inference, account, API
-token, exchange, wallet, authentication, telemetry, or trading functionality.
+in a local SQLite database owned by the Rust/Tauri layer. It also includes a read-only Hyperliquid
+foundation for public account synchronization. It has no cloud inference, cloud account, exchange
+API secret, wallet signing, authentication, telemetry, or trading execution functionality.
 
 This repository is currently labeled **BETA v0.2** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
@@ -114,6 +115,21 @@ failed. Hidden thinking content and system prompts are not stored as conversatio
 Use **Temporary chat** for an in-memory session. Temporary chat content is not written to SQLite and
 is gone after the application closes, you leave temporary mode, or the session is reset. Temporary
 mode is visibly labeled in the chat toolbar before you send messages.
+
+## Read-only Hyperliquid foundation
+
+Companion Home includes a minimal **Trading** section for Hyperliquid public accounts:
+
+- choose mainnet or testnet;
+- enter and locally validate a public 42-character `0x...` address;
+- save the account in local SQLite;
+- run read-only REST `/info` synchronization through Rust-owned allowlisted Hyperliquid hosts;
+- inspect saved account summary, current positions, recent fills, funding, and open orders;
+- create a synthetic fixture account in development builds.
+
+The integration is deliberately read-only. Trading Buddy cannot place, close, cancel, or modify
+orders; cannot sign transactions; cannot move funds; and never asks for private keys, seed phrases,
+exchange API secrets, or wallet approvals.
 
 ## Companion memory
 

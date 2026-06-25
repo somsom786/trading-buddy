@@ -39,6 +39,19 @@ Rust-owned SQLite persistence. Temporary chat remains available for in-memory-on
 Exchange connections, wallets, authentication, cloud sync, long-term semantic memory, screen
 reading, global cursor tracking, telemetry, and order execution remain out of scope.
 
+## Read-only trading awareness
+
+Task 9B adds the first real trading integration boundary: read-only Hyperliquid public account
+awareness. Users can save a public Hyperliquid address for mainnet or testnet, refresh official
+read-only `/info` data, and view saved account summary, current positions, recent fills, funding,
+and open orders in Companion Home.
+
+This does not make Buddy a trading bot. The app has no private-key fields, seed phrase fields,
+exchange API secrets, wallet signing, order placement, order cancellation, withdrawals, transfers,
+cloud relay, telemetry, WebSocket live sync, risk engine, recommendations, or autonomous trading.
+Trading values are stored locally as exact strings and labelled as saved exchange-reported data
+rather than live truth.
+
 ## User-controlled companion memory
 
 Task 6 adds the first durable long-term companion memory system. Memory is separate from

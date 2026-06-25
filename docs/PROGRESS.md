@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 25, 2026 - Read-only Hyperliquid provider foundation
+
+- Added the first read-only Hyperliquid integration foundation with official allowlisted hosts,
+  deterministic public-address validation, exact decimal-string handling, synthetic fixtures,
+  SQLite schema v5, idempotent fixture sync, narrow Tauri commands, and a minimal Companion Home
+  Trading section.
+- Kept the boundary explicitly non-executing: no keys, seed phrases, signing, wallet SDKs, exchange
+  secrets, order placement/cancellation, transfers, withdrawals, generic RPC/HTTP proxying, cloud,
+  or telemetry.
+- Documented remaining Task 9C work: Trading Lab, desktop buddy quick actions, bounded local-Qwen
+  trading context, performance fixtures, manual desktop QA, and optional live public-address QA.
+- Detailed handoff report:
+  [`docs/reports/TASK-009B-hyperliquid-read-only-foundation.md`](reports/TASK-009B-hyperliquid-read-only-foundation.md)
+
 ### June 25, 2026 - BETA v0.2 label update
 
 - Updated the current README and user-facing app labels from BETA v0.1 to BETA v0.2.

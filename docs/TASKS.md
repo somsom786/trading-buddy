@@ -9,6 +9,29 @@
 - [x] Persist buddy position locally.
 - [x] Add foundation tests and documentation.
 
+## Task 9B — Read-Only Hyperliquid Provider Foundation
+
+- [x] Research current official Hyperliquid read-only API docs and document the contract.
+- [x] Add typed mainnet/testnet environment mapping to official allowlisted hosts.
+- [x] Add explicit read-only capabilities and avoid all execution/write capability types.
+- [x] Add deterministic public address validation and normalization.
+- [x] Add exact decimal-string validation for financial provider values.
+- [x] Add official-shaped DTO parsing and normalized local trading objects.
+- [x] Add synthetic Hyperliquid fixtures for metadata, mids, accounts, fills, funding, orders,
+      duplicates, malformed data, and provider/rate-limit errors.
+- [x] Add SQLite schema v5 for integration accounts, sync state, metadata, snapshots, positions,
+      fills, funding, open orders, and sync runs.
+- [x] Add Rust repository tests for account creation, duplicate rejection, idempotent fills/funding,
+      and local data deletion.
+- [x] Add a read-only sync path using fixture data and the official allowlisted REST transport.
+- [x] Add narrow Tauri commands for validation, account management, sync, lists, and diagnostics.
+- [x] Add frontend trading domain guards, formatting, freshness labels, and deterministic read-only
+      execution refusal intent.
+- [x] Add a minimal Companion Home Trading section.
+- [ ] Complete live Hyperliquid QA with an explicit public test address.
+- [ ] Add WebSocket live sync. Deferred.
+- [ ] Add charts, risk rules, alerts, recommendations, and execution. Deferred and out of scope.
+
 ## BETA v0.1 identity and progress journal
 
 - [x] Label the in-development desktop project BETA v0.1.

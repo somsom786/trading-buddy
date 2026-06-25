@@ -1,0 +1,36 @@
+{
+  "marginSummary": {
+    "accountValue": "2500.000000",
+    "totalMarginUsed": "125.000000",
+    "totalRawUsd": "2500.000000"
+  },
+  "withdrawable": "2375.000000",
+  "assetPositions": [
+    {
+      "position": {
+        "coin": "ETH",
+        "szi": "0.5000",
+        "entryPx": "2900.0000",
+        "positionValue": "1500.125000",
+        "unrealizedPnl": "50.125000",
+        "returnOnEquity": "0.033416",
+        "liquidationPx": "2100.0000",
+        "marginUsed": "50.250000",
+        "leverage": { "type": "cross", "value": 10 }
+      }
+    },
+    {
+      "position": {
+        "coin": "BTC",
+        "szi": "-0.02000",
+        "entryPx": "64000.0000",
+        "positionValue": "1300.010000",
+        "unrealizedPnl": "-20.010000",
+        "returnOnEquity": "-0.015392",
+        "liquidationPx": "72000.0000",
+        "marginUsed": "74.750000",
+        "leverage": { "type": "isolated", "value": 20, "rawUsd": "-95.059824" }
+      }
+    }
+  ]
+}

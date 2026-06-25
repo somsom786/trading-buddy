@@ -16,6 +16,9 @@ React views
         -> Rust storage service
           -> repository interfaces
             -> SQLite in app-local data directory
+        -> Rust read-only trading integrations
+          -> allowlisted provider clients
+          -> normalized local trading tables
 ```
 
 The product hierarchy is companion-first:
@@ -141,9 +144,34 @@ Delete-all runs through the Rust storage service, clears conversations/messages 
 setting, checkpoints the WAL, and vacuums. SQLite `secure_delete` is enabled, but deletion is not a
 forensic erasure guarantee because SSD behavior, OS caches, backups, and snapshots can retain data.
 
-Long-term memories, journals, ratings, and trading integrations are future domains. This storage
-milestone persists conversations and settings only; it does not implement semantic memory,
-embeddings, journal entries, trades, crypto integrations, or cloud sync.
+Long-term memories, journals, and read-only trading integrations now have separate local domains.
+Execution, wallet custody, exchange secrets, risk engines, ratings, recommendations, embeddings,
+and cloud sync remain separate future decisions.
+
+## Read-only trading integration boundary
+
+The Rust `trading` module owns the first Hyperliquid provider foundation:
+
+- `environment.rs` maps `mainnet` and `testnet` to official allowlisted Hyperliquid hosts.
+- `validation.rs` validates public account addresses locally.
+- `decimal.rs` validates provider decimal strings without converting authoritative financial
+  values to floating point.
+- `responses.rs` maps official-shaped DTOs into normalized local objects.
+- `fixtures.rs` provides synthetic provider-shaped payloads for deterministic tests and development
+  accounts.
+- `repository.rs` persists normalized account, snapshot, position, fill, funding, order, and sync
+  state rows in SQLite schema v5.
+- `sync.rs` owns the official read-only REST `/info` transport and fixture transport path.
+- `commands.rs` exposes narrow Tauri commands for validation, account management, refresh, lists,
+  and diagnostics.
+
+React cannot pass arbitrary URLs or raw provider request bodies. It sends typed account/environment
+requests through `src/services/tauri/tradingService.ts`, and every native response passes runtime
+guards in `src/domain/trading/types.ts`. Financial values cross the Tauri boundary as strings.
+
+No write or execution capability exists in the provider boundary. There are no order placement,
+order cancellation, transfer, withdrawal, signing, private-key, seed-phrase, exchange-secret,
+generic RPC, or generic HTTP proxy methods.
 
 ## Transparent local memory
 

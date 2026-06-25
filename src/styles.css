@@ -1003,6 +1003,45 @@ button {
   margin: 0;
 }
 
+.trading-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.trading-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.trading-card {
+  border: 1px solid rgba(149, 163, 184, 0.22);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.trading-card--wide {
+  grid-column: 1 / -1;
+}
+
+.trading-card h3 {
+  margin-top: 0;
+}
+
+.trading-card label {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
+
+.mini-table {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+}
+
 .memory-tabs,
 .memory-filters {
   display: flex;

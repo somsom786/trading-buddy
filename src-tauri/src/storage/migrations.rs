@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+pub const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 struct Migration {
     version: i64,
@@ -268,6 +268,167 @@ CREATE INDEX IF NOT EXISTS idx_journal_entries_occurred ON journal_entries(occur
 CREATE INDEX IF NOT EXISTS idx_journal_entries_source_conversation ON journal_entries(source_conversation_id);
 CREATE INDEX IF NOT EXISTS idx_journal_tags_value ON journal_tags(value);
 CREATE INDEX IF NOT EXISTS idx_journal_entry_tags_tag ON journal_entry_tags(tag_id, entry_id);
+"#,
+    },
+    Migration {
+        version: 5,
+        name: "read_only_trading_integrations",
+        sql: r#"
+CREATE TABLE IF NOT EXISTS integration_accounts (
+  id TEXT PRIMARY KEY NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('hyperliquid')),
+  environment TEXT NOT NULL CHECK (environment IN ('mainnet', 'testnet')),
+  public_address TEXT NOT NULL,
+  normalized_address TEXT NOT NULL,
+  display_name TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'error', 'disconnected')),
+  sync_enabled INTEGER NOT NULL DEFAULT 1 CHECK (sync_enabled IN (0, 1)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  last_sync_started_at TEXT,
+  last_sync_completed_at TEXT,
+  last_sync_error_code TEXT,
+  last_successful_data_at TEXT,
+  is_fixture INTEGER NOT NULL DEFAULT 0 CHECK (is_fixture IN (0, 1)),
+  UNIQUE(provider, environment, normalized_address)
+);
+
+CREATE TABLE IF NOT EXISTS integration_sync_state (
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  resource_kind TEXT NOT NULL CHECK (resource_kind IN ('metadata', 'account_state', 'positions', 'fills', 'funding', 'open_orders')),
+  cursor TEXT,
+  oldest_synced_at TEXT,
+  newest_synced_at TEXT,
+  last_attempt_at TEXT,
+  last_success_at TEXT,
+  last_error_code TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY(account_id, resource_kind)
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_market_metadata (
+  environment TEXT NOT NULL CHECK (environment IN ('mainnet', 'testnet')),
+  asset_key TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  display_symbol TEXT NOT NULL,
+  size_decimals INTEGER NOT NULL,
+  price_decimals INTEGER,
+  max_leverage INTEGER,
+  is_active INTEGER NOT NULL CHECK (is_active IN (0, 1)),
+  source_updated_at TEXT,
+  received_at TEXT NOT NULL,
+  PRIMARY KEY(environment, asset_key)
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_account_snapshots (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  account_value TEXT,
+  total_margin_used TEXT,
+  withdrawable TEXT,
+  total_raw_usd TEXT,
+  snapshot_timestamp TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  is_current INTEGER NOT NULL CHECK (is_current IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_position_snapshots (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  asset_key TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL CHECK (side IN ('long', 'short', 'flat')),
+  signed_size TEXT NOT NULL,
+  absolute_size TEXT NOT NULL,
+  entry_price TEXT,
+  mark_price TEXT,
+  notional TEXT,
+  leverage_type TEXT,
+  leverage_value TEXT,
+  liquidation_price TEXT,
+  margin_used TEXT,
+  unrealized_pnl TEXT,
+  return_on_equity TEXT,
+  snapshot_timestamp TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  is_current INTEGER NOT NULL CHECK (is_current IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_fills (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  source_fill_identity TEXT NOT NULL,
+  source_transaction_hash TEXT,
+  source_order_id TEXT,
+  asset_key TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL,
+  direction TEXT,
+  price TEXT NOT NULL,
+  size TEXT NOT NULL,
+  notional TEXT,
+  fee TEXT NOT NULL,
+  fee_token TEXT,
+  closed_pnl TEXT,
+  fill_timestamp TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  UNIQUE(account_id, source_fill_identity)
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_funding (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  source_funding_identity TEXT NOT NULL,
+  asset_key TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  amount TEXT NOT NULL,
+  funding_rate TEXT,
+  position_size TEXT,
+  event_timestamp TEXT NOT NULL,
+  received_at TEXT NOT NULL,
+  UNIQUE(account_id, source_funding_identity)
+);
+
+CREATE TABLE IF NOT EXISTS hyperliquid_open_order_snapshots (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  source_order_id TEXT NOT NULL,
+  asset_key TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  side TEXT NOT NULL,
+  order_type TEXT,
+  price TEXT,
+  size TEXT NOT NULL,
+  original_size TEXT,
+  reduce_only INTEGER CHECK (reduce_only IN (0, 1)),
+  trigger_price TEXT,
+  order_timestamp TEXT,
+  snapshot_timestamp TEXT NOT NULL,
+  is_current INTEGER NOT NULL CHECK (is_current IN (0, 1))
+);
+
+CREATE TABLE IF NOT EXISTS integration_sync_runs (
+  id TEXT PRIMARY KEY NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  started_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'partial', 'failed', 'cancelled')),
+  resources_requested_json TEXT NOT NULL,
+  resources_completed_json TEXT NOT NULL,
+  error_code TEXT,
+  records_inserted INTEGER NOT NULL DEFAULT 0 CHECK (records_inserted >= 0),
+  records_updated INTEGER NOT NULL DEFAULT 0 CHECK (records_updated >= 0),
+  records_unchanged INTEGER NOT NULL DEFAULT 0 CHECK (records_unchanged >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_integration_accounts_provider_environment ON integration_accounts(provider, environment, status);
+CREATE INDEX IF NOT EXISTS idx_integration_accounts_fixture ON integration_accounts(is_fixture, provider);
+CREATE INDEX IF NOT EXISTS idx_hl_account_snapshots_current ON hyperliquid_account_snapshots(account_id, is_current, snapshot_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_hl_positions_current ON hyperliquid_position_snapshots(account_id, is_current, symbol);
+CREATE INDEX IF NOT EXISTS idx_hl_fills_account_time ON hyperliquid_fills(account_id, fill_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_hl_funding_account_time ON hyperliquid_funding(account_id, event_timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_hl_orders_current ON hyperliquid_open_order_snapshots(account_id, is_current, symbol);
+CREATE INDEX IF NOT EXISTS idx_integration_sync_runs_account_time ON integration_sync_runs(account_id, started_at DESC);
 "#,
     },
 ];
