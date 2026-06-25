@@ -41,6 +41,7 @@ pub struct IntegrationAccount {
     pub last_sync_error_code: Option<String>,
     pub last_successful_data_at: Option<String>,
     pub is_fixture: bool,
+    pub fixture_scenario: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -181,7 +182,22 @@ pub struct HyperliquidDiagnostics {
     pub fill_count: u32,
     pub funding_count: u32,
     pub open_order_count: u32,
+    pub sync_run_count: u32,
+    pub cancelled_sync_count: u32,
+    pub failed_sync_count: u32,
     pub latest_sync_status: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HyperliquidSyncProgress {
+    pub account_id: String,
+    pub run_id: Option<String>,
+    pub status: String,
+    pub started_at: Option<String>,
+    pub current_resource: Option<String>,
+    pub resources_completed: Vec<String>,
+    pub cancel_requested: bool,
 }
 
 #[derive(Clone, Debug)]

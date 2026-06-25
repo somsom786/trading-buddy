@@ -21,6 +21,7 @@ pub fn create_account(
     public_address: &str,
     display_name: Option<String>,
     is_fixture: bool,
+    fixture_scenario: Option<String>,
 ) -> Result<IntegrationAccount, TradingError> {
     let normalized_address = normalize_hyperliquid_address(public_address)?;
     let now = Utc::now().to_rfc3339();
@@ -32,8 +33,8 @@ pub fn create_account(
     let result = connection.execute(
         "INSERT INTO integration_accounts (
           id, provider, environment, public_address, normalized_address, display_name, status,
-          sync_enabled, created_at, updated_at, is_fixture
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', 1, ?7, ?7, ?8)",
+          sync_enabled, created_at, updated_at, is_fixture, fixture_scenario
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'active', 1, ?7, ?7, ?8, ?9)",
         params![
             id,
             PROVIDER,
@@ -42,7 +43,8 @@ pub fn create_account(
             normalized_address,
             display_name,
             now,
-            bool_to_i64(is_fixture)
+            bool_to_i64(is_fixture),
+            fixture_scenario
         ],
     );
     match result {
@@ -66,7 +68,7 @@ pub fn list_accounts(connection: &Connection) -> Result<Vec<IntegrationAccount>,
     let mut statement = connection.prepare(
         "SELECT id, provider, environment, public_address, normalized_address, display_name, status,
          sync_enabled, created_at, updated_at, last_sync_started_at, last_sync_completed_at,
-         last_sync_error_code, last_successful_data_at, is_fixture
+         last_sync_error_code, last_successful_data_at, is_fixture, fixture_scenario
          FROM integration_accounts
          WHERE provider = ?1
          ORDER BY created_at DESC",
@@ -84,7 +86,7 @@ pub fn get_account(
         .query_row(
             "SELECT id, provider, environment, public_address, normalized_address, display_name, status,
              sync_enabled, created_at, updated_at, last_sync_started_at, last_sync_completed_at,
-             last_sync_error_code, last_successful_data_at, is_fixture
+             last_sync_error_code, last_successful_data_at, is_fixture, fixture_scenario
              FROM integration_accounts
              WHERE id = ?1 AND provider = ?2",
             params![account_id, PROVIDER],
@@ -148,10 +150,27 @@ pub fn delete_local_data(
     Ok(())
 }
 
+#[cfg(test)]
 pub fn persist_sync(
     connection: &mut Connection,
     account_id: &str,
     data: NormalizedSyncData,
+) -> Result<HyperliquidSyncResult, TradingError> {
+    persist_sync_with_run(
+        connection,
+        account_id,
+        data,
+        format!("hl_sync_{}", Uuid::new_v4()),
+        Utc::now().to_rfc3339(),
+    )
+}
+
+pub fn persist_sync_with_run(
+    connection: &mut Connection,
+    account_id: &str,
+    data: NormalizedSyncData,
+    run_id: String,
+    started_at: String,
 ) -> Result<HyperliquidSyncResult, TradingError> {
     let account = get_account(connection, account_id)?;
     if account.status == IntegrationAccountStatus::Paused
@@ -162,8 +181,6 @@ pub fn persist_sync(
         ));
     }
 
-    let started_at = Utc::now().to_rfc3339();
-    let run_id = format!("hl_sync_{}", Uuid::new_v4());
     let resources_requested =
         r#"["metadata","account_state","positions","fills","funding","open_orders"]"#;
     let transaction = connection.transaction().map_err(write_error)?;
@@ -452,21 +469,67 @@ pub fn persist_sync(
     })
 }
 
-pub fn fail_sync(
-    connection: &Connection,
+pub fn record_incomplete_sync(
+    connection: &mut Connection,
     account_id: &str,
-    code: &str,
-) -> Result<(), TradingError> {
-    let now = Utc::now().to_rfc3339();
-    connection
+    run_id: &str,
+    started_at: &str,
+    status: &str,
+    error_code: &str,
+    resources_completed: &[String],
+) -> Result<HyperliquidSyncResult, TradingError> {
+    let completed_at = Utc::now().to_rfc3339();
+    let resources_requested =
+        r#"["metadata","account_state","positions","fills","funding","open_orders"]"#;
+    let resources_completed_json = serde_json::to_string(resources_completed).map_err(|error| {
+        TradingError::new(
+            TradingErrorCode::DatabaseWriteFailed,
+            "Trading Buddy could not save local trading data.",
+            Some(error.to_string()),
+            true,
+        )
+    })?;
+    let transaction = connection.transaction().map_err(write_error)?;
+    transaction
         .execute(
-            "UPDATE integration_accounts
-             SET status = 'error', last_sync_completed_at = ?1, last_sync_error_code = ?2, updated_at = ?1
-             WHERE id = ?3",
-            params![now, code, account_id],
+            "INSERT INTO integration_sync_runs (
+              id, account_id, started_at, completed_at, status, resources_requested_json,
+              resources_completed_json, error_code
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                run_id,
+                account_id,
+                started_at,
+                completed_at,
+                status,
+                resources_requested,
+                resources_completed_json,
+                error_code
+            ],
         )
         .map_err(write_error)?;
-    Ok(())
+    transaction
+        .execute(
+            "UPDATE integration_accounts
+             SET status = CASE WHEN ?1 = 'cancelled' THEN status ELSE 'error' END,
+                 last_sync_started_at = ?2,
+                 last_sync_completed_at = ?3,
+                 last_sync_error_code = ?4,
+                 updated_at = ?3
+             WHERE id = ?5",
+            params![status, started_at, completed_at, error_code, account_id],
+        )
+        .map_err(write_error)?;
+    transaction.commit().map_err(write_error)?;
+    Ok(HyperliquidSyncResult {
+        run_id: run_id.to_owned(),
+        status: status.to_owned(),
+        resources_completed: resources_completed.to_vec(),
+        error_code: Some(error_code.to_owned()),
+        records_inserted: 0,
+        records_updated: 0,
+        records_unchanged: 0,
+    })
 }
 
 pub fn summary(
@@ -668,6 +731,9 @@ pub fn diagnostics(connection: &Connection) -> Result<HyperliquidDiagnostics, Tr
         fill_count: count_any(connection, "SELECT COUNT(*) FROM hyperliquid_fills")?,
         funding_count: count_any(connection, "SELECT COUNT(*) FROM hyperliquid_funding")?,
         open_order_count: count_any(connection, "SELECT COUNT(*) FROM hyperliquid_open_order_snapshots")?,
+        sync_run_count: count_any(connection, "SELECT COUNT(*) FROM integration_sync_runs")?,
+        cancelled_sync_count: count_any(connection, "SELECT COUNT(*) FROM integration_sync_runs WHERE status = 'cancelled'")?,
+        failed_sync_count: count_any(connection, "SELECT COUNT(*) FROM integration_sync_runs WHERE status = 'failed'")?,
         latest_sync_status: connection
             .query_row(
                 "SELECT status FROM integration_sync_runs ORDER BY started_at DESC LIMIT 1",
@@ -728,6 +794,7 @@ fn map_account(row: &rusqlite::Row<'_>) -> rusqlite::Result<IntegrationAccount> 
         last_sync_error_code: row.get(12)?,
         last_successful_data_at: row.get(13)?,
         is_fixture: row.get::<_, i64>(14)? == 1,
+        fixture_scenario: row.get(15)?,
     })
 }
 
@@ -816,6 +883,7 @@ mod tests {
             SYNTHETIC_FIXTURE_ADDRESS,
             Some("Fixture".to_owned()),
             true,
+            Some("single_long".to_owned()),
         )
         .unwrap();
         assert_eq!(account.environment, HyperliquidEnvironment::Testnet);
@@ -825,8 +893,10 @@ mod tests {
             SYNTHETIC_FIXTURE_ADDRESS,
             None,
             true,
+            Some("single_long".to_owned()),
         )
         .is_err());
+        assert_eq!(account.fixture_scenario.as_deref(), Some("single_long"));
     }
 
     #[test]
@@ -838,6 +908,7 @@ mod tests {
             SYNTHETIC_FIXTURE_ADDRESS,
             None,
             true,
+            Some("single_long".to_owned()),
         )
         .unwrap();
         let first = fixture_sync_data(
@@ -868,6 +939,7 @@ mod tests {
             SYNTHETIC_FIXTURE_ADDRESS,
             None,
             true,
+            Some("single_long".to_owned()),
         )
         .unwrap();
         delete_local_data(&mut connection, &account.id).unwrap();

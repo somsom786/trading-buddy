@@ -3,7 +3,7 @@ use chrono::Utc;
 use super::{
     environment::HyperliquidEnvironment,
     errors::{TradingError, TradingErrorCode},
-    models::NormalizedSyncData,
+    models::{NormalizedFill, NormalizedFunding, NormalizedSyncData},
     responses::{parse_sync_data, RawSyncPayloads},
 };
 
@@ -25,12 +25,32 @@ pub fn scenario_names() -> Vec<&'static str> {
         "multiple_positions",
         "fills_and_funding",
         "duplicate_fills",
+        "duplicate_heavy",
+        "slow_sync",
+        "cancel_during_fills",
+        "performance_100_fills",
+        "performance_1000_fills",
+        "performance_10000_fills",
         "partial_failure",
         "provider_offline",
         "rate_limited",
         "malformed_response",
         "stale_account",
     ]
+}
+
+pub fn scenario_exists(scenario: &str) -> bool {
+    scenario_names().contains(&scenario)
+}
+
+pub fn synthetic_fixture_address(scenario: &str) -> String {
+    let mut hash = 0xabcdefabcdef12345678900000000000u128;
+    for byte in scenario.as_bytes() {
+        hash = hash
+            .wrapping_mul(0x100000001b3)
+            .wrapping_add(u128::from(*byte));
+    }
+    format!("0x{hash:040x}")
 }
 
 pub fn fixture_payloads(scenario: &str) -> Result<FixturePayloads, TradingError> {
@@ -61,7 +81,7 @@ pub fn fixture_payloads(scenario: &str) -> Result<FixturePayloads, TradingError>
             funding: include_str!("../../tests/fixtures/hyperliquid/funding-normal.json"),
             orders: include_str!("../../tests/fixtures/hyperliquid/orders-normal.json"),
         }),
-        "duplicate_fills" => Ok(FixturePayloads {
+        "duplicate_fills" | "duplicate_heavy" => Ok(FixturePayloads {
             metadata: include_str!("../../tests/fixtures/hyperliquid/metadata-normal.json"),
             all_mids: include_str!("../../tests/fixtures/hyperliquid/all-mids-normal.json"),
             account: include_str!("../../tests/fixtures/hyperliquid/account-single-long.json"),
@@ -73,6 +93,18 @@ pub fn fixture_payloads(scenario: &str) -> Result<FixturePayloads, TradingError>
             metadata: include_str!("../../tests/fixtures/hyperliquid/metadata-normal.json"),
             all_mids: include_str!("../../tests/fixtures/hyperliquid/all-mids-normal.json"),
             account: include_str!("../../tests/fixtures/hyperliquid/partial-missing-optional.json"),
+            fills: include_str!("../../tests/fixtures/hyperliquid/fills-normal.json"),
+            funding: include_str!("../../tests/fixtures/hyperliquid/funding-normal.json"),
+            orders: include_str!("../../tests/fixtures/hyperliquid/orders-normal.json"),
+        }),
+        "slow_sync"
+        | "cancel_during_fills"
+        | "performance_100_fills"
+        | "performance_1000_fills"
+        | "performance_10000_fills" => Ok(FixturePayloads {
+            metadata: include_str!("../../tests/fixtures/hyperliquid/metadata-normal.json"),
+            all_mids: include_str!("../../tests/fixtures/hyperliquid/all-mids-normal.json"),
+            account: include_str!("../../tests/fixtures/hyperliquid/account-single-long.json"),
             fills: include_str!("../../tests/fixtures/hyperliquid/fills-normal.json"),
             funding: include_str!("../../tests/fixtures/hyperliquid/funding-normal.json"),
             orders: include_str!("../../tests/fixtures/hyperliquid/orders-normal.json"),
@@ -112,7 +144,7 @@ pub fn fixture_sync_data(
     scenario: &str,
 ) -> Result<NormalizedSyncData, TradingError> {
     let payloads = fixture_payloads(scenario)?;
-    parse_sync_data(
+    let mut data = parse_sync_data(
         environment,
         normalized_address,
         RawSyncPayloads {
@@ -124,7 +156,68 @@ pub fn fixture_sync_data(
             orders_json: payloads.orders,
         },
         Utc::now(),
-    )
+    )?;
+    match scenario {
+        "duplicate_heavy" => {
+            data.fills = duplicate_fills(data.fills, 25, false);
+            data.funding = duplicate_funding(data.funding, 25, false);
+        }
+        "performance_100_fills" => {
+            data.fills = duplicate_fills(data.fills, 100, true);
+        }
+        "performance_1000_fills" => {
+            data.fills = duplicate_fills(data.fills, 1_000, true);
+        }
+        "performance_10000_fills" => {
+            data.fills = duplicate_fills(data.fills, 10_000, true);
+        }
+        _ => {}
+    }
+    Ok(data)
+}
+
+fn duplicate_fills(seed: Vec<NormalizedFill>, count: usize, unique: bool) -> Vec<NormalizedFill> {
+    let Some(template) = seed.first().cloned() else {
+        return seed;
+    };
+    (0..count)
+        .map(|index| {
+            let mut fill = template.clone();
+            if unique {
+                fill.source_identity = format!("fixture-fill-{index:05}");
+                fill.fill_timestamp = format!(
+                    "2025-01-{:02}T00:{:02}:00+00:00",
+                    1 + index % 28,
+                    index % 60
+                );
+            }
+            fill
+        })
+        .collect()
+}
+
+fn duplicate_funding(
+    seed: Vec<NormalizedFunding>,
+    count: usize,
+    unique: bool,
+) -> Vec<NormalizedFunding> {
+    let Some(template) = seed.first().cloned() else {
+        return seed;
+    };
+    (0..count)
+        .map(|index| {
+            let mut funding = template.clone();
+            if unique {
+                funding.source_identity = format!("fixture-funding-{index:05}");
+                funding.event_timestamp = format!(
+                    "2025-01-{:02}T08:{:02}:00+00:00",
+                    1 + index % 28,
+                    index % 60
+                );
+            }
+            funding
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -134,6 +227,7 @@ mod tests {
     #[test]
     fn fixture_scenarios_are_declared_and_parse() {
         assert!(scenario_names().contains(&"single_long"));
+        assert!(scenario_names().contains(&"slow_sync"));
         let parsed = fixture_sync_data(
             HyperliquidEnvironment::Testnet,
             SYNTHETIC_FIXTURE_ADDRESS,
@@ -141,6 +235,18 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parsed.positions.len(), 1);
+    }
+
+    #[test]
+    fn performance_fixture_expands_unique_fills() {
+        let parsed = fixture_sync_data(
+            HyperliquidEnvironment::Testnet,
+            SYNTHETIC_FIXTURE_ADDRESS,
+            "performance_100_fills",
+        )
+        .unwrap();
+        assert_eq!(parsed.fills.len(), 100);
+        assert_eq!(parsed.fills[0].source_identity, "fixture-fill-00000");
     }
 
     #[test]

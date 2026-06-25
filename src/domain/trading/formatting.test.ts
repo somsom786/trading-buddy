@@ -17,6 +17,7 @@ describe('trading frontend domain helpers', () => {
 
   it('detects read-only execution requests deterministically', () => {
     expect(detectTradingIntent('Close my ETH position')).toBe('unsupported_trade_execution');
+    expect(detectTradingIntent('how are you buddy?')).toBe('not_trading_intent');
     expect(readOnlyExecutionRefusal()).toContain('read-only');
   });
 });

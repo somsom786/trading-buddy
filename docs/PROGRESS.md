@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 25, 2026 - Hyperliquid foundation hardening checkpoint
+
+- Added SQLite schema v6 for fixture scenario identity instead of storing scenario names as display
+  names.
+- Added deterministic per-scenario fixture addresses, slow/cancel/performance fixture scenarios,
+  active sync coalescing, progress state, cancellation, and cancelled/failed sync-run recording.
+- Added a development-only Trading Lab for scenario creation, repeat sync, cancellation, and
+  diagnostics.
+- Tightened frontend trading intent detection and runtime guards for sync progress/diagnostics.
+- Remaining follow-up: manual Trading Lab desktop QA, desktop bubble quick actions, bounded
+  local-Qwen trading context, performance timing documentation, and optional live public-address QA.
+- Detailed handoff report:
+  [`docs/reports/TASK-009C-hyperliquid-foundation-hardening.md`](reports/TASK-009C-hyperliquid-foundation-hardening.md)
+
 ### June 25, 2026 - Read-only Hyperliquid provider foundation
 
 - Added the first read-only Hyperliquid integration foundation with official allowlisted hosts,

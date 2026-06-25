@@ -508,3 +508,23 @@ for financial truth.
 Task 9B includes synthetic provider-shaped Hyperliquid fixtures and fixture-backed sync so
 development and CI can prove parsing, persistence, and idempotency without using a real account.
 Optional live QA requires an explicit public address and never uses credentials.
+
+## 064 - Hyperliquid active sync coordination is local process state
+
+**Status:** Accepted
+
+Task 9C adds an in-memory sync coordinator for one active Hyperliquid refresh per account,
+cooperative cancellation, and progress. Active progress is transient because it is only meaningful
+while the desktop app process is running. Durable outcomes are still stored as sync runs in SQLite.
+
+The coordinator does not introduce background autonomous syncing, order placement, signing, wallet
+SDKs, private-key handling, arbitrary URLs, or cloud services.
+
+## 065 - Fixture scenarios have durable identity
+
+**Status:** Accepted
+
+Fixture accounts store `fixture_scenario` separately from `display_name` in SQLite schema v6.
+Synthetic fixture addresses are deterministic per scenario so multiple QA scenarios can exist side
+by side without duplicate-account collisions. This keeps display names user-facing and keeps fixture
+behavior explicit.

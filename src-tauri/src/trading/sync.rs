@@ -3,8 +3,10 @@ use std::time::Duration;
 use chrono::{Duration as ChronoDuration, Utc};
 use reqwest::StatusCode;
 use serde_json::json;
+use tokio::time::sleep;
 
 use super::{
+    coordinator::ActiveHyperliquidSync,
     environment::HyperliquidEnvironment,
     errors::{TradingError, TradingErrorCode},
     fixtures::fixture_sync_data,
@@ -16,17 +18,61 @@ const MAX_RESPONSE_BYTES: usize = 2_000_000;
 
 pub async fn fetch_sync_data(
     account: &IntegrationAccount,
+    active_sync: Option<&ActiveHyperliquidSync>,
 ) -> Result<NormalizedSyncData, TradingError> {
     if account.is_fixture {
-        return fixture_sync_data(
-            account.environment,
-            &account.normalized_address,
-            account.display_name.as_deref().unwrap_or("single_long"),
-        );
+        if let Some(active_sync) = active_sync {
+            active_sync.check_cancelled("fixture")?;
+            fetch_fixture_with_progress(account, active_sync).await
+        } else {
+            fixture_sync_data(
+                account.environment,
+                &account.normalized_address,
+                account
+                    .fixture_scenario
+                    .as_deref()
+                    .or(account.display_name.as_deref())
+                    .unwrap_or("single_long"),
+            )
+        }
+    } else {
+        OfficialHyperliquidTransport::new(account.environment)?
+            .fetch(account, active_sync)
+            .await
     }
-    OfficialHyperliquidTransport::new(account.environment)?
-        .fetch(account)
-        .await
+}
+
+async fn fetch_fixture_with_progress(
+    account: &IntegrationAccount,
+    active_sync: &ActiveHyperliquidSync,
+) -> Result<NormalizedSyncData, TradingError> {
+    let scenario = account
+        .fixture_scenario
+        .as_deref()
+        .or(account.display_name.as_deref())
+        .unwrap_or("single_long");
+    for resource in [
+        "metadata",
+        "account_state",
+        "positions",
+        "fills",
+        "funding",
+        "open_orders",
+    ] {
+        active_sync.set_current_resource(resource)?;
+        if scenario == "slow_sync" || scenario == "cancel_during_fills" {
+            sleep(Duration::from_millis(180)).await;
+        }
+        active_sync.check_cancelled(resource)?;
+        active_sync.complete_resource(resource)?;
+        if scenario == "cancel_during_fills" && resource == "metadata" {
+            sleep(Duration::from_millis(240)).await;
+        }
+    }
+    if scenario == "slow_sync" || scenario == "cancel_during_fills" {
+        active_sync.check_cancelled("parse")?;
+    }
+    fixture_sync_data(account.environment, &account.normalized_address, scenario)
 }
 
 struct OfficialHyperliquidTransport {
@@ -58,12 +104,18 @@ impl OfficialHyperliquidTransport {
     async fn fetch(
         &self,
         account: &IntegrationAccount,
+        active_sync: Option<&ActiveHyperliquidSync>,
     ) -> Result<NormalizedSyncData, TradingError> {
         let now = Utc::now();
         let start = (now - ChronoDuration::days(30)).timestamp_millis();
         let end = now.timestamp_millis();
+        maybe_current(active_sync, "metadata")?;
         let metadata = self.post(json!({ "type": "meta" }), "metadata").await?;
+        maybe_complete(active_sync, "metadata")?;
+        maybe_current(active_sync, "all_mids")?;
         let all_mids = self.post(json!({ "type": "allMids" }), "all_mids").await?;
+        maybe_complete(active_sync, "all_mids")?;
+        maybe_current(active_sync, "account_state")?;
         let account_state = self
             .post(
                 json!({
@@ -73,6 +125,8 @@ impl OfficialHyperliquidTransport {
                 "account_state",
             )
             .await?;
+        maybe_complete(active_sync, "account_state")?;
+        maybe_current(active_sync, "fills")?;
         let fills = self
             .post(
                 json!({
@@ -85,6 +139,8 @@ impl OfficialHyperliquidTransport {
                 "fills",
             )
             .await?;
+        maybe_complete(active_sync, "fills")?;
+        maybe_current(active_sync, "funding")?;
         let funding = self
             .post(
                 json!({
@@ -96,6 +152,8 @@ impl OfficialHyperliquidTransport {
                 "funding",
             )
             .await?;
+        maybe_complete(active_sync, "funding")?;
+        maybe_current(active_sync, "open_orders")?;
         let orders = self
             .post(
                 json!({
@@ -105,6 +163,7 @@ impl OfficialHyperliquidTransport {
                 "open_orders",
             )
             .await?;
+        maybe_complete(active_sync, "open_orders")?;
         parse_sync_data(
             self.environment,
             &account.normalized_address,
@@ -197,4 +256,26 @@ impl OfficialHyperliquidTransport {
             .resource(resource)
         })
     }
+}
+
+fn maybe_current(
+    active_sync: Option<&ActiveHyperliquidSync>,
+    resource: &str,
+) -> Result<(), TradingError> {
+    if let Some(active_sync) = active_sync {
+        active_sync.check_cancelled(resource)?;
+        active_sync.set_current_resource(resource)?;
+    }
+    Ok(())
+}
+
+fn maybe_complete(
+    active_sync: Option<&ActiveHyperliquidSync>,
+    resource: &str,
+) -> Result<(), TradingError> {
+    if let Some(active_sync) = active_sync {
+        active_sync.check_cancelled(resource)?;
+        active_sync.complete_resource(resource)?;
+    }
+    Ok(())
 }

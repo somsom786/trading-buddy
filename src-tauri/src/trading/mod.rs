@@ -1,4 +1,5 @@
 pub mod commands;
+mod coordinator;
 mod decimal;
 mod environment;
 mod errors;
@@ -10,3 +11,4 @@ mod sync;
 mod validation;
 
 pub use commands::*;
+pub use coordinator::HyperliquidSyncCoordinator;

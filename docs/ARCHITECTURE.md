@@ -157,13 +157,17 @@ The Rust `trading` module owns the first Hyperliquid provider foundation:
 - `decimal.rs` validates provider decimal strings without converting authoritative financial
   values to floating point.
 - `responses.rs` maps official-shaped DTOs into normalized local objects.
-- `fixtures.rs` provides synthetic provider-shaped payloads for deterministic tests and development
+- `fixtures.rs` provides synthetic provider-shaped payloads plus generated slow, cancellation,
+  duplicate-heavy, and performance fixture scenarios for deterministic tests and development
   accounts.
 - `repository.rs` persists normalized account, snapshot, position, fill, funding, order, and sync
-  state rows in SQLite schema v5.
-- `sync.rs` owns the official read-only REST `/info` transport and fixture transport path.
-- `commands.rs` exposes narrow Tauri commands for validation, account management, refresh, lists,
-  and diagnostics.
+  state rows in SQLite schema v6. Fixture scenario identity is stored separately from display names.
+- `coordinator.rs` tracks one active sync per account, cooperative cancellation, current resource,
+  completed resources, and transient progress.
+- `sync.rs` owns the official read-only REST `/info` transport and fixture transport path. It checks
+  cancellation between allowlisted read-only resources.
+- `commands.rs` exposes narrow Tauri commands for validation, account management, refresh,
+  cancellation, progress, lists, fixture scenarios, and diagnostics.
 
 React cannot pass arbitrary URLs or raw provider request bodies. It sends typed account/environment
 requests through `src/services/tauri/tradingService.ts`, and every native response passes runtime

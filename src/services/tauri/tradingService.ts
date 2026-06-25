@@ -2,21 +2,25 @@ import { invoke } from '@tauri-apps/api/core';
 import {
   isHyperliquidAccountSummary,
   isHyperliquidAddressValidation,
+  isHyperliquidDiagnostics,
   isHyperliquidFill,
   isHyperliquidFunding,
   isHyperliquidOpenOrder,
   isHyperliquidPosition,
+  isHyperliquidSyncProgress,
   isHyperliquidSyncResult,
   isIntegrationAccount,
   normalizeTradingError,
   TradingException,
   type HyperliquidAccountSummary,
   type HyperliquidAddressValidation,
+  type HyperliquidDiagnostics,
   type HyperliquidEnvironment,
   type HyperliquidFill,
   type HyperliquidFunding,
   type HyperliquidOpenOrder,
   type HyperliquidPosition,
+  type HyperliquidSyncProgress,
   type HyperliquidSyncResult,
   type IntegrationAccount,
 } from '../../domain/trading/types';
@@ -32,6 +36,10 @@ export interface TradingService {
   listAccounts(): Promise<IntegrationAccount[]>;
   summary(accountId: string): Promise<HyperliquidAccountSummary>;
   sync(accountId: string): Promise<HyperliquidSyncResult>;
+  cancelSync(accountId: string): Promise<HyperliquidSyncProgress>;
+  syncProgress(accountId: string): Promise<HyperliquidSyncProgress>;
+  diagnostics(): Promise<HyperliquidDiagnostics>;
+  fixtureScenarios(): Promise<string[]>;
   pause(accountId: string): Promise<IntegrationAccount>;
   resume(accountId: string): Promise<IntegrationAccount>;
   disconnect(accountId: string): Promise<IntegrationAccount>;
@@ -65,6 +73,18 @@ export const tauriTradingService: TradingService = {
   },
   sync(accountId) {
     return invokeChecked('sync_hyperliquid_account', { accountId }, isHyperliquidSyncResult);
+  },
+  cancelSync(accountId) {
+    return invokeChecked('cancel_hyperliquid_sync', { accountId }, isHyperliquidSyncProgress);
+  },
+  syncProgress(accountId) {
+    return invokeChecked('get_hyperliquid_sync_progress', { accountId }, isHyperliquidSyncProgress);
+  },
+  diagnostics() {
+    return invokeChecked('get_hyperliquid_sync_diagnostics', undefined, isHyperliquidDiagnostics);
+  },
+  fixtureScenarios() {
+    return invokeChecked('list_hyperliquid_fixture_scenarios', undefined, isStringArray);
   },
   pause(accountId) {
     return invokeChecked('pause_hyperliquid_account', { accountId }, isIntegrationAccount);
@@ -137,3 +157,5 @@ const isFundingArray = (value: unknown): value is HyperliquidFunding[] =>
   Array.isArray(value) && value.every(isHyperliquidFunding);
 const isOpenOrderArray = (value: unknown): value is HyperliquidOpenOrder[] =>
   Array.isArray(value) && value.every(isHyperliquidOpenOrder);
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === 'string');

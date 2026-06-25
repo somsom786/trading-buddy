@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 struct Migration {
     version: i64,
@@ -429,6 +429,23 @@ CREATE INDEX IF NOT EXISTS idx_hl_fills_account_time ON hyperliquid_fills(accoun
 CREATE INDEX IF NOT EXISTS idx_hl_funding_account_time ON hyperliquid_funding(account_id, event_timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_hl_orders_current ON hyperliquid_open_order_snapshots(account_id, is_current, symbol);
 CREATE INDEX IF NOT EXISTS idx_integration_sync_runs_account_time ON integration_sync_runs(account_id, started_at DESC);
+"#,
+    },
+    Migration {
+        version: 6,
+        name: "fixture_scenario_identity",
+        sql: r#"
+ALTER TABLE integration_accounts ADD COLUMN fixture_scenario TEXT;
+
+UPDATE integration_accounts
+SET fixture_scenario = display_name
+WHERE provider = 'hyperliquid'
+  AND is_fixture = 1
+  AND display_name IS NOT NULL
+  AND fixture_scenario IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_integration_accounts_fixture_scenario
+ON integration_accounts(provider, is_fixture, fixture_scenario);
 "#,
     },
 ];

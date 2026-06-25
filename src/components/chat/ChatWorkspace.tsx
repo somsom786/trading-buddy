@@ -52,6 +52,7 @@ import { BuddyLab } from '../local-ai/BuddyLab';
 import { JournalLab } from '../local-ai/JournalLab';
 import { MemoryLab } from '../local-ai/MemoryLab';
 import { StorageLab } from '../local-ai/StorageLab';
+import { TradingLab } from '../local-ai/TradingLab';
 import { ChatComposer } from './ChatComposer';
 import { LocalAiStatusPanel } from './LocalAiStatusPanel';
 import { MessageList } from './MessageList';
@@ -1360,6 +1361,7 @@ export function ChatWorkspace({
               onRunRetention={runRetentionCleanup}
               onSimulateInterrupted={simulateInterruptedMessage}
             />
+            <TradingLab />
             <MemoryLab
               diagnostics={memoryDiagnostics}
               onRefresh={() => {

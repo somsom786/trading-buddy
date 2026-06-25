@@ -4,13 +4,16 @@ use crate::storage::errors::StorageError;
 use crate::storage::StorageService;
 
 use super::{
+    coordinator::HyperliquidSyncCoordinator,
     environment::HyperliquidEnvironment,
-    errors::TradingError,
-    fixtures::{scenario_names, SYNTHETIC_FIXTURE_ADDRESS},
+    errors::{TradingError, TradingErrorCode},
+    fixtures::{
+        scenario_exists, scenario_names, synthetic_fixture_address, SYNTHETIC_FIXTURE_ADDRESS,
+    },
     models::{
         CreateHyperliquidAccountRequest, HyperliquidAccountSummary, HyperliquidAddressValidation,
         HyperliquidDiagnostics, HyperliquidFill, HyperliquidFunding, HyperliquidOpenOrder,
-        HyperliquidPosition, HyperliquidSyncResult, IntegrationAccount,
+        HyperliquidPosition, HyperliquidSyncProgress, HyperliquidSyncResult, IntegrationAccount,
     },
     repository, sync,
     validation::{normalize_hyperliquid_address, shorten_address},
@@ -39,12 +42,22 @@ pub async fn create_hyperliquid_account(
     request: CreateHyperliquidAccountRequest,
     service: State<'_, StorageService>,
 ) -> Result<IntegrationAccount, TradingError> {
-    let address = if request.fixture_scenario.is_some() {
-        SYNTHETIC_FIXTURE_ADDRESS.to_owned()
-    } else {
-        request.public_address
-    };
-    let display_name = request.fixture_scenario.or(request.display_name);
+    let fixture_scenario = request.fixture_scenario.clone();
+    if let Some(scenario) = fixture_scenario.as_deref() {
+        if !scenario_exists(scenario) {
+            return Err(TradingError::new(
+                TradingErrorCode::FixtureNotAvailable,
+                "That Hyperliquid fixture scenario is not available.",
+                Some(format!("Unknown fixture scenario: {scenario}")),
+                false,
+            ));
+        }
+    }
+    let address = fixture_scenario
+        .as_deref()
+        .map(synthetic_fixture_address)
+        .unwrap_or(request.public_address);
+    let display_name = request.display_name;
     service
         .run(move |connection, _| {
             repository::create_account(
@@ -52,7 +65,8 @@ pub async fn create_hyperliquid_account(
                 request.environment,
                 &address,
                 display_name,
-                address == SYNTHETIC_FIXTURE_ADDRESS,
+                fixture_scenario.is_some() || address == SYNTHETIC_FIXTURE_ADDRESS,
+                fixture_scenario,
             )
             .map_err(to_storage_error)
         })
@@ -87,7 +101,9 @@ pub async fn get_hyperliquid_account_summary(
 pub async fn sync_hyperliquid_account(
     account_id: String,
     service: State<'_, StorageService>,
+    coordinator: State<'_, HyperliquidSyncCoordinator>,
 ) -> Result<HyperliquidSyncResult, TradingError> {
+    let active_sync = coordinator.start(&account_id)?;
     let account = service
         .run({
             let account_id = account_id.clone();
@@ -97,36 +113,67 @@ pub async fn sync_hyperliquid_account(
         })
         .await
         .map_err(TradingError::from_storage_read)?;
-    let data = match sync::fetch_sync_data(&account).await {
+    let data = match sync::fetch_sync_data(&account, Some(&active_sync)).await {
         Ok(data) => data,
         Err(error) => {
             let code = format!("{:?}", error.code).to_ascii_lowercase();
+            let status = if error.code == TradingErrorCode::SyncCancelled {
+                "cancelled"
+            } else {
+                "failed"
+            };
+            let resources_completed = active_sync.resources_completed().unwrap_or_default();
+            let run_id = active_sync.run_id().to_owned();
+            let started_at = active_sync.started_at().to_owned();
             let _ = service
                 .run({
                     let account_id = account_id.clone();
+                    let resources_completed = resources_completed.clone();
+                    let run_id = run_id.clone();
+                    let started_at = started_at.clone();
+                    let code = code.clone();
                     move |connection, _| {
-                        repository::fail_sync(connection, &account_id, &code)
-                            .map_err(to_storage_error)
+                        repository::record_incomplete_sync(
+                            connection,
+                            &account_id,
+                            &run_id,
+                            &started_at,
+                            status,
+                            &code,
+                            &resources_completed,
+                        )
+                        .map_err(to_storage_error)
                     }
                 })
                 .await;
             return Err(error);
         }
     };
+    let run_id = active_sync.run_id().to_owned();
+    let started_at = active_sync.started_at().to_owned();
     service
         .run(move |connection, _| {
-            repository::persist_sync(connection, &account_id, data).map_err(to_storage_error)
+            repository::persist_sync_with_run(connection, &account_id, data, run_id, started_at)
+                .map_err(to_storage_error)
         })
         .await
         .map_err(TradingError::from_storage_write)
 }
 
 #[tauri::command]
-pub async fn cancel_hyperliquid_sync(account_id: String) -> Result<(), TradingError> {
-    let _ = account_id;
-    Err(TradingError::invalid_request(
-        "No cancellable Hyperliquid sync is currently running.",
-    ))
+pub async fn cancel_hyperliquid_sync(
+    account_id: String,
+    coordinator: State<'_, HyperliquidSyncCoordinator>,
+) -> Result<HyperliquidSyncProgress, TradingError> {
+    coordinator.cancel(&account_id)
+}
+
+#[tauri::command]
+pub async fn get_hyperliquid_sync_progress(
+    account_id: String,
+    coordinator: State<'_, HyperliquidSyncCoordinator>,
+) -> Result<HyperliquidSyncProgress, TradingError> {
+    coordinator.progress(&account_id)
 }
 
 #[tauri::command]

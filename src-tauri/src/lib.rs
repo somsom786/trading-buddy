@@ -43,6 +43,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(local_ai)
+        .manage(trading::HyperliquidSyncCoordinator::new())
         .setup(|app| {
             let storage = storage::StorageService::initialize(app.handle());
             let companion_preferences = storage
@@ -147,6 +148,7 @@ pub fn run() {
             trading::get_hyperliquid_account_summary,
             trading::sync_hyperliquid_account,
             trading::cancel_hyperliquid_sync,
+            trading::get_hyperliquid_sync_progress,
             trading::pause_hyperliquid_account,
             trading::resume_hyperliquid_account,
             trading::disconnect_hyperliquid_account,

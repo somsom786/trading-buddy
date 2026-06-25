@@ -8,11 +8,11 @@ export type TradingIntent =
   | 'refresh_hyperliquid'
   | 'open_trading_home'
   | 'unsupported_trade_execution'
-  | 'none';
+  | 'not_trading_intent';
 
 export function detectTradingIntent(message: string): TradingIntent {
   const normalized = message.toLowerCase();
-  if (/\b(close|open|cancel|buy|sell|long|short)\b/.test(normalized)) {
+  if (/\b(close|open|cancel|buy|sell|long|short|market|limit)\b/.test(normalized)) {
     return 'unsupported_trade_execution';
   }
   if (normalized.includes('connect') && normalized.includes('hyperliquid')) {
@@ -36,5 +36,5 @@ export function detectTradingIntent(message: string): TradingIntent {
   if (normalized.includes('account')) {
     return 'show_account';
   }
-  return 'none';
+  return 'not_trading_intent';
 }

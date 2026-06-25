@@ -32,6 +32,22 @@
 - [ ] Add WebSocket live sync. Deferred.
 - [ ] Add charts, risk rules, alerts, recommendations, and execution. Deferred and out of scope.
 
+## Task 9C - Hyperliquid foundation hardening checkpoint
+
+- [x] Add SQLite schema v6 for fixture scenario identity.
+- [x] Add deterministic per-scenario synthetic fixture addresses.
+- [x] Add active sync coalescing, progress state, and cooperative cancellation.
+- [x] Record cancelled and failed sync runs without replacing last successful saved data.
+- [x] Add slow/cancel/duplicate-heavy/performance fixture scenarios.
+- [x] Add frontend scenario, diagnostics, sync progress, and cancellation service methods.
+- [x] Add development-only Trading Lab for fixture QA.
+- [x] Add coordinator and performance fixture tests.
+- [ ] Manually verify Trading Lab fixture creation, repeat sync, cancellation, and performance
+      timings in the desktop app.
+- [ ] Add desktop buddy quick actions for read-only trading facts.
+- [ ] Add bounded local-Qwen trading context for locally stored read-only trading facts.
+- [ ] Complete optional live public-address QA when a test address is provided.
+
 ## BETA v0.1 identity and progress journal
 
 - [x] Label the in-development desktop project BETA v0.1.

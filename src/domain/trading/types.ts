@@ -27,6 +27,7 @@ export interface IntegrationAccount {
   lastSyncErrorCode?: string;
   lastSuccessfulDataAt?: string;
   isFixture: boolean;
+  fixtureScenario?: string;
 }
 
 export type TradingDataFreshness =
@@ -112,6 +113,29 @@ export interface HyperliquidSyncResult {
   recordsInserted: number;
   recordsUpdated: number;
   recordsUnchanged: number;
+}
+
+export interface HyperliquidSyncProgress {
+  accountId: string;
+  runId?: string;
+  status: string;
+  startedAt?: string;
+  currentResource?: string;
+  resourcesCompleted: string[];
+  cancelRequested: boolean;
+}
+
+export interface HyperliquidDiagnostics {
+  accountCount: number;
+  fixtureAccountCount: number;
+  positionCount: number;
+  fillCount: number;
+  fundingCount: number;
+  openOrderCount: number;
+  syncRunCount: number;
+  cancelledSyncCount: number;
+  failedSyncCount: number;
+  latestSyncStatus?: string;
 }
 
 export interface HyperliquidAddressValidation {
@@ -227,6 +251,31 @@ export function isHyperliquidSyncResult(value: unknown): value is HyperliquidSyn
     typeof value.runId === 'string' &&
     typeof value.status === 'string' &&
     Array.isArray(value.resourcesCompleted)
+  );
+}
+
+export function isHyperliquidSyncProgress(value: unknown): value is HyperliquidSyncProgress {
+  return (
+    isRecord(value) &&
+    typeof value.accountId === 'string' &&
+    typeof value.status === 'string' &&
+    Array.isArray(value.resourcesCompleted) &&
+    typeof value.cancelRequested === 'boolean'
+  );
+}
+
+export function isHyperliquidDiagnostics(value: unknown): value is HyperliquidDiagnostics {
+  return (
+    isRecord(value) &&
+    typeof value.accountCount === 'number' &&
+    typeof value.fixtureAccountCount === 'number' &&
+    typeof value.positionCount === 'number' &&
+    typeof value.fillCount === 'number' &&
+    typeof value.fundingCount === 'number' &&
+    typeof value.openOrderCount === 'number' &&
+    typeof value.syncRunCount === 'number' &&
+    typeof value.cancelledSyncCount === 'number' &&
+    typeof value.failedSyncCount === 'number'
   );
 }
 
