@@ -9,6 +9,8 @@ interface BuddyRendererProps {
   visualState?: BuddyVisualState;
   companionService: CompanionService;
   onActivate: () => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
 }
@@ -24,6 +26,8 @@ export function BuddyRenderer({
   visualState = buddyStateToVisualState(state),
   companionService,
   onActivate,
+  onDragStart,
+  onDragEnd,
   onHoverStart,
   onHoverEnd,
 }: BuddyRendererProps) {
@@ -42,7 +46,10 @@ export function BuddyRenderer({
     const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
     if (distance >= 6) {
       start.dragging = true;
-      void companionService.startDragging();
+      onDragStart?.();
+      void companionService.startDragging().finally(() => {
+        onDragEnd?.();
+      });
     }
   };
 

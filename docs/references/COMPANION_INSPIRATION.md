@@ -111,3 +111,13 @@ Task 10 begins from Trading Buddy's existing independent codebase:
 All Task 10 world geometry, motion, identity, continuity, retrieval, compaction, consolidation, and
 privacy work must be written specifically for this codebase and tested against its own product
 requirements.
+
+## Task 11 reference revalidation
+
+On 2026-06-26, Task 11 re-fetched `https://shimejis.xyz/` and the current Odysseus default `dev`
+branch. The reviewed Odysseus commit remained
+`a9b208f4704da8ff36c8cf8700c0310bfd06065e`.
+
+The Task 11 body checkpoint was implemented independently as TypeScript domain physics, a narrow
+Tauri movement boundary, and original tests written for Trading Buddy. No Shimeji or Odysseus
+source, prompts, tests, schemas, action data, documentation text, or assets were copied or adapted.

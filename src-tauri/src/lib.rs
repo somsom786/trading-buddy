@@ -33,6 +33,21 @@ fn reset_buddy_position(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn bring_buddy_back(app: tauri::AppHandle) -> Result<(), String> {
+    window_manager::bring_buddy_back(&app)
+}
+
+#[tauri::command]
+fn move_buddy_to(app: tauri::AppHandle, x: i32, y: i32) -> Result<desktop_world::Point, String> {
+    window_manager::move_buddy_to(&app, desktop_world::Point { x, y })
+}
+
+#[tauri::command]
+fn persist_current_buddy_position(app: tauri::AppHandle) -> Result<(), String> {
+    window_manager::persist_current_buddy_position(&app)
+}
+
+#[tauri::command]
 fn get_os_idle_seconds() -> Result<u64, String> {
     platform_idle_seconds()
 }
@@ -75,8 +90,7 @@ pub fn run() {
                 }
             }
             if window.label() == "buddy" {
-                if let tauri::WindowEvent::Moved(position) = event {
-                    window_manager::persist_buddy_position(window.app_handle(), *position);
+                if let tauri::WindowEvent::Moved(_) = event {
                     let _ = window_manager::position_bubble(window.app_handle());
                 }
             }
@@ -93,6 +107,9 @@ pub fn run() {
             toggle_companion_bubble,
             position_companion_bubble,
             reset_buddy_position,
+            bring_buddy_back,
+            move_buddy_to,
+            persist_current_buddy_position,
             get_os_idle_seconds,
             get_desktop_world_snapshot,
             commands::local_ai::list_local_models,

@@ -1,5 +1,6 @@
 import { emitTo, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import {
   COMPANION_EVENT_NAMES,
   isCompanionCommand,
@@ -65,6 +66,7 @@ export const tauriCompanionService: CompanionService = {
   async startDragging() {
     if ('__TAURI_INTERNALS__' in window) {
       await getCurrentWindow().startDragging();
+      await invoke('persist_current_buddy_position');
     }
   },
 };

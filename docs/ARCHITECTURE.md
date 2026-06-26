@@ -64,9 +64,43 @@ The TypeScript service in `src/services/tauri/desktopWorldService.ts` validates 
 before application code can use it. Unsupported platforms currently return Tauri monitor geometry
 with `monitor_only_fallback`; they do not claim visible application-surface support.
 
-M2 intentionally exposes snapshots on demand rather than starting a poll loop. Future motion code
-must use bounded active/resting rates, expire surface validity, and avoid database writes or React
-rerenders per simulation tick.
+Task 10 M2 intentionally exposed snapshots on demand rather than starting a poll loop. Task 11's
+creature runtime now requests them at bounded activity-specific rates, expires surface validity,
+and avoids database writes or React rerenders per simulation tick.
+
+## Creature simulation and native movement
+
+Task 11 C2 adds framework-independent body modules under `src/domain/creature/`:
+
+- `types.ts` separates physical, behavior, locomotion, drag, surface, and clock state;
+- `surfaces.ts` converts sanitized snapshots into monitor floors and expiring window-top surfaces;
+- `physics.ts` owns walk acceleration/braking, gravity, terminal velocity, landing, edges, drops,
+  and safe recovery;
+- `simulation.ts` advances physics through a bounded 30 Hz fixed-step accumulator;
+- `planner.ts` produces seeded, cooldown-bound idle/walk/sit/sleep/write decisions.
+
+`DesktopCreatureRuntime` schedules simulation ticks independently from React rendering. It refreshes
+world snapshots at activity-specific bounded intervals, suppresses overlapping native move calls,
+pauses autonomy during conversation/direct interaction, and keeps operating without Ollama.
+
+The native `move_buddy_to` command clamps every programmatic position to a current work area before
+moving the window. Startup restoration uses the same boundary. `Bring Buddy Back` selects a safe
+primary work-area location, persists it, and reanchors the bubble.
+
+Autonomous movement does not persist every tick. The final position is saved after native drag
+completion or an explicit bring-back action. This avoids continuous filesystem writes while
+preserving user placement.
+
+Native Tauri dragging remains the single operating-system drag owner. Crossing the renderer's
+threshold enters `dragged`; completion persists/clamps the native position and enters
+`dropped -> fall -> land -> recover`. Reduced-motion drop uses immediate safe placement.
+
+Current limitations:
+
+- surfaces expire safely, but following a moving window is not implemented yet;
+- movement intensity and autonomy settings are not yet exposed in product UI;
+- static poses provide state fallbacks; a full animation-intent renderer is C4;
+- Creature Lab diagnostics remain C4.
 
 ## Local model provider
 

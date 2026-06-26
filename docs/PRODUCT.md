@@ -50,6 +50,11 @@ The buddy's physical presence, drag behavior, and deterministic ambient state do
 Ollama. Local conversation uses a loopback-only Ollama instance and Rust-owned SQLite persistence.
 Temporary chat remains available for in-memory-only sessions.
 
+Task 11 adds the first real body runtime: fixed-timestep movement, gravity, safe landing,
+out-of-bounds recovery, bounded autonomous actions, and a guaranteed Bring Buddy Back path. The
+body continues operating when Ollama is stopped. Temporary poses remain visual fallbacks while the
+animation-intent layer is still under development.
+
 Desktop geometry is allowed only to support physical presence. Monitor/work-area bounds, sanitized
 window rectangles, buddy/bubble geometry, and optional cursor position may be used. Window titles,
 application/process identity, URLs, screen content, text, keystrokes, clipboard data, and

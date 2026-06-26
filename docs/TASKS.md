@@ -1,5 +1,35 @@
 # Tasks
 
+## Task 11 — Core companion completion
+
+The frontend-wide redesign remains postponed. This task is proceeding through coherent,
+independently passing checkpoints.
+
+### Current checkpoint status
+
+- [x] C1 — Audit Task 10, refresh mandatory references, establish a clean baseline, and create the
+      Task 11 plan and QA journal.
+- [x] C2 — Add deterministic fixed-timestep physics, gravity, landing, safe spawn/recovery,
+      native work-area clamping, and Bring Buddy Back.
+- [ ] C3 — Complete drag/drop, surfaces, and autonomous planner.
+  - [x] Click-versus-drag threshold and one native drag owner.
+  - [x] Dropped, fall, land, and recover transitions, including reduced-motion safe placement.
+  - [x] Monitor-floor and expiring geometry-only window-top surfaces.
+  - [x] Seeded autonomous idle, walk, sit, sleep, and writing decisions with cooldowns.
+  - [x] Activity-specific bounded world snapshot scheduling.
+  - [ ] Conservatively follow a moving window surface.
+  - [ ] Expose autonomous-movement enablement and low/medium/lively intensity in product UI.
+  - [ ] Complete direct manual drag/drop, window-surface, multi-monitor, DPI, and tray QA.
+- [ ] C4 — Animation intent and Creature Lab.
+- [ ] C5 — Memory compatibility migration.
+- [ ] C6 — Summaries, context budget, and compaction.
+- [ ] C7 — Local embeddings and hybrid retrieval.
+- [ ] C8 — Episodes, entities, and current-life context.
+- [ ] C9 — Consolidation jobs and restart learning.
+- [ ] C10 — Conversation modes and companion state.
+- [ ] C11 — Privacy UI, offline modes, and Continuity Lab.
+- [ ] C12 — Performance, full manual QA, and final documentation.
+
 ## Task 10 — Creature-first mission reset
 
 Mission: **Shimeji body. Odysseus brain. Crypto-native soul.**

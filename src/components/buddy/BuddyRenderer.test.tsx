@@ -29,12 +29,26 @@ describe('BuddyRenderer', () => {
 
   it('starts dragging without opening the main window', () => {
     const onActivate = vi.fn();
-    render(<BuddyRenderer state="idle" companionService={service} onActivate={onActivate} />);
+    const onDragStart = vi.fn();
+    const onDragEnd = vi.fn();
+    render(
+      <BuddyRenderer
+        state="idle"
+        companionService={service}
+        onActivate={onActivate}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+      />,
+    );
     const buddy = screen.getByRole('button', { name: 'Talk to Trading Buddy' });
     fireEvent.pointerDown(buddy, { pointerId: 2, clientX: 10, clientY: 10 });
     fireEvent.pointerMove(buddy, { pointerId: 2, clientX: 30, clientY: 30 });
     fireEvent.pointerUp(buddy, { pointerId: 2, clientX: 30, clientY: 30 });
     expect(startDragging).toHaveBeenCalled();
+    expect(onDragStart).toHaveBeenCalledOnce();
     expect(onActivate).not.toHaveBeenCalled();
+    return vi.waitFor(() => {
+      expect(onDragEnd).toHaveBeenCalledOnce();
+    });
   });
 });

@@ -173,6 +173,120 @@ pub fn snapshot<R: Runtime>(
     })
 }
 
+pub fn clamp_buddy_position<R: Runtime>(
+    app: &AppHandle<R>,
+    preferred: Point,
+) -> Result<Point, String> {
+    let buddy = app
+        .get_webview_window("buddy")
+        .ok_or_else(|| "buddy window not found".to_owned())?;
+    let size = buddy.outer_size().map_err(|error| error.to_string())?;
+    let (work_areas, primary_bounds) = work_areas_with_primary(app)?;
+    let center = Point {
+        x: preferred.x.saturating_add(size.width as i32 / 2),
+        y: preferred.y.saturating_add(size.height as i32 / 2),
+    };
+    let area = work_areas
+        .iter()
+        .find(|area| area.contains(center))
+        .or_else(|| {
+            primary_bounds
+                .and_then(|primary| work_areas.iter().find(|area| area.intersects(primary)))
+        })
+        .or_else(|| nearest_rect(&work_areas, center))
+        .ok_or_else(|| "no monitor work area is available".to_owned())?;
+    Ok(area.clamp_window(preferred, size.width as i32, size.height as i32, 8))
+}
+
+pub fn safe_buddy_home<R: Runtime>(app: &AppHandle<R>) -> Result<Point, String> {
+    let buddy = app
+        .get_webview_window("buddy")
+        .ok_or_else(|| "buddy window not found".to_owned())?;
+    let size = buddy.outer_size().map_err(|error| error.to_string())?;
+    let (work_areas, primary_bounds) = work_areas_with_primary(app)?;
+    let area = primary_bounds
+        .and_then(|primary| {
+            work_areas
+                .iter()
+                .find(|candidate| candidate.intersects(primary))
+        })
+        .or_else(|| work_areas.first())
+        .ok_or_else(|| "no monitor work area is available".to_owned())?;
+    Ok(area.clamp_window(
+        Point {
+            x: area
+                .right()
+                .saturating_sub(i64::from(size.width as i32))
+                .saturating_sub(48)
+                .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
+            y: area
+                .bottom()
+                .saturating_sub(i64::from(size.height as i32))
+                .saturating_sub(48)
+                .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
+        },
+        size.width as i32,
+        size.height as i32,
+        8,
+    ))
+}
+
+fn work_areas_with_primary<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<(Vec<SurfaceRect>, Option<SurfaceRect>), String> {
+    let platform = platform_adapter().platform_geometry(false);
+    let monitors = app
+        .available_monitors()
+        .map_err(|error| error.to_string())?;
+    let work_areas = if platform.monitor_work_areas.is_empty() {
+        monitors
+            .iter()
+            .map(|monitor| {
+                let position = monitor.position();
+                let size = monitor.size();
+                SurfaceRect::new(
+                    position.x,
+                    position.y,
+                    size.width as i32,
+                    size.height as i32,
+                )
+            })
+            .collect()
+    } else {
+        platform
+            .monitor_work_areas
+            .into_iter()
+            .map(|(_, work_area)| work_area)
+            .collect()
+    };
+    let primary_bounds = app
+        .primary_monitor()
+        .map_err(|error| error.to_string())?
+        .map(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            SurfaceRect::new(
+                position.x,
+                position.y,
+                size.width as i32,
+                size.height as i32,
+            )
+        });
+    Ok((work_areas, primary_bounds))
+}
+
+fn nearest_rect(rectangles: &[SurfaceRect], point: Point) -> Option<&SurfaceRect> {
+    rectangles.iter().min_by_key(|rect| {
+        let center_x = i64::from(rect.x) + i64::from(rect.width) / 2;
+        let center_y = i64::from(rect.y) + i64::from(rect.height) / 2;
+        let delta_x = center_x - i64::from(point.x);
+        let delta_y = center_y - i64::from(point.y);
+        delta_x
+            .saturating_mul(delta_x)
+            .saturating_add(delta_y.saturating_mul(delta_y))
+    })
+}
+
 fn webview_rect<R: Runtime>(window: &tauri::WebviewWindow<R>) -> Result<SurfaceRect, String> {
     let position = window.outer_position().map_err(|error| error.to_string())?;
     let size = window.outer_size().map_err(|error| error.to_string())?;
@@ -245,6 +359,32 @@ impl SurfaceRect {
             && (i64::from(self.y) - i64::from(other.y)).abs() <= 2
             && (i64::from(self.width) - i64::from(other.width)).abs() <= 2
             && (i64::from(self.height) - i64::from(other.height)).abs() <= 2
+    }
+
+    fn contains(self, point: Point) -> bool {
+        i64::from(point.x) >= i64::from(self.x)
+            && i64::from(point.x) <= self.right()
+            && i64::from(point.y) >= i64::from(self.y)
+            && i64::from(point.y) <= self.bottom()
+    }
+
+    fn clamp_window(self, point: Point, width: i32, height: i32, margin: i32) -> Point {
+        let min_x = self.x.saturating_add(margin);
+        let min_y = self.y.saturating_add(margin);
+        let max_x = self
+            .right()
+            .saturating_sub(i64::from(width))
+            .saturating_sub(i64::from(margin))
+            .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        let max_y = self
+            .bottom()
+            .saturating_sub(i64::from(height))
+            .saturating_sub(i64::from(margin))
+            .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+        Point {
+            x: point.x.clamp(min_x, max_x.max(min_x)),
+            y: point.y.clamp(min_y, max_y.max(min_y)),
+        }
     }
 }
 
@@ -436,6 +576,41 @@ mod tests {
         );
 
         assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn clamps_extreme_positions_into_negative_or_primary_work_areas() {
+        let negative = SurfaceRect::new(-1920, 0, 1920, 1040);
+        let primary = SurfaceRect::new(0, 0, 1920, 1040);
+
+        assert_eq!(
+            negative.clamp_window(
+                Point {
+                    x: i32::MIN,
+                    y: i32::MAX
+                },
+                140,
+                140,
+                8
+            ),
+            Point { x: -1912, y: 892 }
+        );
+        assert_eq!(
+            primary.clamp_window(
+                Point {
+                    x: i32::MAX,
+                    y: i32::MIN
+                },
+                140,
+                140,
+                8
+            ),
+            Point { x: 1772, y: 8 }
+        );
+        assert_eq!(
+            super::nearest_rect(&[negative, primary], Point { x: -1500, y: 400 }),
+            Some(&negative)
+        );
     }
 
     #[test]

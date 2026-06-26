@@ -631,3 +631,38 @@ Buddy's identity or enter every conversation.
 Local Ollama remains the default model provider and production endpoints stay loopback-only.
 Physical creature behavior, local data inspection, journal writing, and lexical continuity must
 degrade gracefully when the model is unavailable. Cloud model routing is not introduced by Task 10.
+
+## 077 - Run creature physics outside React at a fixed timestep
+
+**Status:** Accepted
+
+Creature physics is framework-independent domain code advanced by a bounded 30 Hz fixed-step
+accumulator. React receives state for rendering but does not own time, collision, or movement.
+This keeps movement deterministic in tests and prevents WebView render frequency from changing the
+simulation.
+
+## 078 - Clamp native movement and persist only meaningful placement
+
+**Status:** Accepted
+
+Every programmatic buddy move is clamped against current native work areas before the window is
+moved. Startup restoration uses the same boundary, and Bring Buddy Back selects a safe visible
+location. Autonomous ticks are not written to storage; placement is persisted after direct native
+drag completion and explicit bring-back actions to avoid continuous filesystem writes.
+
+## 079 - Keep native Tauri dragging as the sole drag owner
+
+**Status:** Accepted
+
+The renderer distinguishes click from drag with a six-pixel threshold, then delegates movement to
+Tauri's native window drag. The simulation observes drag start and completion but does not run a
+second pointer-following implementation. This avoids ghost movement, competing offsets, and
+duplicate native calls.
+
+## 080 - Treat current character poses as honest state fallbacks
+
+**Status:** Accepted
+
+The temporary project artwork may represent locomotion states while the behavior engine matures,
+but static images are not described as frame animation. A future animation-intent layer and
+Creature Lab may replace the renderer without changing physics or planning rules.

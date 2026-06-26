@@ -98,7 +98,10 @@ Trading Buddy now starts companion-first:
 - Companion Home stays hidden by default.
 - The tray remains available.
 - Local AI or storage failures do not automatically open the full application.
-- The buddy position is restored from local app config.
+- The buddy position is restored and clamped to a current monitor work area.
+- Missing, extreme, or disconnected-monitor positions recover to a safe visible location.
+- The buddy can autonomously fall to a surface, walk short bounded distances, sit, rest, write, and
+  sleep without Ollama.
 
 The persisted setting `Open Companion Home at startup` exists and defaults to disabled. There is no
 user-facing settings screen for it yet.
@@ -177,8 +180,26 @@ movement:
 
 It does not collect or expose window titles, application names, process names, browser URLs, screen
 pixels, screenshots, text, keyboard input, clipboard data, or accessibility-tree content. The
-current M2 checkpoint provides typed snapshots and privacy validation; autonomous surface movement
-is a later checkpoint.
+Task 11 runtime consumes these snapshots through deterministic fixed-timestep physics and a bounded
+autonomous planner. Monitor floors and sanitized window tops become temporary geometry-only
+surfaces. Moving-window following and full Creature Lab diagnostics remain pending.
+
+## Living creature runtime
+
+The current body runtime:
+
+- runs deterministic physics at a 30 Hz fixed timestep independent of React rendering;
+- applies acceleration, gravity, terminal velocity, edge clamping, landing, and recovery;
+- pauses autonomous walking during conversation and direct dragging;
+- refreshes world geometry at bounded rates based on activity;
+- uses native window dragging as the single drag owner;
+- converts drag completion into dropped, fall, land, and recover states;
+- keeps the bubble anchored while the buddy moves;
+- validates every programmatic native position against current work areas;
+- avoids writing the saved position on every autonomous movement tick.
+
+The temporary static pose images remain honest fallback art. Walking and falling currently use
+restrained pose/CSS intent rather than pretending that complete frame animation exists.
 
 ## Companion memory
 
@@ -287,7 +308,7 @@ The tray contains companion-first actions:
 - Sleep
 - Wake
 - Do Not Disturb
-- Reset Position
+- Bring Buddy Back
 - Quit
 
 Do Not Disturb, quiet hours, proactive check-in settings, placement mode, launch-at-login, and
@@ -417,8 +438,12 @@ application config directory. Conversations are stored separately in the app-loc
 - The desktop bubble can show saved read-only trading facts, but full manual WebView/tray fixture
   QA remains pending.
 - Hyperliquid data is user-triggered/saved-state awareness, not WebSocket live sync.
-- The desktop-world service is geometry-only; creature physics and surface following are not yet
-  wired to it.
+- Window-top landing exists, but conservative following of a moving window surface is not yet
+  implemented.
+- Autonomous movement intensity is not yet exposed as a user-facing low/medium/lively setting.
+- Creature Lab does not yet show live physics/surface/tick diagnostics.
+- Task 11 semantic memory, episodes, entities, compaction, embeddings, consolidation, and
+  conversation modes remain pending.
 - The buddy artwork and animations are development placeholders.
 
 ## Buddy design direction

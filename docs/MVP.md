@@ -142,7 +142,11 @@ rather than the current product direction.
 
 - Buddy appears without opening Companion Home and remains draggable/useful when Ollama is offline.
 - Windows desktop geometry is collected through a narrow geometry-only native boundary.
-- Buddy cannot become permanently unreachable and offers a tray-level bring-back action.
+- Fixed-timestep walk, gravity, landing, drag/drop recovery, safe spawn, and work-area clamping are
+  implemented.
+- Buddy cannot become permanently unreachable and offers a tray-level Bring Buddy Back action.
+- Geometry-only monitor floors and sanitized window tops are available as creature surfaces.
+- Seeded autonomy uses cooldowns and pauses during conversation or direct interaction.
 - A named project or meaningful event can be recalled after restart from different wording.
 - Retrieval is bounded and explains its reason without exposing hidden reasoning.
 - The user can inspect, correct, forget, export, or disable continuity features.

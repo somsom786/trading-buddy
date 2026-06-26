@@ -50,7 +50,7 @@ export function isDesktopWorldSnapshot(value: unknown): value is DesktopWorldSna
   return (
     isSurfaceRect(value.buddyRect) &&
     (value.bubbleRect === null || isSurfaceRect(value.bubbleRect)) &&
-    (value.cursorPosition === null || isPoint(value.cursorPosition)) &&
+    (value.cursorPosition === null || isDesktopPoint(value.cursorPosition)) &&
     isFiniteNumber(value.capturedAtMs) &&
     value.capturedAtMs >= 0 &&
     (value.surfaceSupport === 'windows_geometry' ||
@@ -91,7 +91,7 @@ function isSurfaceRect(value: unknown): value is SurfaceRect {
   );
 }
 
-function isPoint(value: unknown): value is DesktopPoint {
+export function isDesktopPoint(value: unknown): value is DesktopPoint {
   return isRecord(value) && isFiniteNumber(value.x) && isFiniteNumber(value.y);
 }
 

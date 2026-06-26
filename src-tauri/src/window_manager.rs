@@ -27,6 +27,7 @@ enum NativeCompanionCommand {
     ToggleBubble,
     SetState { state: &'static str },
     DoNotDisturb,
+    BringBuddyBack,
 }
 
 pub fn open_window<R: Runtime>(app: &AppHandle<R>, label: &str) -> Result<(), String> {
@@ -131,30 +132,66 @@ pub fn position_bubble<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
 }
 
 pub fn reset_buddy_position<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    bring_buddy_back(app)
+}
+
+pub fn bring_buddy_back<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
+    let position = crate::desktop_world::safe_buddy_home(app)?;
+    set_buddy_position(app, position, true)
+}
+
+pub fn move_buddy_to<R: Runtime>(
+    app: &AppHandle<R>,
+    preferred: crate::desktop_world::Point,
+) -> Result<crate::desktop_world::Point, String> {
+    let position = crate::desktop_world::clamp_buddy_position(app, preferred)?;
+    set_buddy_position(app, position, false)?;
+    Ok(position)
+}
+
+pub fn persist_current_buddy_position<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let buddy = app
         .get_webview_window(BUDDY_LABEL)
         .ok_or_else(|| "buddy window not found".to_owned())?;
-    let buddy_size = buddy.outer_size().map_err(|error| error.to_string())?;
-    let work_area = monitor_bounds(app, &buddy)?;
-    let x = work_area.x + work_area.width - buddy_size.width as i32 - 48;
-    let y = work_area.y + work_area.height - buddy_size.height as i32 - 80;
-    let position = PhysicalPosition::new(x, y);
-    buddy
-        .set_position(position)
-        .map_err(|error| error.to_string())?;
+    let raw = buddy.outer_position().map_err(|error| error.to_string())?;
+    let safe = crate::desktop_world::clamp_buddy_position(
+        app,
+        crate::desktop_world::Point { x: raw.x, y: raw.y },
+    )?;
+    let position = PhysicalPosition::new(safe.x, safe.y);
+    if raw != position {
+        buddy
+            .set_position(position)
+            .map_err(|error| error.to_string())?;
+    }
     persist_buddy_position(app, position);
     position_bubble(app)
 }
 
 pub fn restore_buddy_position<R: Runtime>(app: &AppHandle<R>) {
     let Some(position) = load_position(app) else {
+        let _ = bring_buddy_back(app);
         return;
     };
     let Some(window) = app.get_webview_window(BUDDY_LABEL) else {
         return;
     };
-
-    let _ = window.set_position(PhysicalPosition::new(position.x, position.y));
+    let preferred = crate::desktop_world::Point {
+        x: position.x,
+        y: position.y,
+    };
+    match crate::desktop_world::clamp_buddy_position(app, preferred) {
+        Ok(safe) => {
+            let safe_position = PhysicalPosition::new(safe.x, safe.y);
+            let _ = window.set_position(safe_position);
+            if safe != preferred {
+                persist_buddy_position(app, safe_position);
+            }
+        }
+        Err(_) => {
+            let _ = bring_buddy_back(app);
+        }
+    }
 }
 
 pub fn apply_startup_preferences<R: Runtime>(
@@ -203,8 +240,13 @@ pub fn create_tray(app: &App) -> tauri::Result<()> {
     let wake = MenuItem::with_id(app, "wake", "Wake", true, None::<&str>)?;
     let do_not_disturb =
         MenuItem::with_id(app, "do_not_disturb", "Do Not Disturb", true, None::<&str>)?;
-    let reset_position =
-        MenuItem::with_id(app, "reset_position", "Reset Position", true, None::<&str>)?;
+    let bring_back_item = MenuItem::with_id(
+        app,
+        "bring_buddy_back",
+        "Bring Buddy Back",
+        true,
+        None::<&str>,
+    )?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
@@ -216,7 +258,7 @@ pub fn create_tray(app: &App) -> tauri::Result<()> {
             &sleep,
             &wake,
             &do_not_disturb,
-            &reset_position,
+            &bring_back_item,
             &quit,
         ],
     )?;
@@ -268,8 +310,13 @@ pub fn create_tray(app: &App) -> tauri::Result<()> {
                     NativeCompanionCommand::DoNotDisturb,
                 );
             }
-            "reset_position" => {
-                let _ = reset_buddy_position(app);
+            "bring_buddy_back" => {
+                let _ = bring_buddy_back(app);
+                let _ = app.emit_to(
+                    BUDDY_LABEL,
+                    COMPANION_COMMAND_EVENT,
+                    NativeCompanionCommand::BringBuddyBack,
+                );
             }
             "quit" => app.exit(0),
             _ => {}
@@ -289,6 +336,24 @@ fn validate_label(label: &str) -> Result<(), String> {
     } else {
         Err(format!("unknown window label: {label}"))
     }
+}
+
+fn set_buddy_position<R: Runtime>(
+    app: &AppHandle<R>,
+    position: crate::desktop_world::Point,
+    persist: bool,
+) -> Result<(), String> {
+    let buddy = app
+        .get_webview_window(BUDDY_LABEL)
+        .ok_or_else(|| "buddy window not found".to_owned())?;
+    let physical_position = PhysicalPosition::new(position.x, position.y);
+    buddy
+        .set_position(physical_position)
+        .map_err(|error| error.to_string())?;
+    if persist {
+        persist_buddy_position(app, physical_position);
+    }
+    position_bubble(app)
 }
 
 #[derive(Clone, Copy)]

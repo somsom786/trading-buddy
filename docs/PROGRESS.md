@@ -6,6 +6,25 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 26, 2026 - Task 11 C1/C2 living-body checkpoint
+
+- Audited Task 10 accurately as M1/M2 only and postponed the proposed frontend redesign.
+- Revalidated Shimeji as behavior-only inspiration and the current Odysseus `dev` branch as an
+  AGPL architectural reference without copying code, prompts, schemas, tests, documentation, or
+  assets.
+- Added framework-independent 30 Hz fixed-timestep creature physics with walking, gravity,
+  terminal velocity, landing, edge handling, drops, safe recovery, and negative-coordinate tests.
+- Added native work-area clamping for restored and programmatic positions plus a durable Bring
+  Buddy Back tray action.
+- Added the coherent portion of C3: native drag ownership, monitor/window-top surfaces, bounded
+  world refresh, and a seeded cooldown-based autonomous planner that works without Ollama.
+- Verified a real debug desktop window falling to the monitor floor and autonomously walking
+  horizontally. Direct manual drag/drop, moving-window following, multi-monitor/DPI checks,
+  preference UI, and Creature Lab remain pending.
+- C4-C12, including all learning-mind memory work, remain unclaimed.
+- Detailed handoff report:
+  [`docs/reports/TASK-011-living-learning-companion.md`](reports/TASK-011-living-learning-companion.md)
+
 ### June 26, 2026 - Task 10 M1/M2 creature-first reset
 
 - Reset the product north star to a living local desktop creature with companion identity,
