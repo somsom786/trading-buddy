@@ -2,17 +2,22 @@
 
 ## Goal
 
-Validate that a local desktop creature can help a trader capture context and review decisions with
-minimal interruption, while the full application remains a secondary Companion Home for deeper
-work.
+Validate that a private local creature can physically live on the desktop, continue functioning
+without a model, hold natural local conversations, and remember a meaningful project or event
+across restart under transparent user control.
 
 ## Candidate MVP scope
 
 - Desktop buddy visible at launch without opening Companion Home.
 - Attached conversation bubble for the user's everyday local chat, using existing Ollama streaming
   and privacy-first local conversation persistence.
-- Deterministic ambient life: breathing, blinking, looking, sitting, stretching, sleeping, waking,
-  and explicit listening/thinking/talking states.
+- Deterministic creature movement with safe spawn, walking, falling, landing, drag/drop, recovery,
+  edge handling, reduced motion, and a guaranteed bring-back path.
+- Geometry-only desktop surfaces: monitors, work areas, and sanitized window rectangles without
+  window identity or content.
+- Replaceable animation manifest with honest fallback to temporary pose assets.
+- Persistent companion identity and deterministic inspectable internal state without affection or
+  dependency scores.
 - Respectful proactive check-in engine based on templates, cooldowns, quiet hours, Do Not Disturb,
   and idle/session timing.
 - Placement behavior for free floating, left dock, right dock, and taskbar-perch positioning,
@@ -20,8 +25,10 @@ work.
 - Companion Home for history, privacy/storage controls, development labs, and longer
   conversations.
 - Local trading journal with structured entries.
+- Local semantic and lexical memory with restart continuity, provenance, correction, and deletion.
+- Context budgeting and compaction that preserve recent turns and original history.
 - Review workflow for decisions and outcomes.
-- Read-only market or exchange context after a separate security review.
+- Optional read-only market or exchange skills after a separate security review.
 - Export and deletion controls for all local user data.
 - Settings for privacy, data retention, and optional integrations.
 
@@ -32,6 +39,9 @@ work.
 - Autonomous order execution.
 - Copy trading.
 - Cloud accounts or synchronization by default.
+- Screen reading, screenshots, OCR, window titles, process names, keylogging, or clipboard
+  monitoring.
+- Affection scores, jealousy, guilt, dependency mechanics, or fake consciousness claims.
 - Guaranteed predictions, returns, or financial advice.
 
 ## Foundation exit criteria
@@ -124,3 +134,15 @@ work.
   requests.
 - Keep WebSocket live sync, charts, risk engines, trading recommendations, and execution out of
   scope.
+
+Task 9E is paused after Rust-owned active account persistence. Hyperliquid remains an optional skill
+rather than the current product direction.
+
+## Creature-first continuity milestone
+
+- Buddy appears without opening Companion Home and remains draggable/useful when Ollama is offline.
+- Windows desktop geometry is collected through a narrow geometry-only native boundary.
+- Buddy cannot become permanently unreachable and offers a tray-level bring-back action.
+- A named project or meaningful event can be recalled after restart from different wording.
+- Retrieval is bounded and explains its reason without exposing hidden reasoning.
+- The user can inspect, correct, forget, export, or disable continuity features.

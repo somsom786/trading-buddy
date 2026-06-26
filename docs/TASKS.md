@@ -1,5 +1,47 @@
 # Tasks
 
+## Task 10 — Creature-first mission reset
+
+Mission: **Shimeji body. Odysseus brain. Crypto-native soul.**
+
+### M1 — Research, licensing, product reset, baseline
+
+- [x] Inspect the repository, migrations, native capabilities, companion, model, memory, journal,
+      and optional trading boundaries.
+- [x] Study the current Shimeji interaction model as behavioral inspiration.
+- [x] Inspect the required current Odysseus files as an AGPL architectural reference.
+- [x] Document independent implementation and licensing boundaries.
+- [x] Run the untouched full validation baseline with no pre-existing failures.
+- [x] Make product docs and Companion Home navigation creature-first.
+- [x] Move Trading conceptually and visually under optional Skills.
+- [x] Pause Task 9E without deleting its completed read-only foundation.
+
+### M2 — Desktop world model and geometry privacy
+
+- [x] Add a typed native desktop-world snapshot.
+- [x] Add Windows monitor bounds, work areas, scale factors, and geometry-only visible window
+      rectangles.
+- [x] Exclude minimized, invalid, off-screen, buddy, and bubble rectangles.
+- [x] Make cursor position explicit opt-in.
+- [x] Add monitor-only fallback semantics for unsupported platforms.
+- [x] Add a narrow TypeScript service and strict runtime validation.
+- [x] Add privacy, negative-coordinate, sanitization, and malformed-boundary tests.
+- [ ] Perform manual multi-monitor, DPI, taskbar, rotation, and window-surface QA.
+
+### M3–M13 — Pending
+
+- [ ] M3 — Movement, physics, drag/drop, and safe recovery.
+- [ ] M4 — Animation architecture and autonomous planner.
+- [ ] M5 — Companion identity and deterministic internal state.
+- [ ] M6 — Episodic/entity schema and compatibility migration.
+- [ ] M7 — Local embeddings and hybrid retrieval.
+- [ ] M8 — Context compaction and conversation continuity.
+- [ ] M9 — Background consolidation.
+- [ ] M10 — Conversation modes and presence experience.
+- [ ] M11 — Local-model onboarding and offline modes.
+- [ ] M12 — Privacy dashboard and development labs.
+- [ ] M13 — Performance, manual QA, and final documentation.
+
 ## Foundation
 
 - [x] Scaffold Tauri 2, React, TypeScript, and Vite.
@@ -74,6 +116,9 @@
 
 ## Task 9E - Live sync and reconstruction foundation
 
+**Status:** Paused by Task 10 after E1. Preserve the completed read-only foundation; do not continue
+E2+ during the creature-first mission.
+
 ### E1 - Rust-owned active-account setting
 
 - [x] Create Task 9E QA plan and journal.
@@ -91,7 +136,7 @@
 
 ### E2+ - Still pending
 
-- [ ] Research and document the current official Hyperliquid WebSocket contract.
+- [ ] Paused: research and document the current official Hyperliquid WebSocket contract.
 - [ ] Add official allowlisted WebSocket host mapping.
 - [ ] Add typed read-only subscription model.
 - [ ] Add Rust-owned live connection lifecycle and generation IDs.

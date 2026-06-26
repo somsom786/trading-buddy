@@ -1333,17 +1333,27 @@ export function ChatWorkspace({
 
         {storageAvailable ? (
           <>
-            <TradingPanel />
-            <JournalPanel
-              storageService={storageService}
-              onNotice={setStorageNotice}
-              onError={setStorageError}
-            />
             <MemoryPanel
               storageService={storageService}
               onNotice={setStorageNotice}
               onError={setStorageError}
             />
+            <JournalPanel
+              storageService={storageService}
+              onNotice={setStorageNotice}
+              onError={setStorageError}
+            />
+            <section className="skills-surface" aria-labelledby="skills-surface-title">
+              <header>
+                <p className="eyebrow">Optional capabilities</p>
+                <h2 id="skills-surface-title">Skills</h2>
+                <p>
+                  Skills add focused tools without defining Buddy’s identity or entering unrelated
+                  conversations.
+                </p>
+              </header>
+              <TradingPanel />
+            </section>
           </>
         ) : null}
 

@@ -562,3 +562,72 @@ keeps future live-sync/reconstruction coordinators from depending on WebView-loc
 The frontend may migrate and remove the old browser key once, but it no longer treats
 `localStorage` as authoritative. Active-account changes are sent to windows as sanitized account-ID
 events, not raw account records or provider payloads.
+
+## 069 - Pause Task 9E after E1
+
+**Status:** Accepted
+
+Live Hyperliquid WebSockets, reconstruction, risk dashboards, and advanced exchange infrastructure
+are paused after the completed Rust-owned active-account checkpoint. The existing read-only
+provider remains functional as an optional skill. Continuing exchange depth now would optimize a
+dashboard while the core creature, continuity, and presence experience remains immature.
+
+## 070 - The living creature is the product
+
+**Status:** Accepted
+
+The product hierarchy starts with physical desktop presence, then companion identity,
+conversation, continuity, routines, optional skills, and finally Companion Home. The large window
+is an inspection and settings surface, not the default product. Creature behavior must remain
+useful when Ollama is unavailable.
+
+## 071 - Shimeji is behavioral inspiration only
+
+**Status:** Accepted
+
+Shimeji demonstrates independent movement, direct pickup/dragging, and screen-surface presence.
+Trading Buddy will implement those principles independently with its original character and
+architecture. No Shimeji art, character packs, action data, or extension code may be used.
+
+## 072 - Odysseus is architectural inspiration only
+
+**Status:** Accepted
+
+Odysseus informed concepts such as explicit memory commands, provider fallback, bounded context,
+compaction, semantic/lexical degradation, and restart-safe background jobs. It is licensed
+AGPL-3.0-or-later. No Odysseus code, prompts, tests, schemas, docs, or assets were copied or adapted.
+Any future source-level reuse requires explicit owner approval and a separate licensing review.
+
+## 073 - Desktop awareness is geometry-only
+
+**Status:** Accepted
+
+Creature movement may use monitor bounds, work areas, sanitized top-level window rectangles,
+buddy/bubble geometry, and an explicitly requested cursor coordinate. Window titles, process or
+application names, URLs, pixels, screenshots, text, keystrokes, clipboard content, and
+accessibility trees are prohibited. Unsupported platforms expose monitor-only fallback geometry
+until their native behavior is verified.
+
+## 074 - Companion state without attachment metrics
+
+**Status:** Accepted direction; implementation continues in Task 10 M5
+
+Buddy may have deterministic, inspectable internal state for energy, focus, mood, and activity.
+It will not have affection, attachment, jealousy, dependency, streak-pressure, or guilt metrics.
+State exists to make behavior coherent, not to manipulate the user.
+
+## 075 - Skills remain secondary
+
+**Status:** Accepted
+
+Journal, reminders, read-only trading, and future tools are skills beneath the companion and memory
+layers. Skills are loaded or queried through explicit surfaces and intents; they do not define
+Buddy's identity or enter every conversation.
+
+## 076 - Local models remain the default intelligence boundary
+
+**Status:** Accepted
+
+Local Ollama remains the default model provider and production endpoints stay loopback-only.
+Physical creature behavior, local data inspection, journal writing, and lexical continuity must
+degrade gracefully when the model is unavailable. Cloud model routing is not introduced by Task 10.

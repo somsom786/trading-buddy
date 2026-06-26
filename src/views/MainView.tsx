@@ -3,7 +3,15 @@ import type { CompanionService } from '../services/tauri/companionService';
 import type { LocalAiService } from '../services/tauri/localAiService';
 import { tauriWindowService, type WindowService } from '../services/windowService';
 
-const navigationItems = ['Chat', 'Journal', 'Reviews', 'Settings'] as const;
+const navigationItems = [
+  'Companion',
+  'Conversations',
+  'Memory',
+  'Journal',
+  'Skills',
+  'Privacy',
+  'Settings',
+] as const;
 
 interface MainViewProps {
   localAiService?: LocalAiService;
@@ -29,6 +37,7 @@ export function MainView({ windowService = tauriWindowService, ...workspaceProps
               key={item}
               type="button"
               className={`nav-item${index === 0 ? ' nav-item--active' : ''}`}
+              aria-current={index === 0 ? 'page' : undefined}
             >
               <span className="nav-item__dot" aria-hidden="true" />
               {item}
@@ -43,8 +52,8 @@ export function MainView({ windowService = tauriWindowService, ...workspaceProps
             <p className="eyebrow">Secondary workspace</p>
             <h1>Companion Home</h1>
             <p className="workspace__subtitle">
-              Your buddy lives on the desktop. This window is for history, privacy, storage, and
-              deeper conversations.
+              Your buddy lives on the desktop. This secondary window is for continuity, privacy,
+              optional skills, and deeper conversations.
             </p>
           </div>
           <div className="button-row">

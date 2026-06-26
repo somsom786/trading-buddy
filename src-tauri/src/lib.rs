@@ -1,4 +1,5 @@
 mod commands;
+mod desktop_world;
 mod local_ai;
 mod storage;
 mod trading;
@@ -34,6 +35,14 @@ fn reset_buddy_position(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn get_os_idle_seconds() -> Result<u64, String> {
     platform_idle_seconds()
+}
+
+#[tauri::command]
+fn get_desktop_world_snapshot(
+    app: tauri::AppHandle,
+    include_cursor: bool,
+) -> Result<desktop_world::DesktopWorldSnapshot, String> {
+    desktop_world::snapshot(&app, include_cursor)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -85,6 +94,7 @@ pub fn run() {
             position_companion_bubble,
             reset_buddy_position,
             get_os_idle_seconds,
+            get_desktop_world_snapshot,
             commands::local_ai::list_local_models,
             commands::local_ai::stream_local_chat,
             commands::local_ai::cancel_local_chat,

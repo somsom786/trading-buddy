@@ -1080,6 +1080,24 @@ button {
   margin: 0;
 }
 
+.skills-surface {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #2d3850;
+  border-radius: 13px;
+  background: #0f1520;
+}
+
+.skills-surface h2,
+.skills-surface p {
+  margin: 0;
+}
+
+.skills-surface > .trading-panel {
+  margin-top: 0;
+}
+
 .trading-panel {
   display: grid;
   gap: 1rem;

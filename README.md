@@ -1,10 +1,21 @@
 # Trading Buddy — BETA v0.2
 
-A local-first desktop companion for crypto traders. The application connects only to a locally
-running Ollama service for companion chat. Conversations, memories, and journal entries are stored
-in a local SQLite database owned by the Rust/Tauri layer. It also includes a read-only Hyperliquid
-foundation for public account synchronization. It has no cloud inference, cloud account, exchange
-API secret, wallet signing, authentication, telemetry, or trading execution functionality.
+Trading Buddy is a private, local-first creature that lives on the desktop, talks through local
+Ollama models, and builds user-controlled continuity through local conversations, memories, and
+journaling. Its personality is crypto-native, but the user is never reduced to a wallet, trading
+account, or PnL.
+
+The product north star is:
+
+> Shimeji body. Odysseus brain. Crypto-native soul.
+
+The living creature is the primary product. Conversation, continuity, journal routines, and
+optional skills support that presence; Companion Home is a secondary inspection and settings
+surface.
+
+Conversations, memories, journal entries, and optional read-only skill data are stored in a local
+SQLite database owned by Rust/Tauri. The app has no cloud inference, cloud account, exchange API
+secret, wallet signing, authentication, telemetry, or trading execution functionality.
 
 This repository is currently labeled **BETA v0.2** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
@@ -116,9 +127,9 @@ Use **Temporary chat** for an in-memory session. Temporary chat content is not w
 is gone after the application closes, you leave temporary mode, or the session is reset. Temporary
 mode is visibly labeled in the chat toolbar before you send messages.
 
-## Read-only Hyperliquid foundation
+## Optional read-only Hyperliquid skill
 
-Companion Home includes a minimal **Trading** section for Hyperliquid public accounts:
+Companion Home includes a minimal **Trading** skill for Hyperliquid public accounts:
 
 - choose mainnet or testnet;
 - enter and locally validate a public 42-character `0x...` address;
@@ -148,6 +159,26 @@ builds remove/migrate that legacy value instead of keeping it as a second source
 The integration is deliberately read-only. Trading Buddy cannot place, close, cancel, or modify
 orders; cannot sign transactions; cannot move funds; and never asks for private keys, seed phrases,
 exchange API secrets, or wallet approvals.
+
+Trading does not initialize when the desktop buddy starts and its facts are not added to ordinary
+conversation context. The skill is queried only through explicit trading surfaces or deterministic
+trading intents. Task 9E live WebSocket and reconstruction work is paused.
+
+## Geometry-only desktop awareness
+
+The native desktop-world boundary can provide only the physical geometry needed for creature
+movement:
+
+- monitor bounds and scale factors;
+- usable work areas;
+- visible top-level window rectangles on Windows;
+- buddy and visible bubble rectangles;
+- cursor position only when a caller explicitly opts in.
+
+It does not collect or expose window titles, application names, process names, browser URLs, screen
+pixels, screenshots, text, keyboard input, clipboard data, or accessibility-tree content. The
+current M2 checkpoint provides typed snapshots and privacy validation; autonomous surface movement
+is a later checkpoint.
 
 ## Companion memory
 
@@ -354,7 +385,7 @@ pnpm tauri build
 src/
   app/          View selection and application-level logic
   components/   Reusable React components
-  domain/       Deterministic, framework-independent domain logic
+  domain/       Deterministic companion, desktop-world, memory, journal, and skill logic
   services/     Narrow adapters to native Tauri capabilities
   views/        Window-level React views
 src-tauri/
@@ -386,6 +417,8 @@ application config directory. Conversations are stored separately in the app-loc
 - The desktop bubble can show saved read-only trading facts, but full manual WebView/tray fixture
   QA remains pending.
 - Hyperliquid data is user-triggered/saved-state awareness, not WebSocket live sync.
+- The desktop-world service is geometry-only; creature physics and surface following are not yet
+  wired to it.
 - The buddy artwork and animations are development placeholders.
 
 ## Buddy design direction

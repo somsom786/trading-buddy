@@ -2,28 +2,40 @@
 
 **Current development label:** BETA v0.2
 
-Trading Buddy is a private desktop companion that helps active crypto traders think more clearly,
-record decisions, and review their behavior without handing sensitive context to a cloud-first
-platform.
+Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity
+through inspectable local memory, understands ordinary life and emotion, and speaks crypto
+natively without reducing the user to a wallet or PnL.
+
+The north star is:
+
+> Shimeji body. Odysseus brain. Crypto-native soul.
 
 ## Product principles
 
-- Local-first and useful without an account.
+- The creature is the product; the large application is secondary.
+- Local-first and useful without an account or a running model.
+- Conversation should feel like talking to the creature, not operating a chat page.
+- Long-term continuity matters more than feature count.
+- Memory is inspectable, editable, correctable, exportable, and deletable.
 - Advisory, not autonomous.
 - Calm and legible during high-pressure market activity.
 - Transparent about data sources and uncertainty.
 - Safe around financial and wallet data.
+- Supportive without pretending to be a therapist or encouraging emotional dependency.
+- Crypto-native without becoming a signal bot.
 
 ## Companion-first hierarchy
 
 The desktop creature is the primary product surface:
 
 ```text
-Desktop creature first
-        |
-Attached conversation bubble second
-        |
-Companion Home third
+1. Living desktop creature
+2. Companion identity and emotional presence
+3. Natural local conversation
+4. Long-term personal continuity
+5. Journal, reminders, and shared routines
+6. Optional crypto and trading skills
+7. Companion Home for inspection and settings
 ```
 
 - **Desktop creature:** a compact, transparent, always-on-top buddy that lives beside the user and
@@ -34,12 +46,22 @@ Companion Home third
 - **Companion Home:** the normal application window for history, privacy, storage, deeper
   conversations, development labs, and future journal/review/settings work.
 
-The companion milestone keeps local conversation through a locally running Ollama instance and
-Rust-owned SQLite persistence. Temporary chat remains available for in-memory-only sessions.
-Exchange connections, wallets, authentication, cloud sync, long-term semantic memory, screen
-reading, global cursor tracking, telemetry, and order execution remain out of scope.
+The buddy's physical presence, drag behavior, and deterministic ambient state do not depend on
+Ollama. Local conversation uses a loopback-only Ollama instance and Rust-owned SQLite persistence.
+Temporary chat remains available for in-memory-only sessions.
 
-## Read-only trading awareness
+Desktop geometry is allowed only to support physical presence. Monitor/work-area bounds, sanitized
+window rectangles, buddy/bubble geometry, and optional cursor position may be used. Window titles,
+application/process identity, URLs, screen content, text, keystrokes, clipboard data, and
+accessibility trees are prohibited.
+
+## Skills architecture
+
+Skills are optional capabilities beneath the companion, local intelligence, and local memory
+layers. They do not define Buddy's identity and do not enter unrelated conversation context.
+Journal is a local user-owned routine. Trading is an optional read-only integration skill.
+
+## Read-only trading skill
 
 Task 9B adds the first real trading integration boundary: read-only Hyperliquid public account
 awareness. Users can save a public Hyperliquid address for mainnet or testnet, refresh official
@@ -57,6 +79,18 @@ exchange API secrets, wallet signing, order placement, order cancellation, withd
 cloud relay, telemetry, WebSocket live sync, risk engine, recommendations, or autonomous trading.
 Trading values are stored locally as exact strings and labelled as saved exchange-reported data
 rather than live truth.
+
+Task 9E is paused after the active-account persistence checkpoint. Live WebSocket synchronization,
+trade reconstruction, risk dashboards, and advanced exchange infrastructure are not current
+product priorities.
+
+## Relationship boundaries
+
+- Buddy may be warm, emotionally aware, direct, playful, and supportive.
+- Buddy does not claim consciousness, human feelings, or therapeutic authority.
+- There is no affection score, attachment score, jealousy, streak pressure, or guilt mechanic.
+- Ignoring or dismissing Buddy produces no punishment or dependency language.
+- The user owns decisions, relationships, and next steps.
 
 ## User-controlled companion memory
 

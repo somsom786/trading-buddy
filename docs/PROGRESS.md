@@ -6,6 +6,26 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 26, 2026 - Task 10 M1/M2 creature-first reset
+
+- Reset the product north star to a living local desktop creature with companion identity,
+  conversation, continuity, routines, optional skills, and a secondary Companion Home.
+- Paused Task 9E after its completed active-account checkpoint while preserving all read-only
+  Hyperliquid functionality as an optional skill.
+- Studied Shimeji as behavioral inspiration and the current Odysseus repository as an
+  AGPL-3.0-or-later architectural reference; documented that no code, prompts, tests, art, or
+  assets were copied.
+- Updated Companion Home navigation to Companion, Conversations, Memory, Journal, Skills, Privacy,
+  and Settings, and grouped Trading beneath Skills.
+- Added a typed native desktop-world service for Windows monitor/work-area/scale geometry,
+  geometry-only visible window rectangles, buddy/bubble exclusion, and explicit cursor opt-in.
+- Added monitor-only fallback semantics for unsupported platforms and strict TypeScript boundary
+  validation.
+- Remaining Task 10 work begins at M3: deterministic movement/physics, drag/drop recovery, and
+  bring-back hardening. M4-M13 remain unclaimed.
+- Detailed handoff report:
+  [`docs/reports/TASK-010-shimeji-body-odysseus-brain.md`](reports/TASK-010-shimeji-body-odysseus-brain.md)
+
 ### June 25, 2026 - Task 9E E1 active-account persistence checkpoint
 
 - Moved the active Hyperliquid account selection from frontend browser storage into Rust-owned

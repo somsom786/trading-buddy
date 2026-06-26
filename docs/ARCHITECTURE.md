@@ -3,22 +3,27 @@
 ## Shape
 
 Trading Buddy is a single Tauri 2 desktop application with one React bundle and three native
-webview windows.
+webview windows. Its architecture follows the product hierarchy:
 
 ```text
-React views
-  -> application logic
-    -> service interfaces
-      -> Tauri commands
-        -> native window/tray/filesystem behavior
-        -> Rust local-model service
-          -> Ollama native API on loopback
-        -> Rust storage service
-          -> repository interfaces
-            -> SQLite in app-local data directory
-        -> Rust read-only trading integrations
-          -> allowlisted provider clients
-          -> normalized local trading tables
+Living creature
+  -> Companion soul
+    -> Local intelligence
+      -> Local memory
+        -> Optional skills
+```
+
+```text
+buddy renderer + native position
+  <- future motion controller and behavior planner
+    <- geometry-only desktop world snapshot
+
+conversation surfaces
+  -> typed service interfaces
+    -> narrow Tauri commands
+      -> Rust local-model service -> Ollama on loopback
+      -> Rust storage service -> SQLite in app-local data
+      -> optional read-only skills -> allowlisted provider clients
 ```
 
 The product hierarchy is companion-first:
@@ -38,6 +43,30 @@ buddy window
 - `services/` adapts UI needs to native or future external capabilities.
 
 UI components should not own financial rules, persistence formats, or integration protocols.
+
+## Desktop world model
+
+`src-tauri/src/desktop_world.rs` owns the native geometry boundary. The typed snapshot contains:
+
+- monitor bounds, stable per-snapshot IDs, primary status, and scale factors;
+- usable work areas, including taskbar-reserved space on Windows;
+- visible, non-minimized top-level window rectangles on Windows;
+- buddy geometry and visible bubble geometry;
+- cursor position only when a caller explicitly requests cursor-aware behavior;
+- capture timestamp and an honest platform support label.
+
+Windows uses first-party operating-system geometry APIs. The adapter never calls APIs for window
+titles, process IDs, executable names, text, pixels, screenshots, URLs, clipboard data, keyboard
+input, or accessibility trees. Rectangles are filtered to monitor intersections, deduplicated,
+bounded to 256, and stripped of buddy/bubble collisions before crossing the Tauri boundary.
+
+The TypeScript service in `src/services/tauri/desktopWorldService.ts` validates every snapshot
+before application code can use it. Unsupported platforms currently return Tauri monitor geometry
+with `monitor_only_fallback`; they do not claim visible application-surface support.
+
+M2 intentionally exposes snapshots on demand rather than starting a poll loop. Future motion code
+must use bounded active/resting rates, expire surface validity, and avoid database writes or React
+rerenders per simulation tick.
 
 ## Local model provider
 
@@ -363,8 +392,9 @@ allow a small template check-in only after evaluating:
 - user preference flags.
 
 For this milestone, proactive content is a local template library. No LLM-generated proactive
-messages, screen reading, browser inspection, exchange monitoring, keylogging, or global cursor
-tracking is implemented.
+messages, screen reading, browser inspection, exchange monitoring, keylogging, or continuous global
+cursor tracking is implemented. The desktop-world command can return one cursor coordinate only
+when a future cursor-aware behavior explicitly opts in.
 
 ## Placement and idle awareness
 
@@ -392,6 +422,9 @@ buddy position persistence. Position data is a small JSON file in the operating 
 config directory; no cloud or database is involved. Closing the main window hides it instead of
 destroying it, allowing the buddy and tray to reopen the existing session. Closing the bubble hides
 it instead of closing the buddy.
+
+The desktop-world command is a separate narrow native service. It returns sanitized geometry and
+does not grant React generic operating-system inspection capability.
 
 Startup shows the buddy while Companion Home remains hidden by default. A persisted
 `openCompanionHomeAtStartup` preference exists and defaults to disabled.
