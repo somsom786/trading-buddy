@@ -121,3 +121,15 @@ branch. The reviewed Odysseus commit remained
 The Task 11 body checkpoint was implemented independently as TypeScript domain physics, a narrow
 Tauri movement boundary, and original tests written for Trading Buddy. No Shimeji or Odysseus
 source, prompts, tests, schemas, action data, documentation text, or assets were copied or adapted.
+
+## Task 11B continuation revalidation
+
+On 2026-06-27, the current Odysseus `dev` branch was re-read at
+`ebead8083e84f58f7e1012f22c9a9266a13fa1ee`. The required memory provider, vector, embedding,
+compaction, context-budget, session-search, event, and background-job files were considered only as
+architectural concepts. Trading Buddy's schema v9, prompts, Rust repository, TypeScript budget,
+tests, jobs, UI, and SQLite vector format were implemented independently.
+
+The official Ollama `/api/chat`, `/api/embed`, and `/api/tags` contracts were also rechecked.
+Trading Buddy keeps an unauthenticated HTTP loopback-only endpoint, does not download models, and
+falls back to lexical continuity when embedding capability is unavailable.

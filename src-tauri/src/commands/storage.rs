@@ -6,10 +6,10 @@ use crate::storage::{
     errors::StorageError,
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionPreferences,
-        ConversationDetail, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
-        DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult, ExportResult,
-        JournalDiagnostics, JournalEntry, JournalEntryDraft, JournalEntrySummary,
+        ContinuityPreferences, ConversationDetail, ConversationRetentionPolicy,
+        ConversationSummary, DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult,
+        DevelopmentFixtureResult, DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult,
+        ExportResult, JournalDiagnostics, JournalEntry, JournalEntryDraft, JournalEntrySummary,
         JournalEntryUpdate, JournalExportResult, JournalListOptions, JournalPreferences, Memory,
         MemoryCategory, MemoryDiagnostics, MemoryDraft, MemoryExportResult, MemoryListOptions,
         MemoryPreferences, MemorySensitivity, MemoryUsageRecord, MemoryUsageRequest,
@@ -101,6 +101,16 @@ pub async fn set_journal_preferences(
 ) -> Result<AppSettings, StorageError> {
     service
         .run(move |connection, _| repository::set_journal_preferences(connection, preferences))
+        .await
+}
+
+#[tauri::command]
+pub async fn set_continuity_preferences(
+    preferences: ContinuityPreferences,
+    service: State<'_, StorageService>,
+) -> Result<AppSettings, StorageError> {
+    service
+        .run(move |connection, _| repository::set_continuity_preferences(connection, preferences))
         .await
 }
 

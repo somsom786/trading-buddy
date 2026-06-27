@@ -6,6 +6,30 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 27, 2026 - Task 11B living-learning implementation checkpoint
+
+- Finished the deterministic direct-interaction architecture, conservative moving-window
+  following, persistent movement controls, animation intent, pose hitboxes/anchors, and Creature
+  Lab.
+- Added schema v9 continuity storage without replacing existing confirmed memories: summaries,
+  episodes, entities/aliases/relationships, current-life context, embedding metadata/vectors,
+  durable consolidation jobs, and retrieval usage.
+- Added strict local-Qwen consolidation, startup job recovery, bounded retry/coalescing, loopback
+  Ollama embeddings, lexical fallback, hybrid scoring, deterministic context budgeting, and
+  visible-chat priority.
+- Wired bounded continuity into Companion Home and the desktop bubble, including source/reason
+  transparency, corrections/deletion, settings, retry/re-embed, and a Continuity Lab.
+- Added deterministic listen, reflect, plan, hang-out, and presence modes plus versioned,
+  inspectable identity state without affection, jealousy, guilt, or suffering mechanics.
+- Passed a disk-backed FarmTown restart/paraphrase/correction/deletion test using synthetic vectors,
+  167 frontend tests, 79 Rust tests, clippy, lint, typecheck, formatting, frontend build, and both
+  Tauri debug/release builds.
+- A real native launch confirmed buddy-first startup. Full manual drag/surface QA and real Ollama
+  semantic restart QA remain open because `embeddinggemma:300m` is not installed; no model was
+  silently downloaded.
+- Detailed handoff report:
+  [`docs/reports/TASK-011-living-learning-companion.md`](reports/TASK-011-living-learning-companion.md)
+
 ### June 26, 2026 - Task 11 C1/C2 living-body checkpoint
 
 - Audited Task 10 accurately as M1/M2 only and postponed the proposed frontend redesign.

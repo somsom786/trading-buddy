@@ -5,30 +5,42 @@ import { decideAmbientLife } from '../domain/companion/ambientLife';
 import { buddyStateToVisualState, type BuddyState } from '../domain/companion/buddyState';
 import type { BuddyVisualState } from '../domain/companion/visualState';
 import type { CreatureLocomotion } from '../domain/creature/types';
+import type { CreatureAnimationIntent } from '../domain/creature/animation';
+import type { CreatureMovementPreferences } from '../domain/creature/preferences';
+import type { CompanionPreferences } from '../domain/storage/types';
 import { DesktopCreatureRuntime } from '../services/creatureRuntime';
 import { tauriCompanionService, type CompanionService } from '../services/tauri/companionService';
 import {
   tauriDesktopWorldService,
   type DesktopWorldService,
 } from '../services/tauri/desktopWorldService';
+import { tauriStorageService, type StorageService } from '../services/tauri/storageService';
 import { tauriWindowService, type WindowService } from '../services/windowService';
 
 interface BuddyViewProps {
   windowService?: WindowService;
   companionService?: CompanionService;
   desktopWorldService?: DesktopWorldService;
+  storageService?: Pick<StorageService, 'getSettings'>;
 }
 
 export function BuddyView({
   windowService = tauriWindowService,
   companionService = tauriCompanionService,
   desktopWorldService = tauriDesktopWorldService,
+  storageService = tauriStorageService,
 }: BuddyViewProps) {
   const [state, setState] = useState<BuddyState>('idle');
   const [visualState, setVisualState] = useState<BuddyVisualState>(buddyStateToVisualState('idle'));
   const [locomotion, setLocomotion] = useState<CreatureLocomotion>('idle');
+  const [animationIntent, setAnimationIntent] = useState<CreatureAnimationIntent | null>(null);
   const lastInteractionRef = useRef(0);
   const creatureRuntimeRef = useRef<DesktopCreatureRuntime | null>(null);
+  const renderCountRef = useRef(0);
+
+  useEffect(() => {
+    renderCountRef.current += 1;
+  });
 
   useEffect(() => {
     const reducedMotion =
@@ -44,14 +56,34 @@ export function BuddyView({
           setState('sleeping');
         }
       },
+      onAnimationIntentChange: setAnimationIntent,
     });
     creatureRuntimeRef.current = runtime;
     void runtime.start();
+    void storageService
+      .getSettings()
+      .then((settings) => {
+        runtime.setPreferences(
+          movementPreferencesFromStorage(settings.companionPreferences, reducedMotion),
+        );
+      })
+      .catch(() => undefined);
+    const diagnosticsTimer = import.meta.env.DEV
+      ? window.setInterval(() => {
+          void companionService.emitInteraction({
+            type: 'creature_diagnostics',
+            diagnostics: runtime.getDiagnostics(renderCountRef.current),
+          });
+        }, 500)
+      : null;
     return () => {
       creatureRuntimeRef.current = null;
       runtime.stop();
+      if (diagnosticsTimer !== null) {
+        window.clearInterval(diagnosticsTimer);
+      }
     };
-  }, [desktopWorldService]);
+  }, [companionService, desktopWorldService, storageService]);
 
   useEffect(() => {
     let disposed = false;
@@ -70,6 +102,10 @@ export function BuddyView({
           setVisualState({ emotion: 'sleepy', activity: 'sleeping' });
         } else if (command.type === 'bring_buddy_back') {
           void creatureRuntimeRef.current?.bringBack(false);
+        } else if (command.type === 'movement_preferences_changed') {
+          creatureRuntimeRef.current?.setPreferences(command.preferences);
+        } else if (command.type === 'creature_lab_action') {
+          void creatureRuntimeRef.current?.applyLabAction(command.action);
         }
       })
       .then((unlisten) => {
@@ -159,6 +195,8 @@ export function BuddyView({
       <BuddyRenderer
         state={state}
         visualState={visualState}
+        {...(animationIntent ? { animationIntent } : {})}
+        reducedMotion={animationIntent?.intensity === 0}
         companionService={companionService}
         onActivate={toggleBubble}
         onDragStart={() => {
@@ -183,6 +221,21 @@ export function BuddyView({
       <BuddyStatusIndicator state={state} />
     </main>
   );
+}
+
+function movementPreferencesFromStorage(
+  preferences: CompanionPreferences,
+  systemReducedMotion: boolean,
+): CreatureMovementPreferences {
+  return {
+    autonomousMovementEnabled: preferences.autonomousMovementEnabled,
+    movementIntensity: preferences.movementIntensity,
+    surfaceInteractionEnabled: preferences.surfaceInteractionEnabled,
+    followMovingSurfaces: preferences.followMovingSurfaces,
+    cursorAwarenessEnabled: preferences.cursorAwarenessEnabled,
+    multiMonitorWanderingEnabled: preferences.multiMonitorWanderingEnabled,
+    reducedMotion: preferences.reducedMovementEnabled || systemReducedMotion,
+  };
 }
 
 function visualStateForLocomotion(locomotion: CreatureLocomotion): BuddyVisualState {

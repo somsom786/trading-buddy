@@ -664,5 +664,39 @@ duplicate native calls.
 **Status:** Accepted
 
 The temporary project artwork may represent locomotion states while the behavior engine matures,
-but static images are not described as frame animation. A future animation-intent layer and
-Creature Lab may replace the renderer without changing physics or planning rules.
+but static images are not described as frame animation. The animation-intent layer allows future
+sprite clips to replace pose fallbacks without changing physics or planning rules.
+
+## 081 - Keep stable facts authoritative in the existing memory store
+
+**Status:** Accepted
+
+Conversation summaries compress continuity, episodes represent events, entities identify named
+things, and current-life context is temporary. None becomes a second authoritative store for
+stable user facts. Existing confirmed memories remain intact and primary.
+
+## 082 - Persist local vectors as validated SQLite float32 BLOBs
+
+**Status:** Accepted
+
+Embedding metadata stays relational while normalized vectors use little-endian float32 BLOBs.
+Dimension, byte length, finite values, provider/model, and SHA-256 content hash are validated.
+External vector services, ChromaDB, Docker, and cloud embeddings add unnecessary dependency and
+privacy surface.
+
+## 083 - Make consolidation durable but subordinate to visible chat
+
+**Status:** Accepted
+
+Consolidation jobs persist in SQLite, coalesce by conversation source version, recover after
+restart, retry at most three times, and run only through the local Ollama boundary. Visible
+conversation generation rejects competing background model work. Model output is a proposal bundle
+validated before one transactional storage write.
+
+## 084 - Add SHA-256 through the small `sha2` crate
+
+**Status:** Accepted
+
+`sha2` is used only for deterministic local embedding content hashes and stale-vector detection.
+Writing cryptographic hashing code in-project would be riskier and less auditable; a process-random
+standard-library hasher would not provide durable identity across launches.

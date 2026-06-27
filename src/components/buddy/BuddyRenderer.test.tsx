@@ -51,4 +51,18 @@ describe('BuddyRenderer', () => {
       expect(onDragEnd).toHaveBeenCalledOnce();
     });
   });
+
+  it('keeps sub-threshold motion clickable and cancels without activation', () => {
+    const onActivate = vi.fn();
+    render(<BuddyRenderer state="idle" companionService={service} onActivate={onActivate} />);
+    const buddy = screen.getByRole('button', { name: 'Talk to Trading Buddy' });
+    fireEvent.pointerDown(buddy, { pointerId: 3, clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(buddy, { pointerId: 3, clientX: 13, clientY: 12 });
+    fireEvent.pointerUp(buddy, { pointerId: 3, clientX: 13, clientY: 12 });
+    expect(onActivate).toHaveBeenCalledOnce();
+
+    fireEvent.pointerDown(buddy, { pointerId: 4, clientX: 10, clientY: 10 });
+    fireEvent.pointerCancel(buddy, { pointerId: 4 });
+    expect(onActivate).toHaveBeenCalledOnce();
+  });
 });

@@ -210,6 +210,27 @@ pub struct OllamaResponseMessage {
     pub thinking: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OllamaChatResponse {
+    pub message: OllamaResponseMessage,
+    #[serde(default)]
+    pub done: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OllamaEmbedResponse {
+    pub model: String,
+    pub embeddings: Vec<Vec<f32>>,
+}
+
+#[derive(Clone, Debug, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalEmbeddingResult {
+    pub model: String,
+    pub dimension: usize,
+    pub vectors: Vec<Vec<f32>>,
+}
+
 impl OllamaChatChunk {
     pub fn metrics(&self) -> GenerationMetrics {
         GenerationMetrics {

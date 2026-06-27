@@ -119,3 +119,114 @@ commit.
 ## Later checkpoints
 
 C4–C12 remain pending and must not be inferred complete from body-engine work.
+
+## Task 11B continuation baseline — June 27, 2026
+
+- Repository clean on `main` at `cb84ddc`.
+- Re-fetched Shimeji successfully as behavioral reference only.
+- Re-fetched the current Odysseus default `dev` branch at
+  `ebead8083e84f58f7e1012f22c9a9266a13fa1ee`.
+- Reviewed the required Odysseus memory, embedding, compaction, budget, search, event, and durable
+  background-job concepts without copying source, schemas, prompts, tests, or documentation.
+- Reviewed the official Ollama `/api/embed` and `/api/tags` contracts.
+- Confirmed the current Trading Buddy schema is version 7 and migrations are embedded, ordered,
+  transactional Rust migrations.
+- Confirmed existing stable user facts remain in `memories`; current FTS retrieval only covers
+  confirmed, non-expired memories.
+
+Untouched Task 11B baseline:
+
+| Command                                                                                         | Result | Notes                          |
+| ----------------------------------------------------------------------------------------------- | ------ | ------------------------------ |
+| `corepack pnpm check`                                                                           | Passed | 41 files / 150 tests.          |
+| `corepack pnpm build`                                                                           | Passed | Frontend production build.     |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml --check`                                        | Passed | Rust formatting clean.         |
+| `cargo test --manifest-path src-tauri/Cargo.toml`                                               | Passed | 71 Rust tests.                 |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings` | Passed | Zero warnings.                 |
+| `corepack pnpm tauri build --debug --no-bundle`                                                 | Passed | Debug executable built.        |
+| `corepack pnpm tauri build --no-bundle`                                                         | Passed | Optimized executable built.    |
+| `git status --short`                                                                            | Passed | Clean before Task 11B editing. |
+
+Pre-existing failures: none observed.
+
+### C3A
+
+Implemented and automatically verified:
+
+- strict idle/pressed/threshold-pending/dragging/released/cancelled pointer state;
+- six-pixel threshold with slight movement preserved as click;
+- native Tauri remains the only operating-system drag owner;
+- inferred bounded drop velocity and fall/land/recover;
+- conservative moving-window surface reconciliation with hysteresis and 48-pixel correction cap;
+- full-screen-like, invalid, minimized, closed, off-screen, and large-jump detach behavior;
+- schema v8 persistent movement preferences and live cross-window application;
+- focused movement settings UI.
+
+Manual direct drag, multi-monitor, DPI, and moving-window walkthrough remains open.
+
+### C4 - Animation intent and Creature Lab
+
+- Added a physics-authoritative animation-intent projection for all required locomotion and
+  conversation states.
+- Added stable anchors, pose hitboxes, safe neutral-side mirroring, clipping, and nearest-neighbor
+  rendering.
+- Added bounded runtime diagnostics and deterministic Creature Lab controls without titles,
+  process names, pixels, or application content.
+
+### C5-C10 - Local continuity architecture
+
+- Documented compatibility before migration: confirmed memories remain authoritative stable facts.
+- Added schema v9 summaries, episodes, sources, entities, aliases, mentions, relationships,
+  episode links, current-life context, embedding models/BLOBs, jobs, and usage.
+- Added strict structured local-Qwen consolidation with source provenance, secret rejection,
+  transactional persistence, maximum-three episodes, and sensitive proposal boundaries.
+- Added deterministic context budgeting, bounded hybrid retrieval, alias/project reasons,
+  lexical fallback, float32 validation, SHA-256 content hashes, stale-vector handling, retry,
+  coalescing, cancellation, and startup recovery.
+- Chat and bubble now enqueue only after a completed assistant message is durable.
+
+### C11 - Modes and transparency
+
+- Added deterministic listen, reflect, plan, hang-out, and presence detection/prompts.
+- Added versioned inspectable companion identity state and natural decay.
+- Added focused Continuity UI and development Continuity Lab for summaries, episodes, entities,
+  current-life context, jobs, semantic state, correction, deletion, retry, re-embed, settings, and
+  retrieval reasons.
+
+### C12 - Verification status
+
+Passed:
+
+| Command                                                                                         | Result               |
+| ----------------------------------------------------------------------------------------------- | -------------------- |
+| `corepack pnpm format:check`                                                                    | Passed               |
+| `corepack pnpm lint`                                                                            | Passed               |
+| `corepack pnpm typecheck`                                                                       | Passed               |
+| `corepack pnpm test`                                                                            | 44 files / 167 tests |
+| `corepack pnpm build`                                                                           | Passed               |
+| `cargo fmt --manifest-path src-tauri/Cargo.toml --check`                                        | Passed               |
+| `cargo test --manifest-path src-tauri/Cargo.toml`                                               | 79 tests             |
+| `cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings` | Passed               |
+| `corepack pnpm tauri build --debug --no-bundle`                                                 | Passed               |
+| `corepack pnpm tauri build --no-bundle`                                                         | Passed               |
+
+Real checks:
+
+- `corepack pnpm tauri dev` launched the buddy with Companion Home hidden; the process was stopped
+  after the smoke observation.
+- Ollama was reachable and local completion models were listed.
+- `embeddinggemma:300m` was absent. An already installed `qwen3:8b` correctly returned HTTP 501
+  from `/api/embed`; no model was downloaded and lexical fallback remains the honest mode.
+- The FarmTown Rust test closes/reopens a real SQLite file, semantically retrieves the project with
+  a synthetic normalized vector, preserves the unresolved concern, applies a correction, and
+  excludes the deleted episode.
+
+Not verified:
+
+- physical pickup/drop and moving-window following by direct human interaction;
+- multi-monitor/mixed-DPI/taskbar/display-change behavior;
+- real local-Qwen 20-turn consolidation output;
+- real `embeddinggemma:300m` vector generation and end-to-end restart semantic recall;
+- complete manual mode walkthrough and machine-specific performance timings.
+
+Task 11 therefore remains open at C12; the correct full completion claim is not made.

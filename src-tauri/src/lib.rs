@@ -1,4 +1,5 @@
 mod commands;
+mod continuity;
 mod desktop_world;
 mod local_ai;
 mod storage;
@@ -75,6 +76,16 @@ pub fn run() {
                 .ok()
                 .map(|settings| settings.companion_preferences);
             app.manage(storage);
+            let continuity_storage = app.state::<storage::StorageService>().inner().clone();
+            let continuity_ai = app.state::<local_ai::LocalAiService>().inner().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = continuity_storage
+                    .run(|connection, _| {
+                        continuity::repository::recover_interrupted_jobs(connection)
+                    })
+                    .await;
+                continuity::run_worker_loop(continuity_storage, continuity_ai).await;
+            });
             window_manager::restore_buddy_position(app.handle());
             if let Some(preferences) = companion_preferences {
                 window_manager::apply_startup_preferences(app.handle(), &preferences);
@@ -123,6 +134,7 @@ pub fn run() {
             commands::storage::set_companion_preferences,
             commands::storage::set_memory_preferences,
             commands::storage::set_journal_preferences,
+            commands::storage::set_continuity_preferences,
             commands::storage::apply_retention_cleanup,
             commands::storage::list_conversations,
             commands::storage::get_conversation,
@@ -169,6 +181,21 @@ pub fn run() {
             commands::storage::create_development_memory_fixtures,
             commands::storage::delete_development_memory_fixtures,
             commands::storage::create_development_interrupted_fixture,
+            continuity::enqueue_continuity_consolidation,
+            continuity::consolidate_continuity_now,
+            continuity::get_continuity_snapshot,
+            continuity::retrieve_continuity,
+            continuity::record_continuity_retrieval_usage,
+            continuity::update_continuity_episode,
+            continuity::delete_continuity_episode,
+            continuity::update_continuity_entity,
+            continuity::delete_continuity_entity,
+            continuity::delete_continuity_summary,
+            continuity::delete_current_life_item,
+            continuity::cancel_continuity_job,
+            continuity::retry_continuity_job,
+            continuity::reembed_continuity,
+            continuity::delete_all_continuity_data,
             trading::validate_hyperliquid_address,
             trading::get_active_hyperliquid_account_id,
             trading::set_active_hyperliquid_account_id,

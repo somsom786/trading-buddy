@@ -3,6 +3,7 @@ import { BUDDY_POSE_ASSETS, type BuddyPoseAsset } from '../../assets/buddy/poseM
 import { selectBuddyPose, type BuddyPoseId } from '../../domain/companion/poseSelection';
 import type { BuddyState } from '../../domain/companion/buddyState';
 import type { BuddyVisualState } from '../../domain/companion/visualState';
+import type { CreatureAnimationIntent } from '../../domain/creature/animation';
 import { BuddyPlaceholder } from './BuddyPlaceholder';
 
 interface BuddyPoseRendererProps {
@@ -11,12 +12,14 @@ interface BuddyPoseRendererProps {
   onPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
+  onPointerCancel?: (event: PointerEvent<HTMLButtonElement>) => void;
   onPointerEnter?: () => void;
   onPointerLeave?: () => void;
   assets?: Partial<Record<BuddyPoseId, BuddyPoseAsset>>;
   motionEnabled?: boolean;
   reducedMotion?: boolean;
   scale?: number;
+  animationIntent?: CreatureAnimationIntent;
 }
 
 export function BuddyPoseRenderer({
@@ -25,17 +28,29 @@ export function BuddyPoseRenderer({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onPointerCancel,
   onPointerEnter,
   onPointerLeave,
   assets = BUDDY_POSE_ASSETS,
   motionEnabled = true,
   reducedMotion = false,
   scale = 1,
+  animationIntent,
 }: BuddyPoseRendererProps) {
   const poseId = selectBuddyPose(visualState);
   const asset = assets[poseId];
   const [failedPoseId, setFailedPoseId] = useState<BuddyPoseId | null>(null);
-  const style = { '--buddy-scale': String(scale) } as CSSProperties;
+  const hitbox = asset?.hitbox ?? { x: 0, y: 0, width: 128, height: 128 };
+  const mirror = asset?.mirrorSafe && animationIntent?.facing === 'left' ? -1 : 1;
+  const style = {
+    '--buddy-scale': String(scale),
+    '--buddy-anchor-shift-x': `${String(64 - (asset?.anchor.x ?? 64))}px`,
+    '--buddy-anchor-shift-y': `${String(118 - (asset?.anchor.y ?? 118))}px`,
+    '--buddy-facing-scale': String(mirror),
+    clipPath: `inset(${String(hitbox.y)}px ${String(
+      128 - hitbox.x - hitbox.width,
+    )}px ${String(128 - hitbox.y - hitbox.height)}px ${String(hitbox.x)}px)`,
+  } as CSSProperties;
 
   if (!asset || failedPoseId === poseId) {
     return (
@@ -45,6 +60,7 @@ export function BuddyPoseRenderer({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        {...(onPointerCancel ? { onPointerCancel } : {})}
         {...(onPointerEnter ? { onPointerEnter } : {})}
         {...(onPointerLeave ? { onPointerLeave } : {})}
       />
@@ -64,12 +80,16 @@ export function BuddyPoseRenderer({
       data-activity={visualState.activity}
       data-pose={poseId}
       data-motion={motionEnabled && !reducedMotion ? 'on' : 'off'}
+      data-facing={animationIntent?.facing ?? 'right'}
+      data-animation-reason={animationIntent?.reasonCode ?? 'legacy_visual_state'}
+      data-animation-loop={animationIntent?.loop ?? true}
       aria-label="Talk to Trading Buddy"
       title="Drag me or click to talk"
       style={style}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      {...(onPointerCancel ? { onPointerCancel } : {})}
       onPointerEnter={onPointerEnter}
       onPointerLeave={onPointerLeave}
     >

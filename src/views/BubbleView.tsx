@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent } from 'react';
 import { buddyStateForLifecycle } from '../domain/companion/buddyState';
 import {
+  conversationModePrompt,
+  detectConversationMode,
+} from '../domain/companion/conversationMode';
+import {
+  COMPANION_IDENTITY_PROMPT,
+  companionStatePrompt,
+  identityStateForMode,
+} from '../domain/companion/identity';
+import { buildContextBudget } from '../domain/continuity/budget';
+import type { ContinuityRetrievalItem, SemanticMemoryStatus } from '../domain/continuity/types';
+import {
   conversationReducer,
   createChatMessage,
   createConversationSession,
@@ -31,6 +42,10 @@ import type { Memory, RetrievedMemory } from '../domain/memory/types';
 import { tauriCompanionService, type CompanionService } from '../services/tauri/companionService';
 import { tauriLocalAiService, type LocalAiService } from '../services/tauri/localAiService';
 import { tauriStorageService, type StorageService } from '../services/tauri/storageService';
+import {
+  tauriContinuityService,
+  type ContinuityService,
+} from '../services/tauri/continuityService';
 import { tauriWindowService, type WindowService } from '../services/windowService';
 import { loadActiveTradingAccountId } from '../services/tradingRuntimeStore';
 import { fetchTradingFacts } from '../services/tradingFacts';
@@ -74,6 +89,7 @@ interface BubbleViewProps {
   companionService?: CompanionService;
   windowService?: WindowService;
   tradingService?: TradingService;
+  continuityService?: ContinuityService;
 }
 
 interface ActiveAssistantPersistence {
@@ -83,6 +99,7 @@ interface ActiveAssistantPersistence {
   requestId: string;
   content: string;
   memoryIds: string[];
+  continuityItems: ContinuityRetrievalItem[];
 }
 
 export function BubbleView({
@@ -91,6 +108,7 @@ export function BubbleView({
   companionService = tauriCompanionService,
   windowService = tauriWindowService,
   tradingService = tauriTradingService,
+  continuityService = tauriContinuityService,
 }: BubbleViewProps) {
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
@@ -104,6 +122,8 @@ export function BubbleView({
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [pendingMemory, setPendingMemory] = useState<Memory | null>(null);
   const [usedMemories, setUsedMemories] = useState<RetrievedMemory[]>([]);
+  const [usedContinuity, setUsedContinuity] = useState<ContinuityRetrievalItem[]>([]);
+  const [semanticStatus, setSemanticStatus] = useState<SemanticMemoryStatus>('lexical_memory_mode');
   const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const [journalSession, setJournalSession] = useState(createIdleJournalSession);
   const activeRequestRef = useRef<string | null>(null);
@@ -275,6 +295,21 @@ export function BubbleView({
               reasonCode: 'bubble_chat_context',
             });
           }
+          if (persistence.continuityItems.length > 0) {
+            await continuityService.recordUsage({
+              conversationId: persistence.conversationId,
+              assistantMessageId: persistence.messageId,
+              items: persistence.continuityItems,
+            });
+          }
+          void storageService
+            .getSettings()
+            .then((settings) =>
+              settings.continuityPreferences.consolidationEnabled
+                ? continuityService.enqueue(persistence.conversationId)
+                : null,
+            )
+            .catch(() => undefined);
         } else if (finalStatus === 'cancelled') {
           await storageService.cancelAssistant(update);
         } else {
@@ -289,7 +324,7 @@ export function BubbleView({
         setStorageError(normalizeStorageError(error));
       }
     },
-    [storageService],
+    [continuityService, storageService],
   );
 
   const handleStreamEvent = useCallback(
@@ -443,6 +478,7 @@ export function BubbleView({
     let userMessage = createChatMessage('user', validation.content);
     let assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
+    let continuityItems: ContinuityRetrievalItem[] = [];
     const tradingContext: string | null = preparedTradingContext;
     let memoryOptedOutForRequest = conversationMemoryOptOut;
     let memoryNotice: string | null = null;
@@ -466,6 +502,7 @@ export function BubbleView({
           requestId,
           content: '',
           memoryIds: [],
+          continuityItems: [],
         };
       } catch (error) {
         setStorageError(normalizeStorageError(error));
@@ -479,6 +516,7 @@ export function BubbleView({
         requestId,
         content: '',
         memoryIds: [],
+        continuityItems: [],
       };
     }
 
@@ -530,24 +568,49 @@ export function BubbleView({
       }
     }
 
+    if (!isFactIntent(tradingIntent) && mode === 'persistent') {
+      try {
+        const continuity = await continuityService.retrieve({
+          query: validation.content,
+          limit: 8,
+        });
+        continuityItems = continuity.items;
+        setUsedContinuity(continuity.items);
+        setSemanticStatus(continuity.semanticStatus);
+        if (persistenceRef.current.requestId === requestId) {
+          persistenceRef.current.continuityItems = continuity.items;
+        }
+      } catch {
+        setUsedContinuity([]);
+        setSemanticStatus('lexical_memory_mode');
+      }
+    } else {
+      setUsedContinuity([]);
+    }
+
+    const detectedMode = detectConversationMode(validation.content);
+    const identityState = identityStateForMode(detectedMode.mode, Date.now());
+    const supplementalContext = [tradingContext ? READ_ONLY_TRADING_RULES : null, tradingContext]
+      .filter((value): value is string => value !== null)
+      .join('\n\n');
+    const budget = buildContextBudget({
+      systemPrompt: `${COMPANION_SYSTEM_PROMPT}\n\n${COMPANION_IDENTITY_PROMPT}`,
+      conversationModePrompt: conversationModePrompt(detectedMode),
+      companionStatePrompt: companionStatePrompt(identityState),
+      confirmedMemoryContext:
+        [supplementalContext, memoryContext]
+          .filter((value): value is string => Boolean(value))
+          .join('\n\n') || null,
+      continuityItems,
+      recentMessages: session.messages.map(({ role, content }) => ({ role, content })),
+      currentUserMessage: validation.content,
+      recentMessageLimit: 12,
+    });
     const request: LocalChatRequest = {
       requestId,
       conversationId,
       model: selectedModel,
-      messages: [
-        { role: 'system', content: COMPANION_SYSTEM_PROMPT },
-        ...(tradingContext
-          ? [
-              { role: 'system' as const, content: READ_ONLY_TRADING_RULES },
-              { role: 'system' as const, content: tradingContext },
-            ]
-          : []),
-        ...(memoryContext ? [{ role: 'system' as const, content: memoryContext }] : []),
-        ...session.messages
-          .filter((message) => message.content)
-          .map(({ role, content }) => ({ role, content })),
-        { role: 'user', content: validation.content },
-      ],
+      messages: budget.messages,
     };
 
     activeRequestRef.current = requestId;
@@ -748,6 +811,23 @@ export function BubbleView({
             <ul>
               {usedMemories.map((memory) => (
                 <li key={memory.id}>{memory.content}</li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
+        {usedContinuity.length > 0 ? (
+          <details className="memory-used-indicator memory-used-indicator--compact">
+            <summary>
+              Used {String(usedContinuity.length)} continuity items ·{' '}
+              {semanticStatus.replaceAll('_', ' ')}
+            </summary>
+            <ul>
+              {usedContinuity.map((item) => (
+                <li key={`${item.sourceType}:${item.sourceId}`}>
+                  {item.content}
+                  <small>Why: {item.reasonCodes.join(', ')}</small>
+                </li>
               ))}
             </ul>
           </details>

@@ -11,24 +11,31 @@ independently passing checkpoints.
       Task 11 plan and QA journal.
 - [x] C2 — Add deterministic fixed-timestep physics, gravity, landing, safe spawn/recovery,
       native work-area clamping, and Bring Buddy Back.
-- [ ] C3 — Complete drag/drop, surfaces, and autonomous planner.
+- [x] C3A — Complete drag/drop state, conservative moving surfaces, persistent movement settings,
+      and offline autonomy.
   - [x] Click-versus-drag threshold and one native drag owner.
   - [x] Dropped, fall, land, and recover transitions, including reduced-motion safe placement.
   - [x] Monitor-floor and expiring geometry-only window-top surfaces.
   - [x] Seeded autonomous idle, walk, sit, sleep, and writing decisions with cooldowns.
   - [x] Activity-specific bounded world snapshot scheduling.
-  - [ ] Conservatively follow a moving window surface.
-  - [ ] Expose autonomous-movement enablement and low/medium/lively intensity in product UI.
+  - [x] Conservatively follow a moving window surface.
+  - [x] Expose autonomous-movement enablement and low/medium/lively intensity in product UI.
   - [ ] Complete direct manual drag/drop, window-surface, multi-monitor, DPI, and tray QA.
-- [ ] C4 — Animation intent and Creature Lab.
-- [ ] C5 — Memory compatibility migration.
-- [ ] C6 — Summaries, context budget, and compaction.
-- [ ] C7 — Local embeddings and hybrid retrieval.
-- [ ] C8 — Episodes, entities, and current-life context.
-- [ ] C9 — Consolidation jobs and restart learning.
-- [ ] C10 — Conversation modes and companion state.
-- [ ] C11 — Privacy UI, offline modes, and Continuity Lab.
-- [ ] C12 — Performance, full manual QA, and final documentation.
+- [x] C4 — Add animation intent, pose anchors/hitboxes, diagnostics, and Creature Lab.
+- [x] C5 — Document compatibility and migrate existing data safely to schema v9.
+- [x] C6 — Add structured summaries and deterministic bounded context budgeting.
+- [x] C7 — Add loopback Ollama embeddings and validated SQLite float32 vector persistence.
+- [x] C8 — Add episodes, entities/aliases/relationships, and current-life context.
+- [x] C9 — Add bounded hybrid retrieval with lexical fallback and inspectable reasons.
+- [x] C10 — Add persistent consolidation, retry/coalescing, and startup recovery.
+- [x] C11 — Add conversation modes, inspectable identity state, continuity controls, and labs.
+- [ ] C12 — Finish performance and full manual QA.
+  - [x] Full automated/frontend/native build validation.
+  - [x] Disk-backed FarmTown restart, correction, and deletion proof with synthetic vectors.
+  - [x] Real native launch with Companion Home hidden.
+  - [ ] Real pickup/drop, moving-surface, multi-monitor, DPI, and mode walkthrough.
+  - [ ] Real Ollama consolidation and semantic restart walkthrough with
+        `embeddinggemma:300m`.
 
 ## Task 10 — Creature-first mission reset
 

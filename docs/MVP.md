@@ -32,6 +32,19 @@ across restart under transparent user control.
 - Export and deletion controls for all local user data.
 - Settings for privacy, data retention, and optional integrations.
 
+## Current Task 11B evidence
+
+- The body/runtime, settings, animation-intent, diagnostics, continuity schema, deterministic
+  context budget, loopback embedding adapter, vector validation, hybrid retrieval, persistent
+  consolidation jobs, conversation modes, and focused transparency controls are implemented.
+- Automated FarmTown storage/retrieval testing closes and reopens a real SQLite file, recalls a
+  paraphrase through a vector, applies a correction, and excludes a deleted episode.
+- A real Tauri development launch confirmed that the buddy starts while Companion Home remains
+  hidden.
+- The full MVP exit claim remains open until a user-driven native drag/surface walkthrough and a
+  real Ollama consolidation/restart test pass. The local machine currently lacks
+  `embeddinggemma:300m`; Trading Buddy correctly stays in lexical mode and does not download it.
+
 ## Explicit non-goals
 
 - Custody of funds.

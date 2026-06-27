@@ -7,6 +7,7 @@ import type { StorageService } from '../services/tauri/storageService';
 import type { WindowService } from '../services/windowService';
 import { defaultMemoryPreferences } from '../domain/memory/types';
 import { defaultJournalPreferences } from '../domain/journal/types';
+import { DEFAULT_CONTINUITY_PREFERENCES } from '../domain/continuity/types';
 import { BubbleView } from './BubbleView';
 
 const companionService: CompanionService = {
@@ -24,6 +25,12 @@ const companionPreferences = {
   placementMode: 'free' as const,
   ambientAnimationsEnabled: true,
   reducedMovementEnabled: false,
+  autonomousMovementEnabled: true,
+  movementIntensity: 'medium',
+  surfaceInteractionEnabled: true,
+  followMovingSurfaces: true,
+  cursorAwarenessEnabled: false,
+  multiMonitorWanderingEnabled: true,
   sleepAfterInactivitySeconds: 900,
   proactiveCheckinsEnabled: true,
   proactiveCheckinCooldownMinutes: 180,
@@ -130,11 +137,13 @@ function createStorageService(): {
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
         journalPreferences: defaultJournalPreferences,
+        continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
       }),
       setSelectedModel: vi.fn(),
       setCompanionPreferences: vi.fn(),
       setMemoryPreferences: vi.fn(),
       setJournalPreferences: vi.fn(),
+      setContinuityPreferences: vi.fn(),
       setRetentionPolicy: vi.fn(),
       applyRetentionCleanup: vi.fn(),
       listConversations: vi.fn(),

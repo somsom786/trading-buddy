@@ -7,6 +7,7 @@ import type { StorageService } from '../../services/tauri/storageService';
 import type { WindowService } from '../../services/windowService';
 import { defaultMemoryPreferences } from '../../domain/memory/types';
 import { defaultJournalPreferences } from '../../domain/journal/types';
+import { DEFAULT_CONTINUITY_PREFERENCES } from '../../domain/continuity/types';
 import { ChatWorkspace } from './ChatWorkspace';
 
 const companionService: CompanionService = {
@@ -38,6 +39,12 @@ const companionPreferences = {
   placementMode: 'free' as const,
   ambientAnimationsEnabled: true,
   reducedMovementEnabled: false,
+  autonomousMovementEnabled: true,
+  movementIntensity: 'medium',
+  surfaceInteractionEnabled: true,
+  followMovingSurfaces: true,
+  cursorAwarenessEnabled: false,
+  multiMonitorWanderingEnabled: true,
   sleepAfterInactivitySeconds: 900,
   proactiveCheckinsEnabled: true,
   proactiveCheckinCooldownMinutes: 180,
@@ -116,6 +123,7 @@ function createStorageService(): {
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
       journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
     }),
     setSelectedModel: vi.fn().mockResolvedValue({
       selectedLocalModel: 'qwen3:4b',
@@ -124,6 +132,7 @@ function createStorageService(): {
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
       journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
     }),
     setCompanionPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
@@ -131,6 +140,7 @@ function createStorageService(): {
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
       journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
     }),
     setMemoryPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
@@ -138,6 +148,7 @@ function createStorageService(): {
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
       journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
     }),
     setJournalPreferences: vi.fn().mockResolvedValue({
       ambientAnimationsEnabled: true,
@@ -145,6 +156,15 @@ function createStorageService(): {
       companionPreferences,
       memoryPreferences: defaultMemoryPreferences,
       journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
+    }),
+    setContinuityPreferences: vi.fn().mockResolvedValue({
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+      companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
     }),
     setRetentionPolicy: vi.fn().mockResolvedValue({ removedConversations: 0 }),
     applyRetentionCleanup: vi.fn().mockResolvedValue({ removedConversations: 0 }),

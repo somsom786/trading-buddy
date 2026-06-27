@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { animationIntentChanged, createAnimationIntent } from './animation';
 import type { DesktopWorldSnapshot } from '../desktop-world/types';
 import { planCreatureAction, createSeededRandom } from './planner';
 import { safeSpawn, stepCreaturePhysics } from './physics';
+import { cancelPointer, movePointer, pressPointer, releasePointer, resetPointer } from './pointer';
+import {
+  DEFAULT_CREATURE_MOVEMENT_PREFERENCES,
+  isCreatureMovementPreferences,
+} from './preferences';
 import { advanceCreatureClock, createCreatureSimulation } from './simulation';
-import { buildSafeAreas, buildSurfaceGraph } from './surfaces';
+import { buildSafeAreas, buildSurfaceGraph, reconcileMovingWindowSurface } from './surfaces';
 import { DEFAULT_CREATURE_CONFIG, type CreaturePhysicalState, type CreatureWorld } from './types';
 
 const snapshot: DesktopWorldSnapshot = {
@@ -75,6 +81,122 @@ describe('creature surface graph', () => {
       }),
     );
     expect(JSON.stringify(surfaces)).not.toMatch(/title|process|application|content/);
+  });
+
+  it('follows small geometry-only surface movement and detaches from unsafe jumps', () => {
+    const previous = buildSurfaceGraph(snapshot).find((surface) => surface.kind === 'window_top');
+    expect(previous).toBeDefined();
+    if (!previous) {
+      throw new Error('Expected a window-top surface fixture.');
+    }
+    const movedSnapshot = {
+      ...snapshot,
+      visibleWindowRects: [{ x: 312, y: 506, width: 720, height: 494 }],
+    };
+    const followed = reconcileMovingWindowSurface({
+      previousSurface: previous,
+      nextSurfaces: buildSurfaceGraph(movedSnapshot),
+      position: { x: 420, y: 360 },
+      buddyWidth: 140,
+      buddyHeight: 140,
+      edgeMargin: 8,
+    });
+    expect(followed).toEqual(
+      expect.objectContaining({
+        kind: 'followed',
+        position: { x: 432, y: 366 },
+      }),
+    );
+
+    const jumpedSnapshot = {
+      ...snapshot,
+      visibleWindowRects: [{ x: 900, y: 120, width: 700, height: 500 }],
+    };
+    expect(
+      reconcileMovingWindowSurface({
+        previousSurface: previous,
+        nextSurfaces: buildSurfaceGraph(jumpedSnapshot),
+        position: { x: 420, y: 360 },
+        buddyWidth: 140,
+        buddyHeight: 140,
+        edgeMargin: 8,
+      }).kind,
+    ).toBe('detached');
+  });
+
+  it('excludes fullscreen-like window tops and can disable window surfaces', () => {
+    const fullscreen = {
+      ...snapshot,
+      visibleWindowRects: [{ x: 0, y: 0, width: 1920, height: 1040 }],
+    };
+    expect(
+      buildSurfaceGraph(fullscreen).filter((surface) => surface.kind === 'window_top'),
+    ).toEqual([]);
+    expect(
+      buildSurfaceGraph(snapshot, snapshot.capturedAtMs, {
+        includeWindowSurfaces: false,
+      }).every((surface) => surface.kind === 'monitor_floor'),
+    ).toBe(true);
+  });
+});
+
+describe('creature pointer interaction', () => {
+  it('keeps slight movement as a click and starts drag only at the threshold', () => {
+    const pressed = pressPointer(7, { x: 20, y: 20, atMs: 100 });
+    const pending = movePointer(pressed, 7, { x: 23, y: 22, atMs: 120 });
+    expect(pending.dragStarted).toBe(false);
+    expect(pending.state.interaction).toBe('drag_threshold_pending');
+    expect(releasePointer(pending.state, 7, { x: 23, y: 22, atMs: 130 }).activate).toBe(true);
+
+    const dragging = movePointer(pressed, 7, { x: 26, y: 20, atMs: 120 });
+    expect(dragging.dragStarted).toBe(true);
+    const released = releasePointer(dragging.state, 7, { x: 40, y: 30, atMs: 140 });
+    expect(released.activate).toBe(false);
+    expect(released.releaseVelocity.x).toBeGreaterThan(0);
+  });
+
+  it('cancels only the active pointer and resets cleanly', () => {
+    const pressed = pressPointer(9, { x: -200, y: 10, atMs: 100 });
+    expect(cancelPointer(pressed, 8).interaction).toBe('pressed');
+    expect(cancelPointer(pressed, 9).interaction).toBe('cancelled');
+    expect(resetPointer().interaction).toBe('idle');
+  });
+});
+
+describe('creature movement preferences', () => {
+  it('validates the complete strict preference boundary', () => {
+    expect(isCreatureMovementPreferences(DEFAULT_CREATURE_MOVEMENT_PREFERENCES)).toBe(true);
+    expect(
+      isCreatureMovementPreferences({
+        ...DEFAULT_CREATURE_MOVEMENT_PREFERENCES,
+        movementIntensity: 'turbo',
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('creature animation intent', () => {
+  it('projects physical state without becoming authoritative', () => {
+    const simulation = createCreatureSimulation(world(), DEFAULT_CREATURE_CONFIG, 1_000);
+    simulation.physical.locomotion = 'fall';
+    simulation.physical.facing = 'left';
+    simulation.behavior = 'recovering';
+    const intent = createAnimationIntent(simulation, {
+      nowMs: 2_000,
+      reasonCode: 'physics_transition',
+    });
+    expect(intent).toEqual(
+      expect.objectContaining({
+        locomotion: 'fall',
+        behavior: 'recovering',
+        facing: 'left',
+        loop: true,
+        reasonCode: 'physics_transition',
+      }),
+    );
+    expect(intent.intensity).toBe(1);
+    expect(animationIntentChanged(null, intent)).toBe(true);
+    expect(simulation.physical.locomotion).toBe('fall');
   });
 });
 

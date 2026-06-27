@@ -34,6 +34,35 @@ pub enum CompanionPlacementMode {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+pub enum MovementIntensity {
+    Low,
+    Medium,
+    Lively,
+}
+
+impl MovementIntensity {
+    pub fn from_db(value: &str) -> Result<Self, StorageError> {
+        match value {
+            "low" => Ok(Self::Low),
+            "medium" => Ok(Self::Medium),
+            "lively" => Ok(Self::Lively),
+            other => Err(StorageError::invalid_stored_data(format!(
+                "Unsupported movement intensity: {other}"
+            ))),
+        }
+    }
+
+    pub fn as_db(&self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::Lively => "lively",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum MemoryCategory {
     Preference,
     Goal,
@@ -393,6 +422,18 @@ pub struct JournalPreferences {
     pub show_energy_prompt: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContinuityPreferences {
+    pub conversation_compaction_enabled: bool,
+    pub semantic_memory_enabled: bool,
+    pub consolidation_enabled: bool,
+    pub automatic_ordinary_learning_enabled: bool,
+    pub embedding_model: String,
+    pub embed_sensitive_content: bool,
+    pub recent_message_count: u32,
+}
+
 impl CompanionPlacementMode {
     pub fn from_db(value: &str) -> Result<Self, StorageError> {
         match value {
@@ -426,6 +467,12 @@ pub struct CompanionPreferences {
     pub free_position: Option<CompanionFreePosition>,
     pub ambient_animations_enabled: bool,
     pub reduced_movement_enabled: bool,
+    pub autonomous_movement_enabled: bool,
+    pub movement_intensity: MovementIntensity,
+    pub surface_interaction_enabled: bool,
+    pub follow_moving_surfaces: bool,
+    pub cursor_awareness_enabled: bool,
+    pub multi_monitor_wandering_enabled: bool,
     pub sleep_after_inactivity_seconds: u32,
     pub proactive_checkins_enabled: bool,
     pub proactive_checkin_cooldown_minutes: u32,
@@ -582,6 +629,7 @@ pub struct AppSettings {
     pub companion_preferences: CompanionPreferences,
     pub memory_preferences: MemoryPreferences,
     pub journal_preferences: JournalPreferences,
+    pub continuity_preferences: ContinuityPreferences,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]

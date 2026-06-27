@@ -1,6 +1,5 @@
 import type { CreatureSimulationState, CreatureSurface } from './types';
-
-export type MovementIntensity = 'low' | 'medium' | 'lively';
+import type { MovementIntensity } from './preferences';
 
 export interface CreaturePlannerContext {
   nowMs: number;

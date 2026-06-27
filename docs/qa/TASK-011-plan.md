@@ -95,3 +95,42 @@ Pre-existing failures: none observed.
 
 If a later checkpoint cannot be completed safely, stop at the latest passing checkpoint, update the
 journal/report, preserve existing behavior, and identify the exact next step.
+
+## Task 11B continuation — June 27, 2026
+
+Task 11B resumes from commit `cb84ddc`. C1 and C2 remain complete; C3 is split so the remaining body
+work can be verified without reopening the completed physics architecture.
+
+Continuation checkpoints:
+
+1. **C3A — Direct drag/drop, conservative moving surfaces, movement settings**
+2. **C4 — Animation intent and development Creature Lab**
+3. **C5 — Existing-memory compatibility design and ordered continuity migration**
+4. **C6 — Structured summaries, deterministic context budget, compaction**
+5. **C7 — Loopback Ollama embeddings and validated SQLite float32 vectors**
+6. **C8 — Episodes, entities, relationships, and current-life context**
+7. **C9 — Bounded lexical/semantic hybrid retrieval with inspectable reasons**
+8. **C10 — Durable consolidation jobs and restart recovery**
+9. **C11 — Conversation modes, identity/state, and focused learning transparency**
+10. **C12 — Performance observations, manual QA, final docs and report**
+
+Implementation rules:
+
+- Keep native Tauri dragging as the only operating-system drag owner.
+- Keep physical state authoritative and animation intent observational.
+- Extend Rust-owned SQLite in ordered migrations without changing existing memory authority.
+- Keep transcripts, summaries, stable facts, episodes, entities, temporary context, and embeddings
+  distinct.
+- Use only the official loopback Ollama APIs; never download a model silently.
+- Validate all model output before persistence. A model proposes; deterministic code writes.
+- Keep lexical continuity operational when embeddings or Ollama are unavailable.
+- Do not claim restart semantic recall unless the real FarmTown flow is performed.
+
+Continuation status on June 27:
+
+- C3A-C11 are implemented and pass automated/static/native build gates.
+- C12 is partial: real launch and disk-backed restart proof pass.
+- C12 remains open for direct human desktop interaction, real
+  `embeddinggemma:300m`/Qwen consolidation, semantic restart, modes, and performance QA.
+- The repository should be handed off as a coherent implementation checkpoint without the full
+  Task 11 completion claim.

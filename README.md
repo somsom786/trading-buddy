@@ -68,6 +68,16 @@ needed:
 ollama pull qwen3:4b
 ```
 
+Semantic continuity uses a separate embedding model, configured by default as
+`embeddinggemma:300m`. Trading Buddy never downloads it silently. Install it explicitly when you
+want semantic paraphrase retrieval:
+
+```powershell
+ollama pull embeddinggemma:300m
+```
+
+Without that model, conversations still work and continuity reports **Lexical memory mode**.
+
 Other installed models can be selected in the application. The production endpoint is fixed to
 `http://127.0.0.1:11434`. Debug builds may use `TRADING_BUDDY_OLLAMA_ENDPOINT`, but the value must
 still be an explicit loopback HTTP URL such as `http://127.0.0.1:11435`.
@@ -102,9 +112,10 @@ Trading Buddy now starts companion-first:
 - Missing, extreme, or disconnected-monitor positions recover to a safe visible location.
 - The buddy can autonomously fall to a surface, walk short bounded distances, sit, rest, write, and
   sleep without Ollama.
+- Click, six-pixel drag threshold, native pickup/drop, moving-window following, and reduced-motion
+  behavior are represented by deterministic interaction and physics state.
 
-The persisted setting `Open Companion Home at startup` exists and defaults to disabled. There is no
-user-facing settings screen for it yet.
+The persisted setting `Open Companion Home at startup` exists and defaults to disabled.
 
 ## Using local chat
 
@@ -182,7 +193,9 @@ It does not collect or expose window titles, application names, process names, b
 pixels, screenshots, text, keyboard input, clipboard data, or accessibility-tree content. The
 Task 11 runtime consumes these snapshots through deterministic fixed-timestep physics and a bounded
 autonomous planner. Monitor floors and sanitized window tops become temporary geometry-only
-surfaces. Moving-window following and full Creature Lab diagnostics remain pending.
+surfaces. Moving-window following uses small hysteresis-bounded corrections and detaches from
+closed, minimized, full-screen-like, off-screen, or unexpectedly jumping surfaces. Development
+builds include Creature Lab diagnostics and deterministic world fixtures.
 
 ## Living creature runtime
 
@@ -200,6 +213,28 @@ The current body runtime:
 
 The temporary static pose images remain honest fallback art. Walking and falling currently use
 restrained pose/CSS intent rather than pretending that complete frame animation exists.
+
+## Local conversation continuity
+
+Saved chats can be studied by a local background job after a completed assistant response. The
+validated result is stored separately as conversation summaries, episodes, named entities,
+unresolved current-life context, local embedding metadata/vectors, durable jobs, and retrieval
+usage records.
+
+Original transcript messages are never deleted by compaction. Stable confirmed facts remain in the
+existing memory store, while episodes represent events and summaries represent compressed
+continuity. Temporary chats do not enter this pipeline.
+
+Before a response, Trading Buddy performs bounded hybrid retrieval and deterministic context
+budgeting. The UI shows which items were used, why they matched, their source IDs, semantic health,
+stale-vector state, and learning jobs. Users can disable consolidation, compaction, automatic
+ordinary learning, or semantic retrieval; correct/delete episodes; retry jobs; re-embed records;
+and delete all continuity data.
+
+Semantic retrieval uses only Ollama's loopback `/api/embed` endpoint. If the configured model is
+missing or unavailable, the creature and chat remain usable and retrieval falls back to lexical
+mode. No cloud memory, cloud embeddings, screen monitoring, or model-directed database writes are
+present.
 
 ## Companion memory
 

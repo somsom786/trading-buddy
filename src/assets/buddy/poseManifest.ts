@@ -8,6 +8,13 @@ export interface BuddyPoseAsset {
     x: number;
     y: number;
   };
+  hitbox: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  mirrorSafe: boolean;
 }
 
 const POSE_ALT_TEXT: Record<BuddyPoseId, string> = {
@@ -34,6 +41,11 @@ export const BUDDY_POSE_ASSETS: Record<BuddyPoseId, BuddyPoseAsset> = Object.fro
         x: 64,
         y: id === 'sleeping' ? 110 : 118,
       },
+      hitbox:
+        id === 'sleeping'
+          ? { x: 16, y: 44, width: 102, height: 72 }
+          : { x: 18, y: 6, width: 92, height: 116 },
+      mirrorSafe: id === 'neutral-side',
     },
   ]),
 ) as Record<BuddyPoseId, BuddyPoseAsset>;

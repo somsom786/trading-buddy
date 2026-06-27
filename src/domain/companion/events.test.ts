@@ -8,6 +8,20 @@ describe('companion event validation', () => {
     expect(isCompanionCommand({ type: 'toggle_bubble' })).toBe(true);
     expect(isCompanionCommand({ type: 'do_not_disturb' })).toBe(true);
     expect(isCompanionCommand({ type: 'bring_buddy_back' })).toBe(true);
+    expect(
+      isCompanionCommand({
+        type: 'movement_preferences_changed',
+        preferences: {
+          autonomousMovementEnabled: true,
+          movementIntensity: 'medium',
+          surfaceInteractionEnabled: true,
+          followMovingSurfaces: true,
+          cursorAwarenessEnabled: false,
+          multiMonitorWanderingEnabled: true,
+          reducedMotion: false,
+        },
+      }),
+    ).toBe(true);
     expect(isCompanionInteraction({ type: 'buddy_clicked' })).toBe(true);
   });
 

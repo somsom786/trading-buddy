@@ -64,6 +64,7 @@ import {
   type StorageStatus,
   type StorageDiagnostics,
 } from '../../domain/storage/types';
+import type { ContinuityPreferences } from '../../domain/continuity/types';
 
 export interface StorageService {
   status(): Promise<StorageStatus>;
@@ -73,6 +74,7 @@ export interface StorageService {
   setCompanionPreferences(preferences: CompanionPreferences): Promise<AppSettings>;
   setMemoryPreferences(preferences: MemoryPreferences): Promise<AppSettings>;
   setJournalPreferences(preferences: JournalPreferences): Promise<AppSettings>;
+  setContinuityPreferences(preferences: ContinuityPreferences): Promise<AppSettings>;
   setRetentionPolicy(policy: RetentionPolicy): Promise<RetentionCleanupResult>;
   applyRetentionCleanup(): Promise<RetentionCleanupResult>;
   listConversations(options: {
@@ -169,6 +171,10 @@ export const tauriStorageService: StorageService = {
 
   async setJournalPreferences(preferences) {
     return invokeChecked('set_journal_preferences', { preferences }, isAppSettings);
+  },
+
+  async setContinuityPreferences(preferences) {
+    return invokeChecked('set_continuity_preferences', { preferences }, isAppSettings);
   },
 
   async setRetentionPolicy(policy) {

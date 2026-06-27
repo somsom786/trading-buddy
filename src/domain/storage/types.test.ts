@@ -15,6 +15,7 @@ import {
 } from './types';
 import { defaultMemoryPreferences } from '../memory/types';
 import { defaultJournalPreferences } from '../journal/types';
+import { DEFAULT_CONTINUITY_PREFERENCES } from '../continuity/types';
 
 const companionPreferences = {
   buddyVisible: true,
@@ -22,6 +23,12 @@ const companionPreferences = {
   placementMode: 'free',
   ambientAnimationsEnabled: true,
   reducedMovementEnabled: false,
+  autonomousMovementEnabled: true,
+  movementIntensity: 'medium',
+  surfaceInteractionEnabled: true,
+  followMovingSurfaces: true,
+  cursorAwarenessEnabled: false,
+  multiMonitorWanderingEnabled: true,
   sleepAfterInactivitySeconds: 900,
   proactiveCheckinsEnabled: true,
   proactiveCheckinCooldownMinutes: 180,
@@ -72,6 +79,7 @@ describe('storage frontend types', () => {
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
         journalPreferences: defaultJournalPreferences,
+        continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
       }),
     ).toBe(true);
     expect(
@@ -81,6 +89,7 @@ describe('storage frontend types', () => {
         companionPreferences,
         memoryPreferences: defaultMemoryPreferences,
         journalPreferences: defaultJournalPreferences,
+        continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
       }),
     ).toBe(false);
   });

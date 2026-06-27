@@ -102,6 +102,34 @@ Current limitations:
 - static poses provide state fallbacks; a full animation-intent renderer is C4;
 - Creature Lab diagnostics remain C4.
 
+## Continuity authority and compatibility model
+
+Task 11B extends, rather than replaces, the existing transparent memory system:
+
+| Record                | Meaning                                   | Authority                               |
+| --------------------- | ----------------------------------------- | --------------------------------------- |
+| Conversation messages | Durable original transcript               | Never rewritten by compaction           |
+| Confirmed `memories`  | Stable user facts and preferences         | Primary fact store                      |
+| Proposed memories     | User-review queue                         | Never retrieved as confirmed            |
+| Memory usage          | Which confirmed facts informed a response | Existing usage ledger                   |
+| Journal               | User-authored reflective record           | Separate from learned continuity        |
+| Conversation summary  | Bounded continuity for older turns        | Compression, not source truth           |
+| Episode               | A sourced event or moment                 | Event record, not duplicate stable fact |
+| Entity and alias      | Named person, pet, project, or thing      | Identity/index record                   |
+| Relationship          | Sourced link between entities or text     | Never silently overrides a fact         |
+| Current-life context  | Explicitly temporary unresolved context   | Expires or is superseded                |
+| Embedding             | Search index for a source record          | Disposable and reproducible             |
+| Consolidation job     | Durable processing state                  | Operational record, not memory          |
+
+All learned records retain source IDs where applicable. Editing a source marks its vector stale;
+deleting a source removes its vector. Deleting a summary never deletes messages, deleting an
+embedding never deletes its source, and deleting continuity data remains separate from conversation,
+journal, and trading deletion.
+
+The local model may propose a validated summary or consolidation operations. It cannot execute SQL
+or write records directly. Deterministic Rust policy validates limits, sensitivity, provenance,
+duplicates, conflicts, and transaction boundaries before persistence.
+
 ## Local model provider
 
 The Rust `local_ai` module defines the current provider boundary:
@@ -498,3 +526,27 @@ cancellation, position serialization, native clamp helpers, incremental NDJSON p
 migrations, repository lifecycle behavior, companion preference validation/persistence,
 diagnostics, retention cleanup, export boundaries, deletion, and interrupted message recovery.
 Platform window, tray, and WebView behavior still require native smoke tests.
+
+## Task 11B living-learning pipeline
+
+Visible conversation remains the priority path:
+
+1. React prepares the user message through the Rust-owned conversation repository.
+2. Confirmed facts and continuity candidates are retrieved independently.
+3. A deterministic TypeScript budget reserves response space, protects the current turn and recent
+   messages, and caps continuity at eight items.
+4. Ollama streams the visible response through the existing local channel.
+5. Only after the assistant message is durably completed does React record retrieval usage and
+   enqueue consolidation.
+6. Rust claims a durable job, asks the selected local Qwen model for bounded JSON, validates every
+   field and source message ID, then writes the accepted bundle transactionally.
+7. Optional embeddings are generated through loopback-only `/api/embed`, normalized, validated,
+   and stored as little-endian float32 BLOBs with provider/model/dimension/content hash metadata.
+
+The worker wakes every 30 seconds, coalesces duplicate source versions, retries at most three times,
+and returns interrupted running jobs to pending at startup. Missing or unavailable embedding models
+change semantic health state but do not fail transcripts, creature movement, or lexical retrieval.
+
+`sha2` is the only dependency added for this slice. It provides deterministic local content hashes
+for stale-vector detection; implementing SHA-256 in project code or using an unstable default
+hasher would be less auditable.

@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { buddyStateForLifecycle, type BuddyState } from '../../domain/companion/buddyState';
 import {
+  conversationModePrompt,
+  detectConversationMode,
+} from '../../domain/companion/conversationMode';
+import {
+  COMPANION_IDENTITY_PROMPT,
+  companionStatePrompt,
+  identityStateForMode,
+} from '../../domain/companion/identity';
+import { buildContextBudget } from '../../domain/continuity/budget';
+import type { ContinuityRetrievalItem, SemanticMemoryStatus } from '../../domain/continuity/types';
+import {
   canSubmitMessage,
   conversationReducer,
   createChatMessage,
@@ -41,6 +52,10 @@ import {
 } from '../../services/tauri/companionService';
 import { tauriLocalAiService, type LocalAiService } from '../../services/tauri/localAiService';
 import { tauriStorageService, type StorageService } from '../../services/tauri/storageService';
+import {
+  tauriContinuityService,
+  type ContinuityService,
+} from '../../services/tauri/continuityService';
 import { tauriWindowService, type WindowService } from '../../services/windowService';
 import {
   buildMemoryContextForMessage,
@@ -49,7 +64,10 @@ import {
   runBackgroundMemoryExtraction,
 } from '../../services/memoryWorkflow';
 import { BuddyLab } from '../local-ai/BuddyLab';
+import { CreatureLab } from '../local-ai/CreatureLab';
+import { CreatureMovementSettings } from '../buddy/CreatureMovementSettings';
 import { JournalLab } from '../local-ai/JournalLab';
+import { ContinuityLab } from '../local-ai/ContinuityLab';
 import { MemoryLab } from '../local-ai/MemoryLab';
 import { StorageLab } from '../local-ai/StorageLab';
 import { TradingLab } from '../local-ai/TradingLab';
@@ -61,6 +79,7 @@ import { MemoryPanel } from '../memory/MemoryPanel';
 import { MemoryProposalCard } from '../memory/MemoryProposalCard';
 import { JournalPanel } from '../journal/JournalPanel';
 import { TradingPanel } from '../trading/TradingPanel';
+import { ContinuityPanel } from '../continuity/ContinuityPanel';
 import type { JournalDiagnostics, JournalEntrySummary } from '../../domain/journal/types';
 import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
 
@@ -72,6 +91,7 @@ interface ChatWorkspaceProps {
   storageService?: StorageService;
   companionService?: CompanionService;
   windowService?: WindowService;
+  continuityService?: ContinuityService;
 }
 
 type PersistenceMode = 'persistent' | 'temporary';
@@ -84,6 +104,7 @@ interface ActiveAssistantPersistence {
   content: string;
   lastSavedLength: number;
   memoryIds: string[];
+  continuityItems: ContinuityRetrievalItem[];
 }
 
 export function ChatWorkspace({
@@ -91,6 +112,7 @@ export function ChatWorkspace({
   storageService = tauriStorageService,
   companionService = tauriCompanionService,
   windowService = tauriWindowService,
+  continuityService = tauriContinuityService,
 }: ChatWorkspaceProps) {
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
@@ -115,6 +137,8 @@ export function ChatWorkspace({
   const [lastExport, setLastExport] = useState<ExportResult | null>(null);
   const [pendingMemory, setPendingMemory] = useState<Memory | null>(null);
   const [usedMemories, setUsedMemories] = useState<RetrievedMemory[]>([]);
+  const [usedContinuity, setUsedContinuity] = useState<ContinuityRetrievalItem[]>([]);
+  const [semanticStatus, setSemanticStatus] = useState<SemanticMemoryStatus>('lexical_memory_mode');
   const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -339,7 +363,22 @@ export function ChatWorkspace({
               reasonCode: 'chat_context',
             });
           }
+          if (persistence.continuityItems.length > 0) {
+            await continuityService.recordUsage({
+              conversationId: persistence.conversationId,
+              assistantMessageId: persistence.messageId,
+              items: persistence.continuityItems,
+            });
+          }
           assistantPersistenceRef.current = null;
+          void storageService
+            .getSettings()
+            .then((settings) =>
+              settings.continuityPreferences.consolidationEnabled
+                ? continuityService.enqueue(persistence.conversationId)
+                : null,
+            )
+            .catch(() => undefined);
         } else if (finalStatus === 'cancelled') {
           await storageService.cancelAssistant(update);
           assistantPersistenceRef.current = null;
@@ -359,7 +398,7 @@ export function ChatWorkspace({
         setStorageError(normalizeStorageError(error));
       }
     },
-    [refreshConversationLists, storageService],
+    [continuityService, refreshConversationLists, storageService],
   );
 
   const scheduleCheckpoint = useCallback(() => {
@@ -443,6 +482,7 @@ export function ChatWorkspace({
       let userMessage = createChatMessage('user', content);
       let assistantMessage = createChatMessage('assistant', '');
       let memoryContext: string | null = null;
+      let continuityItems: ContinuityRetrievalItem[] = [];
       let memoryOptedOutForRequest = conversationMemoryOptOut;
       let memoryNotice: string | null = null;
 
@@ -466,6 +506,7 @@ export function ChatWorkspace({
             content: '',
             lastSavedLength: 0,
             memoryIds: [],
+            continuityItems: [],
           };
           await refreshConversationLists();
         } catch (error) {
@@ -481,6 +522,7 @@ export function ChatWorkspace({
           content: '',
           lastSavedLength: 0,
           memoryIds: [],
+          continuityItems: [],
         };
       }
 
@@ -533,18 +575,44 @@ export function ChatWorkspace({
         }
       }
 
+      if (requestMode === 'real' && mode === 'persistent') {
+        try {
+          const continuity = await continuityService.retrieve({ query: content, limit: 8 });
+          continuityItems = continuity.items;
+          setUsedContinuity(continuity.items);
+          setSemanticStatus(continuity.semanticStatus);
+          if (assistantPersistenceRef.current.requestId === requestId) {
+            assistantPersistenceRef.current.continuityItems = continuity.items;
+          }
+        } catch {
+          continuityItems = [];
+          setUsedContinuity([]);
+          setSemanticStatus('lexical_memory_mode');
+        }
+      } else {
+        setUsedContinuity([]);
+      }
+
+      const detectedMode = detectConversationMode(content);
+      const identityState = identityStateForMode(detectedMode.mode, Date.now());
+      const budget = buildContextBudget({
+        systemPrompt: `${COMPANION_SYSTEM_PROMPT}\n\n${COMPANION_IDENTITY_PROMPT}`,
+        conversationModePrompt: conversationModePrompt(detectedMode),
+        companionStatePrompt: companionStatePrompt(identityState),
+        confirmedMemoryContext: memoryContext,
+        continuityItems,
+        recentMessages: session.messages.map(({ role, content: messageContent }) => ({
+          role,
+          content: messageContent,
+        })),
+        currentUserMessage: content,
+        recentMessageLimit: 12,
+      });
       const request: LocalChatRequest = {
         requestId,
         conversationId,
         model: selectedModel,
-        messages: [
-          { role: 'system', content: COMPANION_SYSTEM_PROMPT },
-          ...(memoryContext ? [{ role: 'system' as const, content: memoryContext }] : []),
-          ...session.messages
-            .filter((message) => message.content)
-            .map(({ role, content: messageContent }) => ({ role, content: messageContent })),
-          { role: 'user', content },
-        ],
+        messages: budget.messages,
         think: thinking,
       };
 
@@ -617,6 +685,7 @@ export function ChatWorkspace({
     [
       activeConversationId,
       conversationMemoryOptOut,
+      continuityService,
       handleStreamEvent,
       localAiService,
       mode,
@@ -1224,6 +1293,24 @@ export function ChatWorkspace({
           </details>
         ) : null}
 
+        {usedContinuity.length > 0 ? (
+          <details className="memory-used-indicator">
+            <summary>
+              Used {String(usedContinuity.length)} continuity items ·{' '}
+              {semanticStatus.replaceAll('_', ' ')}
+            </summary>
+            <ul>
+              {usedContinuity.map((item) => (
+                <li key={`${item.sourceType}:${item.sourceId}`}>
+                  <span>{item.sourceType.replaceAll('_', ' ')}</span>
+                  {item.content}
+                  <small>Why: {item.reasonCodes.join(', ')}</small>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ) : null}
+
         <MessageList messages={session.messages} generating={session.status === 'generating'} />
 
         {session.error ? (
@@ -1333,12 +1420,25 @@ export function ChatWorkspace({
 
         {storageAvailable ? (
           <>
+            <CreatureMovementSettings
+              storageService={storageService}
+              companionService={companionService}
+              onNotice={setStorageNotice}
+              onError={setStorageError}
+            />
             <MemoryPanel
               storageService={storageService}
               onNotice={setStorageNotice}
               onError={setStorageError}
             />
             <JournalPanel
+              storageService={storageService}
+              onNotice={setStorageNotice}
+              onError={setStorageError}
+            />
+            <ContinuityPanel
+              activeConversationId={activeConversationId}
+              continuityService={continuityService}
               storageService={storageService}
               onNotice={setStorageNotice}
               onError={setStorageError}
@@ -1419,6 +1519,11 @@ export function ChatWorkspace({
                 });
               }}
               onMockCancel={() => void stop()}
+            />
+            <CreatureLab companionService={companionService} />
+            <ContinuityLab
+              activeConversationId={activeConversationId}
+              continuityService={continuityService}
             />
           </>
         ) : null}

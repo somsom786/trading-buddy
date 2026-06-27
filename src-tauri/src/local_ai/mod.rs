@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 use self::{
     client::OllamaClient,
     errors::LocalAiError,
-    models::{LocalChatEvent, LocalChatRequest, LocalModel},
+    models::{LocalChatEvent, LocalChatRequest, LocalEmbeddingResult, LocalModel, ProviderMessage},
 };
 
 #[derive(Clone)]
@@ -39,6 +39,39 @@ impl LocalAiService {
 
     pub async fn list_models(&self) -> Result<Vec<LocalModel>, LocalAiError> {
         self.client.list_models().await
+    }
+
+    pub fn has_active_generation(&self) -> bool {
+        self.active
+            .lock()
+            .map(|active| !active.is_empty())
+            .unwrap_or(true)
+    }
+
+    pub async fn structured_chat(
+        &self,
+        model: &str,
+        messages: &[ProviderMessage],
+    ) -> Result<String, LocalAiError> {
+        if self.has_active_generation() {
+            return Err(LocalAiError::invalid_request(
+                "Visible conversation generation has priority.",
+            ));
+        }
+        self.client.structured_chat(model, messages).await
+    }
+
+    pub async fn embed(
+        &self,
+        model: &str,
+        inputs: &[String],
+    ) -> Result<LocalEmbeddingResult, LocalAiError> {
+        if self.has_active_generation() {
+            return Err(LocalAiError::invalid_request(
+                "Visible conversation generation has priority.",
+            ));
+        }
+        self.client.embed(model, inputs).await
     }
 
     pub async fn stream_chat(

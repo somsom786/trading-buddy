@@ -1,6 +1,15 @@
 import { useRef, type PointerEvent } from 'react';
 import { buddyStateToVisualState, type BuddyState } from '../../domain/companion/buddyState';
 import type { BuddyVisualState } from '../../domain/companion/visualState';
+import type { CreatureAnimationIntent } from '../../domain/creature/animation';
+import {
+  cancelPointer,
+  movePointer,
+  pressPointer,
+  releasePointer,
+  resetPointer,
+  type CreaturePointerState,
+} from '../../domain/creature/pointer';
 import type { CompanionService } from '../../services/tauri/companionService';
 import { BuddyPoseRenderer } from './BuddyPoseRenderer';
 
@@ -13,12 +22,8 @@ interface BuddyRendererProps {
   onDragEnd?: () => void;
   onHoverStart?: () => void;
   onHoverEnd?: () => void;
-}
-
-interface PointerStart {
-  x: number;
-  y: number;
-  dragging: boolean;
+  animationIntent?: CreatureAnimationIntent;
+  reducedMotion?: boolean;
 }
 
 export function BuddyRenderer({
@@ -30,22 +35,28 @@ export function BuddyRenderer({
   onDragEnd,
   onHoverStart,
   onHoverEnd,
+  animationIntent,
+  reducedMotion = false,
 }: BuddyRendererProps) {
-  const pointerStart = useRef<PointerStart | null>(null);
+  const pointerState = useRef<CreaturePointerState>(resetPointer());
 
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId);
-    pointerStart.current = { x: event.clientX, y: event.clientY, dragging: false };
+    pointerState.current = pressPointer(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+      atMs: performance.now(),
+    });
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLButtonElement>) => {
-    const start = pointerStart.current;
-    if (!start || start.dragging) {
-      return;
-    }
-    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-    if (distance >= 6) {
-      start.dragging = true;
+    const result = movePointer(pointerState.current, event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+      atMs: performance.now(),
+    });
+    pointerState.current = result.state;
+    if (result.dragStarted) {
       onDragStart?.();
       void companionService.startDragging().finally(() => {
         onDragEnd?.();
@@ -54,23 +65,38 @@ export function BuddyRenderer({
   };
 
   const handlePointerUp = (event: PointerEvent<HTMLButtonElement>) => {
-    const start = pointerStart.current;
-    pointerStart.current = null;
+    const result = releasePointer(pointerState.current, event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+      atMs: performance.now(),
+    });
+    pointerState.current = resetPointer();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (start && !start.dragging) {
+    if (result.activate) {
       onActivate();
     }
+  };
+
+  const handlePointerCancel = (event: PointerEvent<HTMLButtonElement>) => {
+    pointerState.current = cancelPointer(pointerState.current, event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    pointerState.current = resetPointer();
   };
 
   return (
     <BuddyPoseRenderer
       state={state}
       visualState={visualState}
+      {...(animationIntent ? { animationIntent } : {})}
+      reducedMotion={reducedMotion}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       {...(onHoverStart ? { onPointerEnter: onHoverStart } : {})}
       {...(onHoverEnd ? { onPointerLeave: onHoverEnd } : {})}
     />

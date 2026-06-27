@@ -10,8 +10,8 @@ use url::{Host, Url};
 use super::{
     errors::LocalAiError,
     models::{
-        LocalChatEvent, LocalChatRequest, LocalModel, OllamaChatChunk, OllamaTagsResponse,
-        ProviderMessage,
+        LocalChatEvent, LocalChatRequest, LocalEmbeddingResult, LocalModel, OllamaChatChunk,
+        OllamaChatResponse, OllamaEmbedResponse, OllamaTagsResponse, ProviderMessage,
     },
     stream::NdjsonStreamParser,
 };
@@ -155,6 +155,87 @@ impl OllamaClient {
         }
     }
 
+    pub async fn structured_chat(
+        &self,
+        model: &str,
+        messages: &[ProviderMessage],
+    ) -> Result<String, LocalAiError> {
+        super::models::validate_model_name(model)?;
+        if messages.is_empty() || messages.len() > 100 {
+            return Err(LocalAiError::invalid_request(
+                "Structured generation requires between 1 and 100 messages.",
+            ));
+        }
+        let body = OllamaStructuredChatBody {
+            model,
+            messages,
+            stream: false,
+            think: false,
+            format: "json",
+        };
+        let response = tokio::time::timeout(
+            Duration::from_secs(90),
+            self.http.post(self.url("/api/chat")?).json(&body).send(),
+        )
+        .await
+        .map_err(|_| LocalAiError::generation_failed("Structured generation timed out."))?
+        .map_err(LocalAiError::from_reqwest)?;
+        if !response.status().is_success() {
+            return Err(map_error_response(response).await);
+        }
+        let payload: OllamaChatResponse = response
+            .json()
+            .await
+            .map_err(|error| LocalAiError::malformed(error.to_string()))?;
+        if !payload.done || payload.message.content.trim().is_empty() {
+            return Err(LocalAiError::malformed(
+                "Ollama returned an incomplete structured response.",
+            ));
+        }
+        Ok(payload.message.content)
+    }
+
+    pub async fn embed(
+        &self,
+        model: &str,
+        inputs: &[String],
+    ) -> Result<LocalEmbeddingResult, LocalAiError> {
+        super::models::validate_model_name(model)?;
+        if inputs.is_empty() || inputs.len() > 16 {
+            return Err(LocalAiError::invalid_request(
+                "Embedding batches must contain between 1 and 16 inputs.",
+            ));
+        }
+        if inputs
+            .iter()
+            .any(|input| input.trim().is_empty() || input.chars().count() > 4_000)
+        {
+            return Err(LocalAiError::invalid_request(
+                "Embedding inputs must contain 1 to 4,000 characters.",
+            ));
+        }
+        let body = OllamaEmbedBody {
+            model,
+            input: inputs,
+            truncate: false,
+        };
+        let response = tokio::time::timeout(
+            Duration::from_secs(60),
+            self.http.post(self.url("/api/embed")?).json(&body).send(),
+        )
+        .await
+        .map_err(|_| LocalAiError::generation_failed("Embedding generation timed out."))?
+        .map_err(LocalAiError::from_reqwest)?;
+        if !response.status().is_success() {
+            return Err(map_error_response(response).await);
+        }
+        let payload: OllamaEmbedResponse = response
+            .json()
+            .await
+            .map_err(|error| LocalAiError::malformed(error.to_string()))?;
+        validate_and_normalize_embeddings(payload.model, payload.embeddings, inputs.len())
+    }
+
     fn url(&self, path: &str) -> Result<Url, LocalAiError> {
         self.endpoint
             .join(path)
@@ -168,6 +249,65 @@ struct OllamaChatBody<'a> {
     messages: &'a [ProviderMessage],
     stream: bool,
     think: bool,
+}
+
+#[derive(Serialize)]
+struct OllamaStructuredChatBody<'a> {
+    model: &'a str,
+    messages: &'a [ProviderMessage],
+    stream: bool,
+    think: bool,
+    format: &'static str,
+}
+
+#[derive(Serialize)]
+struct OllamaEmbedBody<'a> {
+    model: &'a str,
+    input: &'a [String],
+    truncate: bool,
+}
+
+fn validate_and_normalize_embeddings(
+    model: String,
+    mut vectors: Vec<Vec<f32>>,
+    expected_count: usize,
+) -> Result<LocalEmbeddingResult, LocalAiError> {
+    if vectors.len() != expected_count || vectors.is_empty() {
+        return Err(LocalAiError::malformed(
+            "Ollama returned an unexpected embedding count.",
+        ));
+    }
+    let dimension = vectors[0].len();
+    if dimension == 0 || dimension > 16_384 {
+        return Err(LocalAiError::malformed(
+            "Ollama returned an invalid embedding dimension.",
+        ));
+    }
+    for vector in &mut vectors {
+        if vector.len() != dimension || vector.iter().any(|value| !value.is_finite()) {
+            return Err(LocalAiError::malformed(
+                "Ollama returned inconsistent or non-finite embeddings.",
+            ));
+        }
+        let magnitude = vector
+            .iter()
+            .map(|value| f64::from(*value) * f64::from(*value))
+            .sum::<f64>()
+            .sqrt();
+        if !magnitude.is_finite() || magnitude <= f64::EPSILON {
+            return Err(LocalAiError::malformed(
+                "Ollama returned an empty embedding vector.",
+            ));
+        }
+        for value in vector {
+            *value = (f64::from(*value) / magnitude) as f32;
+        }
+    }
+    Ok(LocalEmbeddingResult {
+        model,
+        dimension,
+        vectors,
+    })
 }
 
 fn handle_record(
@@ -280,7 +420,7 @@ pub fn validate_loopback_endpoint(endpoint: &str) -> Result<Url, LocalAiError> {
 mod tests {
     use reqwest::StatusCode;
 
-    use super::{map_error_status, validate_loopback_endpoint};
+    use super::{map_error_status, validate_and_normalize_embeddings, validate_loopback_endpoint};
     use crate::local_ai::errors::LocalAiErrorCode;
     use crate::local_ai::models::{LocalModel, OllamaTagsResponse};
 
@@ -332,5 +472,34 @@ mod tests {
     fn maps_general_http_errors() {
         let error = map_error_status(StatusCode::INTERNAL_SERVER_ERROR, "failure".to_owned());
         assert_eq!(error.code, LocalAiErrorCode::GenerationFailed);
+    }
+
+    #[test]
+    fn validates_and_normalizes_embedding_vectors() {
+        let result = validate_and_normalize_embeddings(
+            "embeddinggemma:300m".to_owned(),
+            vec![vec![3.0, 4.0], vec![0.0, 2.0]],
+            2,
+        )
+        .expect("valid vectors");
+        assert_eq!(result.dimension, 2);
+        assert!((result.vectors[0][0] - 0.6).abs() < 0.0001);
+        assert!((result.vectors[0][1] - 0.8).abs() < 0.0001);
+    }
+
+    #[test]
+    fn rejects_non_finite_and_mixed_embedding_vectors() {
+        assert!(validate_and_normalize_embeddings(
+            "model".to_owned(),
+            vec![vec![f32::NAN, 1.0]],
+            1,
+        )
+        .is_err());
+        assert!(validate_and_normalize_embeddings(
+            "model".to_owned(),
+            vec![vec![1.0, 2.0], vec![1.0]],
+            2,
+        )
+        .is_err());
     }
 }

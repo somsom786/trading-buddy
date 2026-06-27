@@ -1,4 +1,6 @@
 import type { ChatMessage } from '../local-ai/types';
+import type { MovementIntensity } from '../creature/preferences';
+import { isContinuityPreferences, type ContinuityPreferences } from '../continuity/types';
 import {
   defaultJournalPreferences,
   journalKinds,
@@ -133,6 +135,12 @@ export interface CompanionPreferences {
   freePosition?: CompanionFreePosition;
   ambientAnimationsEnabled: boolean;
   reducedMovementEnabled: boolean;
+  autonomousMovementEnabled: boolean;
+  movementIntensity: MovementIntensity;
+  surfaceInteractionEnabled: boolean;
+  followMovingSurfaces: boolean;
+  cursorAwarenessEnabled: boolean;
+  multiMonitorWanderingEnabled: boolean;
   sleepAfterInactivitySeconds: number;
   proactiveCheckinsEnabled: boolean;
   proactiveCheckinCooldownMinutes: number;
@@ -155,6 +163,7 @@ export interface AppSettings {
   companionPreferences: CompanionPreferences;
   memoryPreferences: MemoryPreferences;
   journalPreferences: JournalPreferences;
+  continuityPreferences: ContinuityPreferences;
 }
 
 export interface ConversationSummary {
@@ -338,7 +347,8 @@ export function isAppSettings(value: unknown): value is AppSettings {
     optionalString(value.activeHyperliquidAccountId) &&
     isCompanionPreferences(value.companionPreferences) &&
     isMemoryPreferences(value.memoryPreferences) &&
-    isJournalPreferences(value.journalPreferences)
+    isJournalPreferences(value.journalPreferences) &&
+    isContinuityPreferences(value.continuityPreferences)
   );
 }
 
@@ -351,6 +361,12 @@ export function isCompanionPreferences(value: unknown): value is CompanionPrefer
     (value.freePosition === undefined || isCompanionFreePosition(value.freePosition)) &&
     typeof value.ambientAnimationsEnabled === 'boolean' &&
     typeof value.reducedMovementEnabled === 'boolean' &&
+    typeof value.autonomousMovementEnabled === 'boolean' &&
+    ['low', 'medium', 'lively'].includes(value.movementIntensity as string) &&
+    typeof value.surfaceInteractionEnabled === 'boolean' &&
+    typeof value.followMovingSurfaces === 'boolean' &&
+    typeof value.cursorAwarenessEnabled === 'boolean' &&
+    typeof value.multiMonitorWanderingEnabled === 'boolean' &&
     isBoundedNumber(value.sleepAfterInactivitySeconds, 60, 86_400) &&
     typeof value.proactiveCheckinsEnabled === 'boolean' &&
     isBoundedNumber(value.proactiveCheckinCooldownMinutes, 15, 1_440) &&

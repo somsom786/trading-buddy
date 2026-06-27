@@ -7,16 +7,17 @@ use super::{
     migrations,
     models::{
         AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
-        CompanionPlacementMode, CompanionPreferences, ConversationDetail, ConversationExport,
-        ConversationExportFile, ConversationRetentionPolicy, ConversationSummary,
-        DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
-        DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult, JournalDiagnostics,
-        JournalEntry, JournalEntryDraft, JournalEntrySummary, JournalEntryUpdate,
-        JournalExportFile, JournalKind, JournalListOptions, JournalMode, JournalPreferences,
-        JournalSort, JournalSourceKind, JournalStatus, Memory, MemoryApprovalMode, MemoryCategory,
-        MemoryDiagnostics, MemoryDraft, MemoryExportFile, MemoryListOptions, MemoryPreferences,
-        MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
-        MessageExport, PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
+        CompanionPlacementMode, CompanionPreferences, ContinuityPreferences, ConversationDetail,
+        ConversationExport, ConversationExportFile, ConversationRetentionPolicy,
+        ConversationSummary, DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult,
+        DevelopmentFixtureResult, DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult,
+        JournalDiagnostics, JournalEntry, JournalEntryDraft, JournalEntrySummary,
+        JournalEntryUpdate, JournalExportFile, JournalKind, JournalListOptions, JournalMode,
+        JournalPreferences, JournalSort, JournalSourceKind, JournalStatus, Memory,
+        MemoryApprovalMode, MemoryCategory, MemoryDiagnostics, MemoryDraft, MemoryExportFile,
+        MemoryListOptions, MemoryPreferences, MemorySensitivity, MemorySourceKind, MemoryStatus,
+        MemoryUsageRecord, MemoryUsageRequest, MessageExport, MovementIntensity,
+        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
         RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
         StoredMessageStatus, MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH,
         MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH,
@@ -119,7 +120,20 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     journal_check_in_cooldown_minutes,
                     show_mood_prompt,
                     show_energy_prompt,
-                    active_hyperliquid_account_id
+                    active_hyperliquid_account_id,
+                    autonomous_movement_enabled,
+                    movement_intensity,
+                    surface_interaction_enabled,
+                    follow_moving_surfaces,
+                    cursor_awareness_enabled,
+                    multi_monitor_wandering_enabled,
+                    conversation_compaction_enabled,
+                    semantic_memory_enabled,
+                    consolidation_enabled,
+                    automatic_ordinary_learning_enabled,
+                    embedding_model,
+                    embed_sensitive_content,
+                    continuity_recent_message_count
              FROM app_settings WHERE id = 1",
             [],
             |row| {
@@ -169,6 +183,19 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     row.get::<_, i64>(38)?,
                     row.get::<_, i64>(39)?,
                     row.get::<_, Option<String>>(40)?,
+                    row.get::<_, i64>(41)?,
+                    row.get::<_, String>(42)?,
+                    row.get::<_, i64>(43)?,
+                    row.get::<_, i64>(44)?,
+                    row.get::<_, i64>(45)?,
+                    row.get::<_, i64>(46)?,
+                    row.get::<_, i64>(47)?,
+                    row.get::<_, i64>(48)?,
+                    row.get::<_, i64>(49)?,
+                    row.get::<_, i64>(50)?,
+                    row.get::<_, String>(51)?,
+                    row.get::<_, i64>(52)?,
+                    row.get::<_, i64>(53)?,
                 ))
             },
         )
@@ -216,6 +243,19 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                 show_mood_prompt,
                 show_energy_prompt,
                 active_hyperliquid_account_id,
+                autonomous_movement_enabled,
+                movement_intensity,
+                surface_interaction_enabled,
+                follow_moving_surfaces,
+                cursor_awareness_enabled,
+                multi_monitor_wandering_enabled,
+                conversation_compaction_enabled,
+                semantic_memory_enabled,
+                consolidation_enabled,
+                automatic_ordinary_learning_enabled,
+                embedding_model,
+                embed_sensitive_content,
+                continuity_recent_message_count,
             )| {
                 let companion_preferences = CompanionPreferences {
                     buddy_visible: buddy_visible == 1,
@@ -224,6 +264,12 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     free_position: free_position(free_x, free_y),
                     ambient_animations_enabled: animations == 1,
                     reduced_movement_enabled: reduced_movement_enabled == 1,
+                    autonomous_movement_enabled: autonomous_movement_enabled == 1,
+                    movement_intensity: MovementIntensity::from_db(&movement_intensity)?,
+                    surface_interaction_enabled: surface_interaction_enabled == 1,
+                    follow_moving_surfaces: follow_moving_surfaces == 1,
+                    cursor_awareness_enabled: cursor_awareness_enabled == 1,
+                    multi_monitor_wandering_enabled: multi_monitor_wandering_enabled == 1,
                     sleep_after_inactivity_seconds: bounded_u32(
                         sleep_after_inactivity_seconds,
                         "sleep-after-inactivity setting",
@@ -274,6 +320,19 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     show_energy_prompt: show_energy_prompt == 1,
                 };
                 validate_journal_preferences(&journal_preferences)?;
+                let continuity_preferences = ContinuityPreferences {
+                    conversation_compaction_enabled: conversation_compaction_enabled == 1,
+                    semantic_memory_enabled: semantic_memory_enabled == 1,
+                    consolidation_enabled: consolidation_enabled == 1,
+                    automatic_ordinary_learning_enabled: automatic_ordinary_learning_enabled == 1,
+                    embedding_model,
+                    embed_sensitive_content: embed_sensitive_content == 1,
+                    recent_message_count: bounded_u32(
+                        continuity_recent_message_count,
+                        "continuity recent-message setting",
+                    )?,
+                };
+                validate_continuity_preferences(&continuity_preferences)?;
                 Ok(AppSettings {
                     selected_local_model,
                     ambient_animations_enabled: animations == 1,
@@ -283,6 +342,7 @@ pub fn settings(connection: &Connection) -> Result<AppSettings, StorageError> {
                     companion_preferences,
                     memory_preferences,
                     journal_preferences,
+                    continuity_preferences,
                 })
             },
         )
@@ -346,7 +406,13 @@ pub fn set_companion_preferences(
                  global_shortcut_enabled = ?15,
                  launch_at_login = ?16,
                  open_companion_home_at_startup = ?17,
-                 bubble_width = ?18
+                 bubble_width = ?18,
+                 autonomous_movement_enabled = ?19,
+                 movement_intensity = ?20,
+                 surface_interaction_enabled = ?21,
+                 follow_moving_surfaces = ?22,
+                 cursor_awareness_enabled = ?23,
+                 multi_monitor_wandering_enabled = ?24
              WHERE id = 1",
             params![
                 bool_to_db(preferences.ambient_animations_enabled),
@@ -367,6 +433,12 @@ pub fn set_companion_preferences(
                 bool_to_db(preferences.launch_at_login),
                 bool_to_db(preferences.open_companion_home_at_startup),
                 preferences.bubble_width,
+                bool_to_db(preferences.autonomous_movement_enabled),
+                preferences.movement_intensity.as_db(),
+                bool_to_db(preferences.surface_interaction_enabled),
+                bool_to_db(preferences.follow_moving_surfaces),
+                bool_to_db(preferences.cursor_awareness_enabled),
+                bool_to_db(preferences.multi_monitor_wandering_enabled),
             ],
         )
         .map_err(StorageError::from_sql_write)?;
@@ -437,6 +509,36 @@ pub fn set_journal_preferences(
                 preferences.journal_check_in_cooldown_minutes,
                 bool_to_db(preferences.show_mood_prompt),
                 bool_to_db(preferences.show_energy_prompt),
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    settings(connection)
+}
+
+pub fn set_continuity_preferences(
+    connection: &Connection,
+    preferences: ContinuityPreferences,
+) -> Result<AppSettings, StorageError> {
+    validate_continuity_preferences(&preferences)?;
+    connection
+        .execute(
+            "UPDATE app_settings
+             SET conversation_compaction_enabled = ?1,
+                 semantic_memory_enabled = ?2,
+                 consolidation_enabled = ?3,
+                 automatic_ordinary_learning_enabled = ?4,
+                 embedding_model = ?5,
+                 embed_sensitive_content = ?6,
+                 continuity_recent_message_count = ?7
+             WHERE id = 1",
+            params![
+                bool_to_db(preferences.conversation_compaction_enabled),
+                bool_to_db(preferences.semantic_memory_enabled),
+                bool_to_db(preferences.consolidation_enabled),
+                bool_to_db(preferences.automatic_ordinary_learning_enabled),
+                preferences.embedding_model,
+                bool_to_db(preferences.embed_sensitive_content),
+                preferences.recent_message_count,
             ],
         )
         .map_err(StorageError::from_sql_write)?;
@@ -2394,6 +2496,18 @@ fn validate_journal_preferences(preferences: &JournalPreferences) -> Result<(), 
     Ok(())
 }
 
+fn validate_continuity_preferences(
+    preferences: &ContinuityPreferences,
+) -> Result<(), StorageError> {
+    validate_model_name(&preferences.embedding_model)?;
+    if !(4..=40).contains(&preferences.recent_message_count) {
+        return Err(StorageError::invalid_request(
+            "Continuity must retain between 4 and 40 recent messages.",
+        ));
+    }
+    Ok(())
+}
+
 fn validate_journal_draft(draft: &JournalEntryDraft) -> Result<(), StorageError> {
     validate_journal_title(&draft.title)?;
     validate_journal_body(&draft.body, &draft.status)?;
@@ -2967,6 +3081,10 @@ mod tests {
             .companion_preferences
             .sleep_after_inactivity_seconds = 1_200;
         settings.companion_preferences.do_not_disturb = true;
+        settings.companion_preferences.autonomous_movement_enabled = false;
+        settings.companion_preferences.movement_intensity = MovementIntensity::Lively;
+        settings.companion_preferences.follow_moving_surfaces = false;
+        settings.companion_preferences.cursor_awareness_enabled = true;
         settings
             .companion_preferences
             .open_companion_home_at_startup = false;
@@ -2984,6 +3102,13 @@ mod tests {
             Some(CompanionFreePosition { x: -50, y: 42 })
         );
         assert!(updated.companion_preferences.do_not_disturb);
+        assert!(!updated.companion_preferences.autonomous_movement_enabled);
+        assert_eq!(
+            updated.companion_preferences.movement_intensity,
+            MovementIntensity::Lively
+        );
+        assert!(!updated.companion_preferences.follow_moving_surfaces);
+        assert!(updated.companion_preferences.cursor_awareness_enabled);
         assert_eq!(updated.companion_preferences.bubble_width, 360);
     }
 

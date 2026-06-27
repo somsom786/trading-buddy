@@ -134,6 +134,22 @@ same validated memory boundary.
 
 ## Buddy visual direction
 
+## Living and learning checkpoint
+
+The current BETA v0.2 implementation joins the creature body and local continuity architecture:
+
+- deterministic physics, pickup/drop state, conservative geometry-only surface following,
+  persistent movement controls, and animation intent;
+- distinct inspectable transcripts, confirmed facts, summaries, episodes, entities, current-life
+  context, vectors, and background jobs;
+- visible chat priority over background consolidation;
+- optional semantic retrieval that degrades to lexical retrieval without affecting movement;
+- deterministic listen, reflect, plan, hang-out, and presence modes without relationship scores.
+
+The full Task 11 success scenario is not claimed yet. A disk-backed automated FarmTown
+restart/correction/deletion proof passes, but real Ollama semantic restart QA still requires the
+separately installed `embeddinggemma:300m` model and a user-driven desktop conversation.
+
 ![Buddy BETA v0.1 design reference](../public/design/buddy-concept-beta-v0.1.png)
 
 The BETA v0.1 concept establishes the intended character language: a small rounded dark body,
