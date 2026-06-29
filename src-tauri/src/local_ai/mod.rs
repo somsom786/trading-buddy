@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use serde_json::Value;
 use tauri::ipc::Channel;
 use tokio_util::sync::CancellationToken;
 
@@ -48,17 +49,20 @@ impl LocalAiService {
             .unwrap_or(true)
     }
 
-    pub async fn structured_chat(
+    pub async fn structured_chat_with_schema(
         &self,
         model: &str,
         messages: &[ProviderMessage],
+        schema: &Value,
     ) -> Result<String, LocalAiError> {
         if self.has_active_generation() {
             return Err(LocalAiError::invalid_request(
                 "Visible conversation generation has priority.",
             ));
         }
-        self.client.structured_chat(model, messages).await
+        self.client
+            .structured_chat_with_schema(model, messages, schema)
+            .await
     }
 
     pub async fn embed(
@@ -135,7 +139,9 @@ impl LocalAiService {
 
 impl Drop for LocalAiService {
     fn drop(&mut self) {
-        self.cancel_all();
+        if Arc::strong_count(&self.active) == 1 {
+            self.cancel_all();
+        }
     }
 }
 
@@ -206,6 +212,27 @@ mod tests {
             )]))),
         };
         service.cancel("request-1").expect("request should cancel");
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn dropping_a_worker_clone_does_not_cancel_visible_generation() {
+        let token = CancellationToken::new();
+        let service = LocalAiService {
+            client: OllamaClient::new("http://127.0.0.1:11434").expect("valid endpoint"),
+            active: Arc::new(Mutex::new(std::collections::HashMap::from([(
+                "conversation-1".to_owned(),
+                ActiveRequest {
+                    request_id: "request-1".to_owned(),
+                    cancellation: token.clone(),
+                },
+            )]))),
+        };
+
+        drop(service.clone());
+
+        assert!(!token.is_cancelled());
+        drop(service);
         assert!(token.is_cancelled());
     }
 }

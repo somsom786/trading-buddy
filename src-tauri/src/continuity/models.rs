@@ -128,6 +128,7 @@ pub struct ProposedEpisode {
     pub summary: String,
     pub category: EpisodeCategory,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub occurred_at: Option<String>,
     pub importance: f64,
     pub emotional_significance: f64,
@@ -156,11 +157,14 @@ pub struct ProposedRelationship {
     pub subject_name: String,
     pub predicate: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub object_name: Option<String>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub object_text: Option<String>,
     pub sensitivity: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_message_id: Option<String>,
 }
 
@@ -172,8 +176,10 @@ pub struct ProposedCurrentLifeContext {
     pub importance: f64,
     pub sensitivity: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_message_id: Option<String>,
 }
 
@@ -212,15 +218,18 @@ pub struct EpisodeRecord {
     pub title: String,
     pub summary: String,
     pub category: EpisodeCategory,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub occurred_at: Option<String>,
     pub importance: f64,
     pub emotional_significance: f64,
     pub sensitivity: String,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_conversation_id: Option<String>,
     pub pinned: bool,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,
     pub use_count: u32,
     pub source_message_ids: Vec<String>,
@@ -242,6 +251,7 @@ pub struct EntityRecord {
     pub last_mentioned_at: String,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,
     pub use_count: u32,
 }
@@ -258,9 +268,13 @@ pub struct CurrentLifeContextRecord {
     pub pinned: bool,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_conversation_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_message_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,
     pub use_count: u32,
 }
@@ -275,9 +289,13 @@ pub struct ConsolidationJobRecord {
     pub status: String,
     pub attempt_count: u32,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub started_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub next_attempt_at: Option<String>,
 }
 
@@ -301,8 +319,10 @@ pub struct ContinuityRetrievalItem {
     pub sensitivity: String,
     pub score: f64,
     pub reason_codes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub source_conversation_id: Option<String>,
     pub source_message_ids: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub last_used_at: Option<String>,
 }
 
@@ -351,4 +371,31 @@ pub struct EmbeddingSource {
     pub source_id: String,
     pub content: String,
     pub sensitivity: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConsolidationJobRecord;
+
+    #[test]
+    fn omits_absent_optional_fields_at_the_frontend_boundary() {
+        let value = serde_json::to_value(ConsolidationJobRecord {
+            id: "job-1".to_owned(),
+            source_type: "conversation".to_owned(),
+            source_id: "conversation-1".to_owned(),
+            source_version: "message-1".to_owned(),
+            status: "pending".to_owned(),
+            attempt_count: 0,
+            created_at: "2026-06-28T00:00:00Z".to_owned(),
+            started_at: None,
+            completed_at: None,
+            last_error_code: None,
+            next_attempt_at: None,
+        })
+        .expect("serialize");
+        assert!(value.get("startedAt").is_none());
+        assert!(value.get("completedAt").is_none());
+        assert!(value.get("lastErrorCode").is_none());
+        assert!(value.get("nextAttemptAt").is_none());
+    }
 }

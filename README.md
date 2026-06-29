@@ -473,12 +473,13 @@ application config directory. Conversations are stored separately in the app-loc
 - The desktop bubble can show saved read-only trading facts, but full manual WebView/tray fixture
   QA remains pending.
 - Hyperliquid data is user-triggered/saved-state awareness, not WebSocket live sync.
-- Window-top landing exists, but conservative following of a moving window surface is not yet
-  implemented.
-- Autonomous movement intensity is not yet exposed as a user-facing low/medium/lively setting.
-- Creature Lab does not yet show live physics/surface/tick diagnostics.
-- Task 11 semantic memory, episodes, entities, compaction, embeddings, consolidation, and
-  conversation modes remain pending.
+- Window-top landing and conservative geometry-only moving-surface following are implemented, but
+  still require direct human interaction QA.
+- Autonomous movement settings and Creature Lab diagnostics are implemented.
+- Task 11 continuity, embeddings, consolidation, and conversation modes are implemented. Real
+  768-dimensional embedding persistence and post-restart semantic paraphrase retrieval pass, but
+  real episode/project extraction, live correction/deletion, full pointer/display QA, and the
+  performance matrix remain open.
 - The buddy artwork and animations are development placeholders.
 
 ## Buddy design direction

@@ -529,6 +529,12 @@ Platform window, tray, and WebView behavior still require native smoke tests.
 
 ## Task 11B living-learning pipeline
 
+Task 11C hardens the model boundary with native Ollama JSON Schema for consolidation. Serde and
+transactional repository validation remain authoritative, and a bounded repair pass cannot bypass
+provenance, sensitivity, size, enum, or secret checks. Hybrid retrieval now requires lexical,
+entity/project, or calibrated semantic evidence; importance and recency alone cannot inject a
+record into conversation context.
+
 Visible conversation remains the priority path:
 
 1. React prepares the user message through the Rust-owned conversation repository.

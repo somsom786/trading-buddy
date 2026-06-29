@@ -40,7 +40,7 @@ const companionPreferences = {
   ambientAnimationsEnabled: true,
   reducedMovementEnabled: false,
   autonomousMovementEnabled: true,
-  movementIntensity: 'medium',
+  movementIntensity: 'medium' as const,
   surfaceInteractionEnabled: true,
   followMovingSurfaces: true,
   cursorAwarenessEnabled: false,
@@ -252,6 +252,79 @@ function createStorageService(): {
 }
 
 describe('ChatWorkspace', () => {
+  it('does not reload the last conversation after starting a new chat', async () => {
+    const user = userEvent.setup();
+    const { service: storageService } = createStorageService();
+    const now = '2026-06-28T00:00:00Z';
+    storageService.getSettings = vi.fn().mockResolvedValue({
+      selectedLocalModel: 'qwen3:4b',
+      ambientAnimationsEnabled: true,
+      conversationRetentionPolicy: 'keep_until_delete',
+      lastOpenedConversationId: 'conversation-old',
+      companionPreferences,
+      memoryPreferences: defaultMemoryPreferences,
+      journalPreferences: defaultJournalPreferences,
+      continuityPreferences: DEFAULT_CONTINUITY_PREFERENCES,
+    });
+    storageService.listConversations = vi.fn().mockImplementation(({ archived }) =>
+      Promise.resolve(
+        archived
+          ? []
+          : [
+              {
+                id: 'conversation-old',
+                title: 'Old conversation',
+                createdAt: now,
+                updatedAt: now,
+                messageCount: 1,
+              },
+            ],
+      ),
+    );
+    const getConversation = vi.fn().mockResolvedValue({
+      conversation: {
+        id: 'conversation-old',
+        title: 'Old conversation',
+        createdAt: now,
+        updatedAt: now,
+        messageCount: 1,
+      },
+      messages: [
+        {
+          id: 'message-old',
+          conversationId: 'conversation-old',
+          role: 'user',
+          content: 'Old message that must stay cleared',
+          status: 'completed',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    });
+    storageService.getConversation = getConversation;
+    const localAiService: LocalAiService = {
+      listModels: vi.fn().mockResolvedValue([{ name: 'qwen3:4b' }]),
+      cancel: vi.fn().mockResolvedValue(undefined),
+      streamChat: vi.fn(),
+    };
+
+    render(
+      <ChatWorkspace
+        localAiService={localAiService}
+        storageService={storageService}
+        companionService={companionService}
+        windowService={windowService}
+      />,
+    );
+
+    await screen.findByText('Old message that must stay cleared');
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Old message that must stay cleared')).not.toBeInTheDocument();
+    });
+    expect(getConversation).toHaveBeenCalledOnce();
+  });
+
   it('lists models and streams a response into the assistant placeholder', async () => {
     const user = userEvent.setup();
     const {

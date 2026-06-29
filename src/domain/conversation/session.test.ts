@@ -56,12 +56,21 @@ describe('conversationReducer', () => {
       event: { type: 'completed', requestId: 'request-1' },
     });
     expect(completed).toMatchObject({ activeRequestId: null, status: 'ready' });
+    expect(completed.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      status: 'completed',
+    });
 
     const cancelled = conversationReducer(generatingSession(), {
       type: 'stream_event',
       event: { type: 'cancelled', requestId: 'request-1' },
     });
     expect(cancelled).toMatchObject({ activeRequestId: null, status: 'ready' });
+    expect(cancelled.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      status: 'cancelled',
+      statusNote: 'Generation was stopped.',
+    });
   });
 
   it('records a typed provider failure', () => {
@@ -75,6 +84,11 @@ describe('conversationReducer', () => {
       event: { type: 'failed', requestId: 'request-1', error },
     });
     expect(failed).toMatchObject({ activeRequestId: null, status: 'error', error });
+    expect(failed.messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      status: 'failed',
+      statusNote: 'Failed',
+    });
   });
 
   it('prevents duplicate generation starts', () => {

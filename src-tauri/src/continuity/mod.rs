@@ -23,9 +23,10 @@ use self::{
         cancel_job, claim_next_job, complete_job, delete_all_continuity,
         delete_current_life_context, delete_entity, delete_episode, delete_summary,
         enqueue_conversation_job, fail_or_retry_job, load_consolidation_source,
-        load_reembedding_sources, load_retrieval_candidates, mark_embedding_model_unavailable,
-        persist_consolidation_bundle, record_continuity_usage, retry_job,
-        score_retrieval_candidates, snapshot, store_embeddings, update_entity, update_episode,
+        load_reembedding_sources, load_retrieval_candidates, make_job_ready,
+        mark_embedding_model_unavailable, persist_consolidation_bundle, record_continuity_usage,
+        retry_job, score_retrieval_candidates, snapshot, store_embeddings, update_entity,
+        update_episode,
     },
 };
 
@@ -67,8 +68,9 @@ pub async fn process_next_job(
         }
     };
 
+    let schema = consolidation_schema();
     let response = local_ai
-        .structured_chat(&source.model, &consolidation_messages(&source))
+        .structured_chat_with_schema(&source.model, &consolidation_messages(&source), &schema)
         .await;
     let raw = match response {
         Ok(raw) => raw,
@@ -83,18 +85,45 @@ pub async fn process_next_job(
                 .map(Some);
         }
     };
-    let bundle: ConsolidationBundle = match serde_json::from_str(&raw) {
+    let bundle = match parse_consolidation_bundle(&raw) {
         Ok(bundle) => bundle,
-        Err(_) => {
-            return storage
-                .run({
-                    let job_id = job.id.clone();
-                    move |connection, _| {
-                        fail_or_retry_job(connection, &job_id, "invalid_model_output")
+        Err(_first_error) => {
+            #[cfg(debug_assertions)]
+            eprintln!("continuity consolidation output failed validation: {_first_error}");
+            let repaired = local_ai
+                .structured_chat_with_schema(
+                    &source.model,
+                    &repair_consolidation_messages(&source, &raw),
+                    &schema,
+                )
+                .await;
+            match repaired {
+                Ok(repaired) => match parse_consolidation_bundle(&repaired) {
+                    Ok(bundle) => bundle,
+                    Err(_) => {
+                        return storage
+                            .run({
+                                let job_id = job.id.clone();
+                                move |connection, _| {
+                                    fail_or_retry_job(connection, &job_id, "invalid_model_output")
+                                }
+                            })
+                            .await
+                            .map(Some);
                     }
-                })
-                .await
-                .map(Some);
+                },
+                Err(_) => {
+                    return storage
+                        .run({
+                            let job_id = job.id.clone();
+                            move |connection, _| {
+                                fail_or_retry_job(connection, &job_id, "invalid_model_output")
+                            }
+                        })
+                        .await
+                        .map(Some);
+                }
+            }
         }
     };
     let embedding_sources = match storage
@@ -200,17 +229,10 @@ async fn embed_sources(
 pub async fn enqueue_continuity_consolidation(
     conversation_id: String,
     storage: State<'_, StorageService>,
-    local_ai: State<'_, LocalAiService>,
 ) -> Result<ConsolidationJobRecord, StorageError> {
-    let job = storage
+    storage
         .run(move |connection, _| enqueue_conversation_job(connection, &conversation_id))
-        .await?;
-    let storage = storage.inner().clone();
-    let local_ai = local_ai.inner().clone();
-    tauri::async_runtime::spawn(async move {
-        let _ = process_next_job(storage, local_ai).await;
-    });
-    Ok(job)
+        .await
 }
 
 #[tauri::command]
@@ -219,8 +241,11 @@ pub async fn consolidate_continuity_now(
     storage: State<'_, StorageService>,
     local_ai: State<'_, LocalAiService>,
 ) -> Result<Option<ConsolidationJobRecord>, StorageError> {
-    storage
+    let job = storage
         .run(move |connection, _| enqueue_conversation_job(connection, &conversation_id))
+        .await?;
+    storage
+        .run(move |connection, _| make_job_ready(connection, &job.id))
         .await?;
     process_next_job(storage.inner().clone(), local_ai.inner().clone()).await
 }
@@ -447,6 +472,215 @@ pub async fn delete_all_continuity_data(
         .await
 }
 
+fn parse_consolidation_bundle(raw: &str) -> Result<ConsolidationBundle, serde_json::Error> {
+    let trimmed = raw.trim();
+    match serde_json::from_str(trimmed) {
+        Ok(bundle) => Ok(bundle),
+        Err(direct_error) => {
+            let Some(start) = trimmed.find('{') else {
+                return Err(direct_error);
+            };
+            let Some(end) = trimmed.rfind('}') else {
+                return Err(direct_error);
+            };
+            serde_json::from_str(&trimmed[start..=end])
+        }
+    }
+}
+
+fn consolidation_schema() -> serde_json::Value {
+    let string_array = || serde_json::json!({"type": "array", "items": {"type": "string"}});
+    let sensitivity = serde_json::json!({
+        "type": "string",
+        "enum": ["ordinary", "personal", "sensitive", "prohibited"]
+    });
+    serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["summary", "episodes", "entities", "relationships", "currentLifeContext"],
+        "properties": {
+            "summary": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "userGoals", "currentTopics", "importantEvents", "emotionalContext",
+                    "peopleAndEntities", "projects", "decisions", "unresolvedItems",
+                    "promisesOrFollowUps", "userCorrections", "relevantMemoryIds",
+                    "summarizedThroughMessageId"
+                ],
+                "properties": {
+                    "userGoals": string_array(),
+                    "currentTopics": string_array(),
+                    "importantEvents": string_array(),
+                    "emotionalContext": string_array(),
+                    "peopleAndEntities": string_array(),
+                    "projects": string_array(),
+                    "decisions": string_array(),
+                    "unresolvedItems": string_array(),
+                    "promisesOrFollowUps": string_array(),
+                    "userCorrections": string_array(),
+                    "relevantMemoryIds": string_array(),
+                    "summarizedThroughMessageId": {"type": "string"}
+                }
+            },
+            "episodes": {
+                "type": "array",
+                "maxItems": 3,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "title", "summary", "category", "occurredAt", "importance",
+                        "emotionalSignificance", "sensitivity", "sourceMessageIds", "entityNames"
+                    ],
+                    "properties": {
+                        "title": {"type": "string"},
+                        "summary": {"type": "string"},
+                        "category": {
+                            "type": "string",
+                            "enum": [
+                                "life_event", "emotional_moment", "project", "decision",
+                                "achievement", "setback", "shared_activity", "conversation", "other"
+                            ]
+                        },
+                        "occurredAt": {"type": ["string", "null"]},
+                        "importance": {"type": "number", "minimum": 0, "maximum": 1},
+                        "emotionalSignificance": {
+                            "type": "number", "minimum": 0, "maximum": 1
+                        },
+                        "sensitivity": sensitivity.clone(),
+                        "sourceMessageIds": string_array(),
+                        "entityNames": string_array()
+                    }
+                }
+            },
+            "entities": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "entityType", "canonicalName", "aliases", "sensitivity",
+                        "sourceMessageIds"
+                    ],
+                    "properties": {
+                        "entityType": {
+                            "type": "string",
+                            "enum": [
+                                "person", "pet", "project", "company", "community", "place",
+                                "product", "goal", "idea", "other"
+                            ]
+                        },
+                        "canonicalName": {"type": "string"},
+                        "aliases": string_array(),
+                        "sensitivity": sensitivity.clone(),
+                        "sourceMessageIds": string_array()
+                    }
+                }
+            },
+            "relationships": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "subjectName", "predicate", "objectName", "objectText", "sensitivity",
+                        "sourceMessageId"
+                    ],
+                    "properties": {
+                        "subjectName": {"type": "string"},
+                        "predicate": {"type": "string"},
+                        "objectName": {"type": ["string", "null"]},
+                        "objectText": {"type": ["string", "null"]},
+                        "sensitivity": sensitivity.clone(),
+                        "sourceMessageId": {"type": ["string", "null"]}
+                    }
+                }
+            },
+            "currentLifeContext": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "category", "content", "importance", "sensitivity", "expiresAt",
+                        "sourceMessageId"
+                    ],
+                    "properties": {
+                        "category": {"type": "string"},
+                        "content": {"type": "string"},
+                        "importance": {"type": "number", "minimum": 0, "maximum": 1},
+                        "sensitivity": sensitivity,
+                        "expiresAt": {"type": ["string", "null"]},
+                        "sourceMessageId": {"type": ["string", "null"]}
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn repair_consolidation_messages(
+    source: &models::ConsolidationSource,
+    candidate: &str,
+) -> Vec<ProviderMessage> {
+    let through_index = source
+        .messages
+        .len()
+        .saturating_sub(source.recent_message_count)
+        .saturating_sub(1);
+    let through_id = &source.messages[through_index].id;
+    let allowed_ids = source
+        .messages
+        .iter()
+        .map(|message| message.id.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let candidate = candidate.chars().take(12_000).collect::<String>();
+    let system = r#"You repair a local continuity candidate into a strict JSON transport object.
+Return only one JSON object. Do not invent facts, outcomes, provenance, or hidden reasoning.
+Discard unsupported fields. Use empty arrays when the candidate does not support a field."#;
+    let user = format!(
+        r#"CANDIDATE
+{candidate}
+END CANDIDATE
+
+Allowed sourceMessageIds: {allowed_ids}
+
+Return exactly this camelCase shape:
+{{
+  "summary": {{
+    "userGoals": [], "currentTopics": [], "importantEvents": [], "emotionalContext": [],
+    "peopleAndEntities": [], "projects": [], "decisions": [], "unresolvedItems": [],
+    "promisesOrFollowUps": [], "userCorrections": [], "relevantMemoryIds": [],
+    "summarizedThroughMessageId": "{through_id}"
+  }},
+  "episodes": [],
+  "entities": [],
+  "relationships": [],
+  "currentLifeContext": []
+}}
+
+Preserve supported candidate facts in the appropriate arrays. Episodes and entities require
+sourceMessageIds from the allowed list; omit them if the candidate does not provide valid
+provenance. summarizedThroughMessageId must be exactly "{through_id}". The first character must be
+{{ and the last character must be }}. No Markdown or commentary."#
+    );
+    vec![
+        ProviderMessage {
+            role: ChatRole::System,
+            content: system.to_owned(),
+        },
+        ProviderMessage {
+            role: ChatRole::User,
+            content: user,
+        },
+    ]
+}
+
 fn consolidation_messages(source: &models::ConsolidationSource) -> Vec<ProviderMessage> {
     let through_index = source
         .messages
@@ -485,7 +719,13 @@ summarizedThroughMessageId MUST be exactly "{through_id}".
 Use empty arrays when nothing is supported.
 
 TRANSCRIPT
-{transcript}"#
+{transcript}
+END TRANSCRIPT
+
+OUTPUT REQUIREMENTS
+Return exactly one JSON object using the schema above. The first character must be {{ and the last
+character must be }}. Do not answer the transcript, continue its conversation, or include Markdown,
+commentary, or reasoning. summarizedThroughMessageId must be exactly "{through_id}"."#
     );
     vec![
         ProviderMessage {
@@ -559,4 +799,55 @@ fn error_code(error: &StorageError) -> String {
         .ok()
         .and_then(|value| value.as_str().map(ToOwned::to_owned))
         .unwrap_or_else(|| "storage_error".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{consolidation_schema, parse_consolidation_bundle};
+
+    const MINIMAL_BUNDLE: &str = r#"{
+      "summary": {
+        "summarizedThroughMessageId": "message-1"
+      }
+    }"#;
+
+    #[test]
+    fn parses_a_direct_consolidation_object() {
+        let bundle = parse_consolidation_bundle(MINIMAL_BUNDLE).expect("valid bundle");
+
+        assert_eq!(bundle.summary.summarized_through_message_id, "message-1");
+    }
+
+    #[test]
+    fn parses_one_strict_object_from_a_markdown_wrapper() {
+        let wrapped = format!("Here is the JSON:\n```json\n{MINIMAL_BUNDLE}\n```");
+
+        let bundle = parse_consolidation_bundle(&wrapped).expect("wrapped bundle");
+
+        assert_eq!(bundle.summary.summarized_through_message_id, "message-1");
+    }
+
+    #[test]
+    fn rejects_wrapped_json_with_an_invalid_schema() {
+        let invalid = "```json\n{\"summary\":{\"summarizedThroughMessageId\":42}}\n```";
+
+        assert!(parse_consolidation_bundle(invalid).is_err());
+    }
+
+    #[test]
+    fn structured_output_schema_requires_all_continuity_sections() {
+        let schema = consolidation_schema();
+        let required = schema["required"].as_array().expect("required fields");
+
+        for field in [
+            "summary",
+            "episodes",
+            "entities",
+            "relationships",
+            "currentLifeContext",
+        ] {
+            assert!(required.iter().any(|value| value == field));
+        }
+        assert_eq!(schema["additionalProperties"], false);
+    }
 }

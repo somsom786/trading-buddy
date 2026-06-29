@@ -574,7 +574,9 @@ pub fn prepare_generation(
     validate_content(&request.user_content)?;
     validate_model_name(&request.model_name)?;
 
-    let now = timestamp();
+    let generation_started_at = Utc::now();
+    let now = generation_started_at.to_rfc3339();
+    let assistant_created_at = (generation_started_at + Duration::microseconds(1)).to_rfc3339();
     let transaction = connection
         .transaction()
         .map_err(StorageError::from_sql_write)?;
@@ -620,7 +622,7 @@ pub fn prepare_generation(
                 conversation_id,
                 request.model_name,
                 request.request_id,
-                now
+                assistant_created_at
             ],
         )
         .map_err(StorageError::from_sql_write)?;
@@ -2950,6 +2952,16 @@ mod tests {
         assert_eq!(
             prepared.assistant_message.status,
             StoredMessageStatus::Streaming
+        );
+        let detail =
+            get_conversation(&connection, &prepared.conversation.id).expect("conversation detail");
+        assert_eq!(
+            detail
+                .messages
+                .iter()
+                .map(|message| message.role.clone())
+                .collect::<Vec<_>>(),
+            vec![StoredMessageRole::User, StoredMessageRole::Assistant]
         );
         assert_eq!(
             list_conversations(&connection, false, 20, 0)

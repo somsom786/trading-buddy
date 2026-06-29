@@ -3,6 +3,7 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
+use serde_json::Value;
 use tauri::ipc::Channel;
 use tokio_util::sync::CancellationToken;
 use url::{Host, Url};
@@ -11,7 +12,7 @@ use super::{
     errors::LocalAiError,
     models::{
         LocalChatEvent, LocalChatRequest, LocalEmbeddingResult, LocalModel, OllamaChatChunk,
-        OllamaChatResponse, OllamaEmbedResponse, OllamaTagsResponse, ProviderMessage,
+        OllamaChatResponse, OllamaEmbedResponse, OllamaModel, OllamaTagsResponse, ProviderMessage,
     },
     stream::NdjsonStreamParser,
 };
@@ -61,10 +62,16 @@ impl OllamaClient {
             .json()
             .await
             .map_err(|error| LocalAiError::malformed(error.to_string()))?;
-        if tags.models.is_empty() {
+        let models = tags
+            .models
+            .into_iter()
+            .filter(OllamaModel::supports_chat)
+            .map(LocalModel::from)
+            .collect::<Vec<_>>();
+        if models.is_empty() {
             return Err(LocalAiError::no_models());
         }
-        Ok(tags.models.into_iter().map(LocalModel::from).collect())
+        Ok(models)
     }
 
     pub async fn stream_chat(
@@ -155,10 +162,26 @@ impl OllamaClient {
         }
     }
 
-    pub async fn structured_chat(
+    pub async fn structured_chat_with_schema(
         &self,
         model: &str,
         messages: &[ProviderMessage],
+        schema: &Value,
+    ) -> Result<String, LocalAiError> {
+        if !schema.is_object() {
+            return Err(LocalAiError::invalid_request(
+                "Structured generation requires a JSON Schema object.",
+            ));
+        }
+        self.structured_chat_with_format(model, messages, schema)
+            .await
+    }
+
+    async fn structured_chat_with_format(
+        &self,
+        model: &str,
+        messages: &[ProviderMessage],
+        format: &Value,
     ) -> Result<String, LocalAiError> {
         super::models::validate_model_name(model)?;
         if messages.is_empty() || messages.len() > 100 {
@@ -171,7 +194,7 @@ impl OllamaClient {
             messages,
             stream: false,
             think: false,
-            format: "json",
+            format,
         };
         let response = tokio::time::timeout(
             Duration::from_secs(90),
@@ -257,7 +280,7 @@ struct OllamaStructuredChatBody<'a> {
     messages: &'a [ProviderMessage],
     stream: bool,
     think: bool,
-    format: &'static str,
+    format: &'a Value,
 }
 
 #[derive(Serialize)]
@@ -422,7 +445,7 @@ mod tests {
 
     use super::{map_error_status, validate_and_normalize_embeddings, validate_loopback_endpoint};
     use crate::local_ai::errors::LocalAiErrorCode;
-    use crate::local_ai::models::{LocalModel, OllamaTagsResponse};
+    use crate::local_ai::models::{LocalModel, OllamaModel, OllamaTagsResponse};
 
     #[test]
     fn accepts_loopback_endpoints() {
@@ -446,6 +469,7 @@ mod tests {
                 "name": "qwen3:4b",
                 "modified_at": "2026-01-01T00:00:00Z",
                 "size": 1234,
+                "capabilities": ["completion", "tools"],
                 "details": {
                     "family": "qwen3",
                     "parameter_size": "4B",
@@ -457,6 +481,36 @@ mod tests {
         let model = LocalModel::from(response.models.into_iter().next().expect("model"));
         assert_eq!(model.name, "qwen3:4b");
         assert_eq!(model.parameter_size.as_deref(), Some("4B"));
+    }
+
+    #[test]
+    fn excludes_embedding_only_models_from_chat_discovery() {
+        let response: OllamaTagsResponse = serde_json::from_value(serde_json::json!({
+            "models": [
+                {
+                    "name": "embeddinggemma:300m",
+                    "capabilities": ["embedding"]
+                },
+                {
+                    "name": "qwen3:4b",
+                    "capabilities": ["completion"]
+                }
+            ]
+        }))
+        .expect("fixture should parse");
+        let models = response
+            .models
+            .into_iter()
+            .filter(OllamaModel::supports_chat)
+            .map(LocalModel::from)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            models
+                .iter()
+                .map(|model| model.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["qwen3:4b"]
+        );
     }
 
     #[test]

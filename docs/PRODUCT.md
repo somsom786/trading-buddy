@@ -146,9 +146,10 @@ The current BETA v0.2 implementation joins the creature body and local continuit
 - optional semantic retrieval that degrades to lexical retrieval without affecting movement;
 - deterministic listen, reflect, plan, hang-out, and presence modes without relationship scores.
 
-The full Task 11 success scenario is not claimed yet. A disk-backed automated FarmTown
-restart/correction/deletion proof passes, but real Ollama semantic restart QA still requires the
-separately installed `embeddinggemma:300m` model and a user-driven desktop conversation.
+The full Task 11 success scenario is not claimed yet. Real `embeddinggemma:300m` generation, a
+20-turn local-Qwen desktop transcript, a full-process restart, and semantic paraphrase retrieval now
+pass. The final real run did not produce a valid FarmTown episode/project entity, and live
+correction/deletion plus direct human pointer/display QA remain open.
 
 ![Buddy BETA v0.1 design reference](../public/design/buddy-concept-beta-v0.1.png)
 

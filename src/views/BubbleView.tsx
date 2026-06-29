@@ -127,6 +127,7 @@ export function BubbleView({
   const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const [journalSession, setJournalSession] = useState(createIdleJournalSession);
   const activeRequestRef = useRef<string | null>(null);
+  const nativeRequestInFlightRef = useRef(false);
   const selectedModelRef = useRef<string | null>(null);
   const persistenceRef = useRef<ActiveAssistantPersistence | null>(null);
 
@@ -202,7 +203,13 @@ export function BubbleView({
     dispatch({ type: 'provider_checking' });
     try {
       const models = await localAiService.listModels();
-      const selectedModel = selectPreferredModel(models, selectedModelRef.current);
+      const persistedSelection =
+        selectedModelRef.current ??
+        (await storageService
+          .getSettings()
+          .then((settings) => settings.selectedLocalModel ?? null)
+          .catch(() => null));
+      const selectedModel = selectPreferredModel(models, persistedSelection);
       if (!selectedModel) {
         setProviderStatus({ status: 'no_models' });
         setBuddyState(buddyStateForLifecycle('provider_unavailable'));
@@ -222,7 +229,7 @@ export function BubbleView({
       dispatch({ type: 'provider_failed', error: normalized });
       setBuddyState(buddyStateForLifecycle('provider_unavailable'));
     }
-  }, [localAiService, setBuddyState]);
+  }, [localAiService, setBuddyState, storageService]);
 
   useEffect(() => {
     void (async () => {
@@ -375,7 +382,7 @@ export function BubbleView({
 
   const send = async () => {
     const validation = validateMessageInput(input, LOCAL_AI_CONFIG.maxInputLength);
-    if (!validation.valid || session.activeRequestId) {
+    if (!validation.valid || session.activeRequestId || nativeRequestInFlightRef.current) {
       return;
     }
     const tradingIntent = detectTradingIntent(validation.content);
@@ -627,7 +634,12 @@ export function BubbleView({
     setBuddyState(buddyStateForLifecycle('message_submitted'));
 
     try {
-      await localAiService.streamChat(request, handleStreamEvent);
+      nativeRequestInFlightRef.current = true;
+      try {
+        await localAiService.streamChat(request, handleStreamEvent);
+      } finally {
+        nativeRequestInFlightRef.current = false;
+      }
       if (!isFactIntent(tradingIntent)) {
         const settings = await storageService.getSettings();
         void runBackgroundMemoryExtraction({

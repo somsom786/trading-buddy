@@ -33,9 +33,12 @@ independently passing checkpoints.
   - [x] Full automated/frontend/native build validation.
   - [x] Disk-backed FarmTown restart, correction, and deletion proof with synthetic vectors.
   - [x] Real native launch with Companion Home hidden.
+  - [x] Real 20-turn local-Qwen transcript and full-process restart.
+  - [x] Real `embeddinggemma:300m` generation, persistence, and bounded batch verification.
+  - [x] Real post-restart semantic paraphrase retrieval with unrelated-query exclusion.
   - [ ] Real pickup/drop, moving-surface, multi-monitor, DPI, and mode walkthrough.
-  - [ ] Real Ollama consolidation and semantic restart walkthrough with
-        `embeddinggemma:300m`.
+  - [ ] Produce a valid FarmTown episode/project entity and complete live correction/deletion.
+  - [ ] Complete the requested bounded performance matrix and missing transparency controls.
 
 ## Task 10 — Creature-first mission reset
 

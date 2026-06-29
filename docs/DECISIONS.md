@@ -700,3 +700,21 @@ validated before one transactional storage write.
 `sha2` is used only for deterministic local embedding content hashes and stale-vector detection.
 Writing cryptographic hashing code in-project would be riskier and less auditable; a process-random
 standard-library hasher would not provide durable identity across launches.
+
+## 085 - Constrain consolidation with native JSON Schema
+
+**Status:** Accepted
+
+Prompt-only JSON mode was not reliable across installed local models on a long real transcript.
+Continuity consolidation now supplies an exact Ollama JSON Schema and still treats Rust Serde plus
+repository validation as authoritative. One bounded repair pass may normalize a candidate, but
+model output never writes directly to SQLite.
+
+## 086 - Require query evidence before continuity injection
+
+**Status:** Accepted
+
+Importance, recency, and record type are ranking signals, not relevance evidence. A continuity item
+must have lexical, entity/project, or calibrated semantic evidence before entering context. A
+slightly lower semantic threshold is allowed only for explicitly high-importance records; this
+preserves paraphrase recall while excluding an observed unrelated movie query.

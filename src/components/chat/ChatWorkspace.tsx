@@ -143,6 +143,7 @@ export function ChatWorkspace({
   const [exporting, setExporting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const activeRequestRef = useRef<string | null>(null);
+  const nativeRequestInFlightRef = useRef(false);
   const selectedModelRef = useRef<string | null>(null);
   const requestKindRef = useRef<'real' | 'mock' | null>(null);
   const mockRunRef = useRef<{ requestId: string; cancelled: boolean } | null>(null);
@@ -258,7 +259,16 @@ export function ChatWorkspace({
           active.find((conversation) => conversation.id === settings.lastOpenedConversationId) ??
           active[0];
         if (target) {
-          await loadConversation(target.id);
+          const detail = await storageService.getConversation(target.id);
+          dispatch({
+            type: 'load_session',
+            conversationId: target.id,
+            messages: detail.messages.map(storedMessageToChatMessage),
+          });
+          setMode('persistent');
+          setActiveConversationId(target.id);
+          setConversationMemoryOptOut(false);
+          await storageService.setLastOpenedConversation(target.id);
         }
       } catch (error) {
         if (!effectState.disposed) {
@@ -273,7 +283,7 @@ export function ChatWorkspace({
     return () => {
       effectState.disposed = true;
     };
-  }, [loadConversation, refreshConversationLists, storageService]);
+  }, [refreshConversationLists, storageService]);
 
   useEffect(() => {
     let disposed = false;
@@ -305,7 +315,13 @@ export function ChatWorkspace({
     dispatch({ type: 'provider_checking' });
     try {
       const models = await localAiService.listModels();
-      const selectedModel = selectPreferredModel(models, selectedModelRef.current);
+      const persistedSelection =
+        selectedModelRef.current ??
+        (await storageService
+          .getSettings()
+          .then((settings) => settings.selectedLocalModel ?? null)
+          .catch(() => null));
+      const selectedModel = selectPreferredModel(models, persistedSelection);
       if (!selectedModel) {
         setProviderStatus({ status: 'no_models' });
         setBuddyState(buddyStateForLifecycle('provider_unavailable'));
@@ -473,7 +489,11 @@ export function ChatWorkspace({
 
   const startGeneration = useCallback(
     async (content: string, requestMode: 'real' | 'mock') => {
-      if (activeRequestRef.current || (requestMode === 'real' && !session.selectedModel)) {
+      if (
+        activeRequestRef.current ||
+        nativeRequestInFlightRef.current ||
+        (requestMode === 'real' && !session.selectedModel)
+      ) {
         return;
       }
       const requestId = createId('request');
@@ -651,7 +671,12 @@ export function ChatWorkspace({
       }
 
       try {
-        await localAiService.streamChat(request, handleStreamEvent);
+        nativeRequestInFlightRef.current = true;
+        try {
+          await localAiService.streamChat(request, handleStreamEvent);
+        } finally {
+          nativeRequestInFlightRef.current = false;
+        }
         const settings = await storageService.getSettings();
         void runBackgroundMemoryExtraction({
           storageService,

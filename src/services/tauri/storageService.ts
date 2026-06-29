@@ -146,7 +146,14 @@ export interface StorageService {
 
 export const tauriStorageService: StorageService = {
   async status() {
-    return invokeChecked('get_storage_status', undefined, isStorageStatus);
+    try {
+      return await invokeChecked('get_storage_status', undefined, isStorageStatus);
+    } catch {
+      // Bundled WebView2 can become interactive a fraction before Tauri IPC is ready.
+      // Retry once so that transient startup ordering does not present as database failure.
+      await delay(150);
+      return invokeChecked('get_storage_status', undefined, isStorageStatus);
+    }
   },
 
   async diagnostics() {
@@ -436,6 +443,10 @@ export const tauriStorageService: StorageService = {
     );
   },
 };
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 async function invokeChecked<T>(
   command: string,

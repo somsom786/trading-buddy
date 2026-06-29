@@ -24,6 +24,8 @@ const MAX_RELATIONSHIPS_PER_JOB: usize = 16;
 const MAX_CURRENT_LIFE_PER_JOB: usize = 8;
 const MAX_RETRIEVAL_CANDIDATES: usize = 64;
 const MAX_RETRIEVAL_RESULTS: usize = 8;
+const SEMANTIC_RELEVANCE_THRESHOLD: f64 = 0.45;
+const HIGH_IMPORTANCE_SEMANTIC_THRESHOLD: f64 = 0.40;
 
 #[derive(Clone, Debug)]
 pub struct RetrievalCandidate {
@@ -75,6 +77,7 @@ pub fn enqueue_conversation_job(
         return Ok(existing);
     }
     let now = timestamp();
+    let ready_after_idle = (Utc::now() + Duration::seconds(30)).to_rfc3339();
     connection
         .execute(
             "UPDATE consolidation_jobs
@@ -89,11 +92,31 @@ pub fn enqueue_conversation_job(
             "INSERT INTO consolidation_jobs (
                 id, source_type, source_id, source_version, status, attempt_count,
                 created_at, next_attempt_at
-             ) VALUES (?1, 'conversation', ?2, ?3, 'pending', 0, ?4, ?4)",
-            params![id, conversation_id, source_version, now],
+             ) VALUES (?1, 'conversation', ?2, ?3, 'pending', 0, ?4, ?5)",
+            params![id, conversation_id, source_version, now, ready_after_idle],
         )
         .map_err(StorageError::from_sql_write)?;
     get_job(connection, &id)
+}
+
+pub fn make_job_ready(
+    connection: &Connection,
+    job_id: &str,
+) -> Result<ConsolidationJobRecord, StorageError> {
+    validate_identifier(job_id, "job ID")?;
+    let changed = connection
+        .execute(
+            "UPDATE consolidation_jobs SET next_attempt_at = ?1
+             WHERE id = ?2 AND status = 'pending'",
+            params![timestamp(), job_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if changed == 0 {
+        return Err(StorageError::invalid_request(
+            "Only a pending consolidation job can be made ready.",
+        ));
+    }
+    get_job(connection, job_id)
 }
 
 pub fn claim_next_job(
@@ -533,7 +556,17 @@ pub fn score_retrieval_candidates(
                 let similarity = cosine_similarity(query, vector);
                 if similarity.is_finite() {
                     candidate.item.score += similarity * 2.5;
-                    if similarity >= 0.35 {
+                    let semantic_threshold = if candidate
+                        .item
+                        .reason_codes
+                        .iter()
+                        .any(|reason| reason == "high_importance")
+                    {
+                        HIGH_IMPORTANCE_SEMANTIC_THRESHOLD
+                    } else {
+                        SEMANTIC_RELEVANCE_THRESHOLD
+                    };
+                    if similarity >= semantic_threshold {
                         candidate
                             .item
                             .reason_codes
@@ -547,7 +580,18 @@ pub fn score_retrieval_candidates(
         candidate.item.reason_codes.dedup();
     }
     candidates.retain(|candidate| {
+        let has_relevance_evidence = candidate.item.reason_codes.iter().any(|reason| {
+            matches!(
+                reason.as_str(),
+                "exact_phrase"
+                    | "keyword_overlap"
+                    | "project_match"
+                    | "entity_match"
+                    | "semantic_similarity"
+            )
+        });
         candidate.item.score > 0.2
+            && has_relevance_evidence
             && !candidate
                 .item
                 .reason_codes
@@ -1504,7 +1548,10 @@ fn load_entity_candidates(
         }
         let text = format!("{} {}", entity.canonical_name, entity.aliases.join(" "));
         let (mut score, mut reasons) = lexical_score(&normalize(&text), tokens, 0.5);
-        if score > 0.0 {
+        if reasons
+            .iter()
+            .any(|reason| matches!(reason.as_str(), "keyword_overlap" | "exact_phrase"))
+        {
             reasons.push(if entity.entity_type == EntityType::Project {
                 "project_match".to_owned()
             } else {
@@ -2251,8 +2298,8 @@ mod tests {
 
     use super::{
         blob_to_vector, claim_next_job, delete_episode, enqueue_conversation_job,
-        load_retrieval_candidates, recover_interrupted_jobs, score_retrieval_candidates,
-        store_embeddings, update_episode, RetrievalCandidate,
+        load_retrieval_candidates, make_job_ready, recover_interrupted_jobs,
+        score_retrieval_candidates, store_embeddings, update_episode, RetrievalCandidate,
     };
     use crate::{
         continuity::models::{ContinuityRetrievalItem, EmbeddingSource, SemanticMemoryStatus},
@@ -2310,6 +2357,67 @@ mod tests {
         assert!(result.items[0]
             .reason_codes
             .contains(&"semantic_similarity".to_owned()));
+    }
+
+    #[test]
+    fn retrieval_filters_high_importance_candidates_without_query_evidence() {
+        let result = score_retrieval_candidates(
+            vec![RetrievalCandidate {
+                item: ContinuityRetrievalItem {
+                    source_type: "current_life_context".to_owned(),
+                    source_id: "unrelated".to_owned(),
+                    title: "project".to_owned(),
+                    content: "FarmTown acquisition remains unresolved".to_owned(),
+                    sensitivity: "ordinary".to_owned(),
+                    score: 1.0,
+                    reason_codes: vec![
+                        "current_life_context".to_owned(),
+                        "high_importance".to_owned(),
+                    ],
+                    source_conversation_id: None,
+                    source_message_ids: Vec::new(),
+                    last_used_at: None,
+                },
+                embedding: None,
+            }],
+            None,
+            SemanticMemoryStatus::LexicalMemoryMode,
+            8,
+        );
+
+        assert!(result.items.is_empty());
+    }
+
+    #[test]
+    fn semantic_threshold_only_relaxes_for_high_importance_candidates() {
+        let candidate = |id: &str, high_importance: bool| RetrievalCandidate {
+            item: ContinuityRetrievalItem {
+                source_type: "current_life_context".to_owned(),
+                source_id: id.to_owned(),
+                title: "concern".to_owned(),
+                content: "unresolved project concern".to_owned(),
+                sensitivity: "ordinary".to_owned(),
+                score: 0.5,
+                reason_codes: if high_importance {
+                    vec!["high_importance".to_owned()]
+                } else {
+                    Vec::new()
+                },
+                source_conversation_id: None,
+                source_message_ids: Vec::new(),
+                last_used_at: None,
+            },
+            embedding: Some(vec![0.42, 0.907524]),
+        };
+        let result = score_retrieval_candidates(
+            vec![candidate("ordinary", false), candidate("important", true)],
+            Some(&[1.0, 0.0]),
+            SemanticMemoryStatus::Ready,
+            8,
+        );
+
+        assert_eq!(result.items.len(), 1);
+        assert_eq!(result.items[0].source_id, "important");
     }
 
     #[test]
@@ -2484,7 +2592,11 @@ mod tests {
         let duplicate =
             enqueue_conversation_job(&connection, "conversation-job").expect("coalesced enqueue");
         assert_eq!(first.id, duplicate.id);
+        assert!(claim_next_job(&connection)
+            .expect("idle delay claim")
+            .is_none());
 
+        make_job_ready(&connection, &first.id).expect("make ready");
         let running = claim_next_job(&connection)
             .expect("claim")
             .expect("running job");

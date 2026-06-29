@@ -41,9 +41,12 @@ across restart under transparent user control.
   paraphrase through a vector, applies a correction, and excludes a deleted episode.
 - A real Tauri development launch confirmed that the buddy starts while Companion Home remains
   hidden.
-- The full MVP exit claim remains open until a user-driven native drag/surface walkthrough and a
-  real Ollama consolidation/restart test pass. The local machine currently lacks
-  `embeddinggemma:300m`; Trading Buddy correctly stays in lexical mode and does not download it.
+- A real 20-turn local-Qwen transcript survived a full process restart. The already-installed
+  `embeddinggemma:300m` produced persisted 768-dimensional embeddings, and a paraphrase retrieved
+  the unresolved concern without injecting it into an unrelated movie query.
+- The full MVP exit claim remains open until a valid real FarmTown episode/project entity,
+  live correction/deletion, direct native drag/surface QA, and the bounded performance/display
+  matrix pass.
 
 ## Explicit non-goals
 

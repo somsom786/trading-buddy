@@ -172,6 +172,9 @@ function reduceStreamEvent(
     case 'completed':
       return {
         ...session,
+        messages: updateActiveAssistant(session.messages, {
+          status: 'completed',
+        }),
         activeRequestId: null,
         status: session.selectedModel ? 'ready' : 'idle',
         metrics: event.metrics ?? null,
@@ -179,6 +182,10 @@ function reduceStreamEvent(
     case 'failed':
       return {
         ...session,
+        messages: updateActiveAssistant(session.messages, {
+          status: 'failed',
+          statusNote: event.error.userMessage,
+        }),
         activeRequestId: null,
         status: 'error',
         error: event.error,
@@ -186,8 +193,41 @@ function reduceStreamEvent(
     case 'cancelled':
       return {
         ...session,
+        messages: updateActiveAssistant(session.messages, {
+          status: 'cancelled',
+          statusNote: 'Generation was stopped.',
+        }),
         activeRequestId: null,
         status: session.selectedModel ? 'ready' : 'idle',
       };
   }
+}
+
+function updateActiveAssistant(
+  messages: ChatMessage[],
+  update: {
+    status: NonNullable<ChatMessage['status']>;
+    statusNote?: string;
+  },
+): ChatMessage[] {
+  let index = -1;
+  for (let candidate = messages.length - 1; candidate >= 0; candidate -= 1) {
+    if (messages[candidate]?.role === 'assistant') {
+      index = candidate;
+      break;
+    }
+  }
+  if (index < 0) {
+    return messages;
+  }
+  return messages.map((message, messageIndex) => {
+    if (messageIndex !== index) {
+      return message;
+    }
+    const updated = { ...message, ...update };
+    if (update.statusNote === undefined) {
+      delete updated.statusNote;
+    }
+    return updated;
+  });
 }

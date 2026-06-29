@@ -230,3 +230,39 @@ Not verified:
 - complete manual mode walkthrough and machine-specific performance timings.
 
 Task 11 therefore remains open at C12; the correct full completion claim is not made.
+
+## Task 11C C12 baseline - June 27, 2026
+
+- Clean `main` at `ec7bd8a`; no pre-existing worktree changes.
+- Reviewed the Task 10 report, both Task 11 report sections, Task 11 plan/journal, inspiration
+  record, architecture, decisions, tasks, progress, and the implemented creature/continuity
+  boundaries.
+- Untouched baseline passed: 44 frontend files / 167 tests, 79 Rust tests, Prettier, ESLint, strict
+  TypeScript, frontend build, Rust formatting, clippy with warnings denied, and Tauri debug/release
+  no-bundle builds.
+- Ollama CLI and `http://127.0.0.1:11434/api/tags` are reachable.
+- Required `embeddinggemma:300m` is installed locally. Trading Buddy did not pull or install it.
+- C12 real semantic QA is therefore unblocked.
+
+## Task 11C real semantic QA - June 28–29, 2026
+
+- Verified real `/api/embed` single/batch behavior with `embeddinggemma:300m`: 768 finite normalized
+  dimensions, three-vector bounded batch, warm observations around 175–181 ms, and missing-model
+  HTTP 404. Complete vectors were not logged.
+- Completed a real native 20-user/20-assistant Qwen FarmTown transcript with no final failed or
+  cancelled messages; the transcript survived a full process shutdown and restart.
+- Reproduced and fixed worker-clone cancellation, rapid-turn lock release, new-chat reload,
+  completed-status, equal-timestamp ordering, optional-value serialization, embedding-only chat
+  discovery, structured-output transport/schema failures, and irrelevant continuity injection.
+- Final local Llama consolidation completed in one attempt with one summary, one entity, six
+  current-life records, seven persisted embeddings, and semantic status `ready`.
+- After restart, the farming-game paraphrase retrieved the “too few users arrive/return” concern
+  via `semantic_similarity`; the unrelated movie query returned zero continuity records after the
+  relevance fix.
+- Two real monitors were detected, including a negative-X secondary monitor. Trading Buddy windows
+  were moved there without activation, but direct human drag/drop, mixed-DPI, rotation, display
+  removal, and taskbar/scaling permutations were not certified.
+- Final gates: 44 frontend files / 168 tests, 88 Rust tests, format, lint, strict TypeScript,
+  frontend build, clippy with warnings denied, and Tauri debug/release no-bundle builds passed.
+- Task 11 remains open: no valid FarmTown episode/project entity in the final durable run, no live
+  correction/deletion, no human pointer certification, and no complete performance/control matrix.

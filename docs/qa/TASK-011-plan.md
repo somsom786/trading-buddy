@@ -134,3 +134,12 @@ Continuation status on June 27:
   `embeddinggemma:300m`/Qwen consolidation, semantic restart, modes, and performance QA.
 - The repository should be handed off as a coherent implementation checkpoint without the full
   Task 11 completion claim.
+
+## Task 11C status — June 29, 2026
+
+- Real 20-turn Qwen conversation, installed `embeddinggemma:300m`, full-process restart, persisted
+  embeddings, semantic paraphrase retrieval, and unrelated-query exclusion now pass.
+- Final real consolidation retained summary/current-life continuity but did not produce a valid
+  FarmTown episode/project entity.
+- Live correction/deletion, direct human pointer/display QA, missing trust controls, and the full
+  performance matrix remain the C12 completion blockers.

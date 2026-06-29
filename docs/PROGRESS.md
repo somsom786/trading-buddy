@@ -6,6 +6,21 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 29, 2026 - Task 11C real semantic QA checkpoint
+
+- Completed a real 20-turn local-Qwen desktop conversation and genuine full-process restart.
+- Verified installed `embeddinggemma:300m`: 768 finite normalized dimensions, bounded batch support,
+  SQLite persistence, and semantic status `ready`.
+- Added JSON-Schema-constrained consolidation, corrected background cancellation/races, and fixed
+  irrelevant continuity injection.
+- Proved post-restart paraphrase retrieval while an unrelated movie query returns no continuity.
+- Passed 168 frontend tests, 88 Rust tests, formatting, lint, strict TypeScript, clippy, frontend
+  build, and Tauri debug/release builds.
+- Task 11 remains open because the final real run lacks a valid FarmTown episode/project entity,
+  live correction/deletion, direct human pointer QA, and the complete performance/display matrix.
+- Detailed handoff report:
+  [`docs/reports/TASK-011C-c12-real-semantic-qa.md`](reports/TASK-011C-c12-real-semantic-qa.md)
+
 ### June 27, 2026 - Task 11B living-learning implementation checkpoint
 
 - Finished the deterministic direct-interaction architecture, conservative moving-window

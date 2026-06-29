@@ -163,6 +163,18 @@ pub struct OllamaModel {
     pub modified_at: Option<String>,
     pub size: Option<u64>,
     pub details: Option<OllamaModelDetails>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+}
+
+impl OllamaModel {
+    pub fn supports_chat(&self) -> bool {
+        self.capabilities.is_empty()
+            || self
+                .capabilities
+                .iter()
+                .any(|capability| capability == "completion")
+    }
 }
 
 #[derive(Debug, Deserialize)]
