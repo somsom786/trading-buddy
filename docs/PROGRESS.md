@@ -6,7 +6,22 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
-### June 29, 2026 - Task 12 finalization checkpoint
+### June 29, 2026 - Task 12B physical pet and lifecycle correction
+
+- Added deterministic autonomous walking, drag state, physical release/fall/landing/recovery, and
+  native multi-monitor work-area clamping.
+- Added the canonical physical/conversation state vocabulary and wired real stream events to
+  listening, thinking, talking, calm, concerned, and offline states.
+- Added tested provider-offline classification and removed automatic completion celebration from
+  the companion lifecycle.
+- Passed Hermes lint/typecheck/build, 24 focused frontend tests, 5 focused native tests, all 168
+  parent frontend tests, all 88 Rust tests, Petdex checks, and a Tauri debug installer build.
+- Task 12B remains open: attached streamed transcript controls, support-mode request context,
+  backend recovery, and the exact 25-step Windows walkthrough are not complete.
+- Detailed handoff report:
+  [`docs/reports/TASK-012B-correction-physical-lifecycle.md`](reports/TASK-012B-correction-physical-lifecycle.md)
+
+### June 29, 2026 - Task 12A Hermes/Petdex bootstrap and developer packaging
 
 - Fixed Hermes Desktop Windows formatting and full lint blockers.
 - Verified Hermes Desktop format, lint, typecheck, production build, and Petdex pack checks.

@@ -1,15 +1,16 @@
-# Task 12 Finalization Report
+# Task 12A Report - Hermes/Petdex Bootstrap and Developer Packaging
 
 Date: June 29, 2026
 
 ## Summary
 
-This checkpoint finishes the feasible Task 12 reformation foundation work: the Hermes/Petdex
-preview remains reversible under `next/`, the buddy/Petdex path is documented, desktop lint/format
-tooling is now clean on Windows, developer packaging is documented, and the migration strategy is
-explicitly implemented as isolation/no automatic migration for this preview stage.
+This checkpoint records the Task 12A reformation foundation: the Hermes/Petdex preview remains
+reversible under `next/`, the buddy/Petdex path is documented, desktop lint/format tooling is clean
+on Windows, developer packaging is documented, and the migration strategy is explicitly
+implemented as isolation/no automatic migration for this preview stage.
 
-This does not claim human multi-monitor QA or a production installer.
+This is bootstrap and packaging evidence. It does not claim Task 12B companion completion, human
+multi-monitor QA, or a production installer.
 
 ## What changed
 
