@@ -22,6 +22,10 @@ The Hermes preview starts with the buddy visible and the main window hidden, use
 empty `trading-buddy-companion` toolset. This keeps the reformation safe while the team evaluates
 whether Hermes Desktop/Petdex should become the long-term shell.
 
+Task 12B keeps Petdex as the single skin authority. The detached pet overlay sends narrow controls
+to the main renderer; the main renderer opens the existing Petdex gallery (`pets`) and persists
+selection through the Hermes/Petdex profile path. The overlay does not own a duplicate skin store.
+
 ## Shape
 
 Trading Buddy is a single Tauri 2 desktop application with one React bundle and three native

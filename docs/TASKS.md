@@ -19,6 +19,12 @@
       calls.
 - [x] Document repository audit, target architecture, migration stance, tool safety, pet runtime,
       trader core, QA plan, QA journal, and handoff report.
+- [x] Surface existing Petdex skin selection from the buddy bubble, pet menu, and tray.
+- [x] Add a warmer compact buddy bubble and custom game-like pet menu checkpoint.
+- [x] Document Task 12B QA plan, QA journal, pet experience direction, upstream baseline, and
+      handoff report.
+- [ ] Manually verify Petdex skin switching persists across relaunch.
+- [ ] Complete Task 12B real desktop companion manual QA.
 - [ ] Clean or pin unrelated upstream Hermes Desktop lint/test failures.
 - [ ] Package the Hermes preview as a repeatable developer build.
 - [ ] Complete multi-monitor human QA.

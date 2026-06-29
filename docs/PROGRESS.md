@@ -6,6 +6,20 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 29, 2026 - Task 12B Petdex skins and buddy UI checkpoint
+
+- Surfaced real Petdex skin switching from the detached buddy bubble, custom pet menu, and tray.
+- Reworked the detached pet overlay from a tiny input into a warmer Trading Buddy bubble with
+  tactile buttons and a game-like menu.
+- Kept Petdex as the canonical profile-scoped skin store instead of adding a duplicate selector.
+- Added overlay routing for skins, journal, settings, Bring Buddy Back, Restart Buddy, and Quit.
+- Verified strict TypeScript, focused Pet overlay/Pet state Vitest coverage, focused companion
+  native tests, and focused ESLint on changed frontend files.
+- Full Task 12B manual desktop QA, skin persistence walkthrough, upstream lint cleanup, performance
+  matrix, and failure taxonomy remain open.
+- Detailed handoff report:
+  [`docs/reports/TASK-012B-real-desktop-companion.md`](reports/TASK-012B-real-desktop-companion.md)
+
 ### June 29, 2026 - Task 12 Hermes/Petdex reformation checkpoint
 
 - Tagged the preserved Tauri baseline as `pre-task-12-tauri-b72c97a`.

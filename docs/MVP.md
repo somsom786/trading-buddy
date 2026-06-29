@@ -9,6 +9,7 @@ direction:
 - visible desktop buddy at launch;
 - main window hidden by default;
 - pet click opens the composer;
+- existing Petdex skin selection is reachable from the buddy bubble, pet menu, and tray;
 - local Ollama response streams through a persisted Hermes session;
 - default companion mode uses zero tools;
 - bundled Petdex buddy art builds from project-owned temporary pose assets.
@@ -25,6 +26,7 @@ across restart under transparent user control.
 ## Candidate MVP scope
 
 - Desktop buddy visible at launch without opening Companion Home.
+- User-choosable pet skin through one canonical Petdex skin system.
 - Attached conversation bubble for the user's everyday local chat, using existing Ollama streaming
   and privacy-first local conversation persistence.
 - Deterministic creature movement with safe spawn, walking, falling, landing, drag/drop, recovery,

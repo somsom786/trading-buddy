@@ -16,6 +16,11 @@ transparent pet overlay, hidden main window startup, shared composer/session pat
 and a constrained trader companion soul. It is not yet a data-migrated replacement for the Tauri
 application.
 
+Task 12B begins turning the preview into a more pet-first product surface. The detached buddy now
+surfaces the existing Petdex skin chooser from the bubble, right-click pet menu, and tray, and the
+overlay UI is moving toward warm, tactile, light-first companion panels instead of a generic chat
+input.
+
 **Current development label:** BETA v0.2
 
 Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity
@@ -56,7 +61,8 @@ The desktop creature is the primary product surface:
 
 - **Desktop creature:** a compact, transparent, always-on-top buddy that lives beside the user and
   can breathe, blink, look around, rest, sleep, wake, listen, think, and talk using deterministic
-  visual states.
+  visual states. In the Hermes/Petdex preview, the creature's skin is user-choosable through the
+  canonical Petdex gallery.
 - **Attached conversation bubble:** a lightweight desktop bubble for everyday local conversation
   without opening the full application.
 - **Companion Home:** the normal application window for history, privacy, storage, deeper

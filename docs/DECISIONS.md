@@ -42,6 +42,14 @@ pipeline. It can be replaced by a designed local asset later.
 TypeScript strictness, type-aware ESLint, Prettier, Vitest, React Testing Library, and Rust tests are
 configured before domain features are introduced.
 
+## 006B - Petdex owns pet skins in the Hermes reformation preview
+
+**Status:** Accepted
+
+The Task 12B buddy bubble, custom pet menu, and tray open the existing Petdex gallery instead of
+adding a second Trading Buddy skin selector. This keeps skin choice profile-scoped, persisted, and
+compatible with Hermes/Petdex manifests while the reformation track is still experimental.
+
 ## 007 — Desktop-first local inference
 
 **Status:** Accepted

@@ -31,6 +31,8 @@ The preview slice:
 - uses the `somsom786/hermes-agent` fork as a submodule at `next/agent`;
 - runs a Petdex-compatible Trading Buddy buddy from `next/pets/trading-buddy-default`;
 - starts companion-first with the pet visible and the main Hermes Desktop window hidden;
+- exposes Petdex skin selection from the buddy bubble, right-click pet menu, and tray;
+- uses a warm compact pet bubble and custom menu as the current Task 12B UI direction checkpoint;
 - uses local Ollama through `http://localhost:11434/v1`;
 - installs an isolated local profile under `%LOCALAPPDATA%\TradingBuddy`;
 - uses a no-tools Hermes toolset named `trading-buddy-companion`.
@@ -50,6 +52,8 @@ corepack pnpm next:check
 The reformation docs are in [`docs/reformation/`](docs/reformation/), and the Task 12 handoff
 report is
 [`docs/reports/TASK-012-trading-buddy-reformation.md`](docs/reports/TASK-012-trading-buddy-reformation.md).
+The latest Task 12B checkpoint report is
+[`docs/reports/TASK-012B-real-desktop-companion.md`](docs/reports/TASK-012B-real-desktop-companion.md).
 
 ## Prerequisites
 
