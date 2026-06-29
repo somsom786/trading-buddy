@@ -25,10 +25,12 @@
       handoff report.
 - [ ] Manually verify Petdex skin switching persists across relaunch.
 - [ ] Complete Task 12B real desktop companion manual QA.
-- [ ] Clean or pin unrelated upstream Hermes Desktop lint/test failures.
-- [ ] Package the Hermes preview as a repeatable developer build.
+- [x] Clean full Hermes Desktop lint and Windows format tooling.
+- [x] Pin unrelated upstream Hermes Desktop UI/platform test failures in the Task 12 report.
+- [x] Package the Hermes preview as a repeatable developer build path.
 - [ ] Complete multi-monitor human QA.
-- [ ] Decide and implement a Tauri-to-Hermes data migration strategy.
+- [x] Decide and implement the Task 12 migration strategy: no automatic migration, isolated
+      preview runtime, future explicit dry-run migration only.
 
 ## Task 11 — Core companion completion
 

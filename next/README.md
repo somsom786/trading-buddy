@@ -20,3 +20,21 @@ If a supported 8–9B Ollama model is already installed, the isolated profile se
 downloading anything. Otherwise provider setup remains explicit. No cloud fallback is configured.
 The preserved Tauri application continues to run through the existing root commands until the
 reformation reaches parity.
+
+## Developer build and package
+
+From the repository root:
+
+```powershell
+corepack pnpm next:check
+npm run build --workspace apps/desktop --prefix next/agent
+npm run pack --workspace apps/desktop --prefix next/agent
+```
+
+The unpacked package is written under:
+
+```text
+next/agent/apps/desktop/release/
+```
+
+This is a developer package, not a signed production installer.

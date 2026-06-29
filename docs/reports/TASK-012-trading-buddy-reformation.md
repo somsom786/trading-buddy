@@ -88,17 +88,32 @@ Runtime checks passed:
 - Local model used `qwen3:8b` through Ollama loopback.
 - The response streamed in chunks and ended with `tool_turns=0`.
 
+## Finalization update
+
+The Task 12 follow-up on branch `codex/task-12b-pet-skins-ui` closes the earlier lint/tooling and
+developer-package documentation gaps:
+
+- `npm run fmt --workspace apps/desktop`: passed after fixing the Windows shell quoting issue.
+- `npm run lint --workspace apps/desktop`: passed.
+- `npm run typecheck --workspace apps/desktop`: passed.
+- `npm run build --workspace apps/desktop`: passed.
+- `npm run pack --workspace apps/desktop`: passed and produced an unpacked Windows developer
+  package at `next/agent/apps/desktop/release/win-unpacked/Trading Buddy.exe`.
+- `corepack pnpm next:check`: passed.
+- Developer packaging is documented in `docs/reformation/DEVELOPER-PACKAGING.md`.
+- Migration is explicitly decided as no automatic migration for the preview, implemented by
+  isolated runtime paths and documented in `docs/reformation/DATA-MIGRATION.md`.
+
 ## Could not be fully verified
 
-- Full upstream Hermes Desktop lint currently fails on unrelated upstream files:
-  `electron/titlebar-overlay-width.cjs`, `src/app/session/hooks/use-message-stream.ts`, and
-  warnings in `src/app/settings/model-settings.tsx`.
-- Full upstream Hermes Desktop UI/platform test suites currently fail on unrelated upstream tests,
-  including model/tool fallback behavior, pane-shell width override, attachment/preview routing,
-  and update-relaunch tests.
+- Full upstream Hermes Desktop UI tests still fail on unrelated existing test drift, including
+  assistant rendering, pane width override, attachment/preview routing, model settings, messaging,
+  and tool fallback tests.
+- Full upstream platform tests still have update-relaunch failures on this Windows/bash path
+  combination.
 - Multi-monitor manual QA was not completed.
-- Production packaging and installer signing for the Hermes track were not completed.
-- Tauri-to-Hermes user-data migration was not implemented.
+- Production installer signing for the Hermes track was not completed.
+- Automatic Tauri-to-Hermes user-data migration was intentionally not implemented for the preview.
 
 ## Known limitations
 
@@ -114,7 +129,6 @@ Runtime checks passed:
 Turn the reformation slice into a repeatable developer preview:
 
 1. add a short manual QA checklist for humans to run on the Hermes track;
-2. clean or pin the unrelated upstream Hermes Desktop suite failures;
-3. add packaging/build documentation for the Hermes preview;
-4. decide whether data migration should be a bridge, import/export workflow, or postponed until
-   after the Hermes runtime stabilizes.
+2. fix or explicitly quarantine the broader upstream Hermes Desktop UI test drift;
+3. perform multi-monitor/DPI human QA;
+4. keep automatic migration postponed until after the Hermes runtime stabilizes.

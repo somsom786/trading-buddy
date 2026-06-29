@@ -49,6 +49,18 @@ Verify the reformation-only pack/tests:
 corepack pnpm next:check
 ```
 
+Build the Hermes Desktop preview:
+
+```powershell
+npm run build --workspace apps/desktop --prefix next/agent
+```
+
+Create an unpacked developer package after committing changes:
+
+```powershell
+npm run pack --workspace apps/desktop --prefix next/agent
+```
+
 The reformation docs are in [`docs/reformation/`](docs/reformation/), and the Task 12 handoff
 report is
 [`docs/reports/TASK-012-trading-buddy-reformation.md`](docs/reports/TASK-012-trading-buddy-reformation.md).

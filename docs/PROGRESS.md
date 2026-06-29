@@ -6,6 +6,19 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 29, 2026 - Task 12 finalization checkpoint
+
+- Fixed Hermes Desktop Windows formatting and full lint blockers.
+- Verified Hermes Desktop format, lint, typecheck, production build, and Petdex pack checks.
+- Documented repeatable developer packaging for the Hermes/Petdex preview and produced
+  `release/win-unpacked/Trading Buddy.exe`.
+- Finalized the Task 12 migration strategy as no automatic migration with isolated preview runtime
+  paths.
+- Pinned the remaining unrelated upstream Hermes UI/platform test failures instead of hiding them.
+- Multi-monitor/DPI human QA and production installer signing remain outside this checkpoint.
+- Detailed handoff report:
+  [`docs/reports/TASK-012-finalization.md`](reports/TASK-012-finalization.md)
+
 ### June 29, 2026 - Task 12B Petdex skins and buddy UI checkpoint
 
 - Surfaced real Petdex skin switching from the detached buddy bubble, custom pet menu, and tray.
