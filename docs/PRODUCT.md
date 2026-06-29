@@ -1,5 +1,21 @@
 # Product
 
+## Task 12 product direction
+
+Task 12 keeps the current product promise but starts testing a new body/runtime architecture:
+
+- Trading Buddy remains local-first and private by default.
+- The buddy is still the primary product surface.
+- The full application window remains secondary.
+- Crypto-trader context is emotional/process support first, not order execution.
+- No private keys, seed phrases, exchange secrets, wallet signing, cloud account, telemetry, or
+  autonomous trading are introduced.
+
+The new `next/` preview uses Hermes Desktop and Petdex to test a stronger companion runtime:
+transparent pet overlay, hidden main window startup, shared composer/session path, local Ollama,
+and a constrained trader companion soul. It is not yet a data-migrated replacement for the Tauri
+application.
+
 **Current development label:** BETA v0.2
 
 Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity

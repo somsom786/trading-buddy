@@ -1,0 +1,3 @@
+[submodule "next/agent"]
+	path = next/agent
+	url = https://github.com/somsom786/hermes-agent.git

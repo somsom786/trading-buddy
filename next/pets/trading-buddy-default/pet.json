@@ -1,0 +1,9 @@
+{
+  "id": "trading-buddy-default",
+  "displayName": "Trading Buddy",
+  "description": "The original Trading Buddy creature, packaged as a static Petdex-compatible companion.",
+  "spritesheetPath": "spritesheet.png",
+  "license": "Project-owned original art",
+  "format": "petdex",
+  "formatVersion": 1
+}

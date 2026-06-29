@@ -1,5 +1,27 @@
 # Architecture
 
+## Task 12 reformation track
+
+The current stable app remains the Tauri 2 architecture described below. Task 12 adds a reversible
+experimental track under `next/`:
+
+```text
+next/
+  agent/                       Hermes Agent + Hermes Desktop fork submodule
+  apps/desktop/                distribution notes; source remains in next/agent/apps/desktop
+  apps/pet/                    Pet runtime notes; source remains in the Hermes pet overlay
+  packages/petdex-adapter/     manifest and atlas validation
+  packages/trading-buddy-soul/ companion identity, boundaries, safety, and state schema
+  pets/trading-buddy-default/  bundled Petdex-compatible buddy
+  scripts/                     launcher and Petdex build tooling
+  skills/trader-companion/     local-first trader companion skill
+```
+
+The Hermes preview starts with the buddy visible and the main window hidden, uses an isolated
+`%LOCALAPPDATA%\TradingBuddy` profile, talks to local Ollama through loopback, and defaults to the
+empty `trading-buddy-companion` toolset. This keeps the reformation safe while the team evaluates
+whether Hermes Desktop/Petdex should become the long-term shell.
+
 ## Shape
 
 Trading Buddy is a single Tauri 2 desktop application with one React bundle and three native

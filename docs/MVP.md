@@ -1,5 +1,21 @@
 # MVP
 
+## Task 12 preview evidence
+
+The MVP target remains a local-first desktop creature with private conversation, memory, journal,
+and optional read-only skills. Task 12 adds evidence that a Hermes/Petdex shell can support that
+direction:
+
+- visible desktop buddy at launch;
+- main window hidden by default;
+- pet click opens the composer;
+- local Ollama response streams through a persisted Hermes session;
+- default companion mode uses zero tools;
+- bundled Petdex buddy art builds from project-owned temporary pose assets.
+
+This does not close the MVP. Migration from the Tauri data model, packaging, production art,
+multi-monitor manual QA, and upstream Hermes suite cleanup remain open.
+
 ## Goal
 
 Validate that a private local creature can physically live on the desktop, continue functioning

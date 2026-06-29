@@ -1,5 +1,29 @@
 # Tasks
 
+## Task 12 - Hermes/Petdex architectural reformation
+
+- [x] Tag the preserved pre-reformation Tauri baseline.
+- [x] Fork Hermes Agent to `somsom786/hermes-agent`.
+- [x] Add Hermes as a submodule under `next/agent`.
+- [x] Create a reversible `next/` reformation track.
+- [x] Build a Petdex-compatible Trading Buddy pet pack from local temporary pose assets.
+- [x] Validate Petdex manifests and atlas dimensions.
+- [x] Add a local-first trader companion soul package.
+- [x] Add a trader companion skill.
+- [x] Add a no-tools Hermes companion toolset.
+- [x] Rebrand the Hermes Desktop preview to Trading Buddy BETA v0.2.
+- [x] Start the preview companion-first: buddy visible, main window hidden.
+- [x] Add companion tray actions and Bring Buddy Back behavior.
+- [x] Add an isolated local development launcher.
+- [x] Verify pet click to composer, local Ollama streaming, persisted Hermes session, and zero tool
+      calls.
+- [x] Document repository audit, target architecture, migration stance, tool safety, pet runtime,
+      trader core, QA plan, QA journal, and handoff report.
+- [ ] Clean or pin unrelated upstream Hermes Desktop lint/test failures.
+- [ ] Package the Hermes preview as a repeatable developer build.
+- [ ] Complete multi-monitor human QA.
+- [ ] Decide and implement a Tauri-to-Hermes data migration strategy.
+
 ## Task 11 — Core companion completion
 
 The frontend-wide redesign remains postponed. This task is proceeding through coherent,

@@ -21,6 +21,36 @@ This repository is currently labeled **BETA v0.2** while the product direction a
 experience are under active development. Milestone notes are recorded in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
+## Task 12 reformation preview
+
+Task 12 adds an experimental Hermes/Petdex reformation track under [`next/`](next/README.md). The
+existing Tauri application remains preserved as the stable local-first baseline.
+
+The preview slice:
+
+- uses the `somsom786/hermes-agent` fork as a submodule at `next/agent`;
+- runs a Petdex-compatible Trading Buddy buddy from `next/pets/trading-buddy-default`;
+- starts companion-first with the pet visible and the main Hermes Desktop window hidden;
+- uses local Ollama through `http://localhost:11434/v1`;
+- installs an isolated local profile under `%LOCALAPPDATA%\TradingBuddy`;
+- uses a no-tools Hermes toolset named `trading-buddy-companion`.
+
+Run the reformation preview:
+
+```powershell
+corepack pnpm next:dev
+```
+
+Verify the reformation-only pack/tests:
+
+```powershell
+corepack pnpm next:check
+```
+
+The reformation docs are in [`docs/reformation/`](docs/reformation/), and the Task 12 handoff
+report is
+[`docs/reports/TASK-012-trading-buddy-reformation.md`](docs/reports/TASK-012-trading-buddy-reformation.md).
+
 ## Prerequisites
 
 - Windows 10 or 11

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Trading Buddy companion state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["energy", "calmness", "curiosity", "sociability", "focus", "sleepiness"],
+  "properties": {
+    "energy": { "type": "number", "minimum": 0, "maximum": 1 },
+    "calmness": { "type": "number", "minimum": 0, "maximum": 1 },
+    "curiosity": { "type": "number", "minimum": 0, "maximum": 1 },
+    "sociability": { "type": "number", "minimum": 0, "maximum": 1 },
+    "focus": { "type": "number", "minimum": 0, "maximum": 1 },
+    "sleepiness": { "type": "number", "minimum": 0, "maximum": 1 }
+  }
+}

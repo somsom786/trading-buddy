@@ -6,6 +6,18 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 29, 2026 - Task 12 Hermes/Petdex reformation checkpoint
+
+- Tagged the preserved Tauri baseline as `pre-task-12-tauri-b72c97a`.
+- Forked Hermes Agent to `somsom786/hermes-agent` and added it as a submodule at `next/agent`.
+- Added a reversible `next/` reformation track with a Hermes Desktop fork, bundled Petdex
+  Trading Buddy pet, local-first trader soul, no-tools companion toolset, and isolated launcher.
+- Verified the vertical slice: visible pet overlay, hidden main window, pet click to composer,
+  local Ollama streaming through Hermes sessions, persisted session, and `tool_turns=0`.
+- Preserved the existing Tauri application and documented data migration as future work.
+- Detailed handoff report:
+  [`docs/reports/TASK-012-trading-buddy-reformation.md`](reports/TASK-012-trading-buddy-reformation.md)
+
 ### June 29, 2026 - Task 11C real semantic QA checkpoint
 
 - Completed a real 20-turn local-Qwen desktop conversation and genuine full-process restart.

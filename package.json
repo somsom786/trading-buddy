@@ -1,7 +1,7 @@
 {
   "name": "trading-buddy",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "packageManager": "pnpm@10.12.4",
   "scripts": {
@@ -16,8 +16,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "buddy:extract": "node scripts/extract-buddy-poses.mjs",
+    "next:pet:build": "node next/scripts/build-petdex-pack.mjs",
+    "next:pet:test": "node --test next/packages/petdex-adapter/manifest.node-test.mjs",
+    "next:dev": "powershell -ExecutionPolicy Bypass -File next/scripts/dev.ps1",
     "typecheck": "tsc -b --pretty false",
-    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test"
+    "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test",
+    "next:check": "corepack pnpm next:pet:build && corepack pnpm next:pet:test"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

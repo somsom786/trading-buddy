@@ -718,3 +718,34 @@ Importance, recency, and record type are ranking signals, not relevance evidence
 must have lexical, entity/project, or calibrated semantic evidence before entering context. A
 slightly lower semantic threshold is allowed only for explicitly high-importance records; this
 preserves paraphrase recall while excluding an observed unrelated movie query.
+
+## 087 - Non-destructive Hermes/Petdex reformation track
+
+**Status:** Accepted for experimental preview
+
+Task 12 adds Hermes Agent as a submodule under `next/agent` instead of replacing the existing Tauri
+application. This keeps the current app recoverable, lets the team evaluate Hermes Desktop and
+Petdex with real runtime evidence, and preserves the local-first product boundary while migration
+is still undefined.
+
+The large dependency surface is documented here because Hermes is intentionally a full upstream
+agent/desktop system, not a small library. Alternatives considered were continuing only on the
+Tauri shell or copying selected code into this repository. A submodule is more auditable and keeps
+upstream provenance explicit.
+
+## 088 - Default Hermes companion mode has no tools
+
+**Status:** Accepted
+
+The Hermes preview adds `trading-buddy-companion` as an empty toolset. Pet conversation can stream
+through the local model and persist a session, but cannot call file, shell, browser, exchange,
+wallet, network, or trading tools. Future tools require separate product approval, narrow typed
+interfaces, validation, tests, and documentation.
+
+## 089 - Petdex adapter validates local bundled pets
+
+**Status:** Accepted
+
+The reformation preview uses Petdex's current 192 by 208 cell and 1536 by 1872 atlas convention.
+The local adapter rejects path traversal, absolute paths, executable/script metadata, and wrong
+atlas dimensions before a pet pack is treated as valid.
