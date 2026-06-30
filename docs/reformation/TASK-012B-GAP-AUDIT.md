@@ -3,6 +3,31 @@
 Date: 2026-06-29  
 Branch: `codex/task-12b-pet-skins-ui`
 
+## June 30 architecture correction
+
+The matrix below records the state of the former Hermes Desktop preview and is retained as
+historical evidence. It no longer describes the canonical product shell.
+
+The project-owned Tauri/React application is now the only Trading Buddy frontend. Hermes is a
+backend/session logic donor only, DyberPet is a behavior reference without copied implementation,
+and Petdex is consumed through a validated read-only manifest boundary.
+
+| Corrected area                                                 | Current status                                                           |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Project-owned frontend and branding                            | Implemented and live-verified                                            |
+| Hermes Desktop removed from canonical launch                   | Implemented and verified through launcher configuration and live smoke   |
+| Compact attached bubble                                        | Implemented and live-verified at `300 × 220` with a four-pixel buddy gap |
+| Taskbar/right-edge placement                                   | Implemented and live-verified                                            |
+| Five-second development sleep and hover wake                   | Implemented, tested, and live-verified                                   |
+| Petdex skin picker and persistence                             | Implemented, tested, and live-verified with local fallback               |
+| Backend support-mode request context                           | Implemented and covered by focused backend tests                         |
+| Tauri-to-Hermes shared session and stream                      | Not implemented                                                          |
+| Stop/retry/copy/reconnect and duplicate safety in canonical UI | Not implemented end to end                                               |
+| Exact 25-step Windows acceptance walkthrough                   | Not run against the corrected architecture                               |
+
+Task 12B therefore remains **open**. The next correction is the narrow Tauri-to-backend session
+bridge; no further frontend replacement or architecture pivot is recommended.
+
 ## Evidence standard
 
 This audit intentionally does not treat an existing interface, file, or test name as proof that the

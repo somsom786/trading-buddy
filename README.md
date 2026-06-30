@@ -21,44 +21,30 @@ This repository is currently labeled **BETA v0.2** while the product direction a
 experience are under active development. Milestone notes are recorded in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 
-## Task 12 reformation preview
+## Task 12 architecture direction
 
-Task 12 adds an experimental Hermes/Petdex reformation track under [`next/`](next/README.md). The
-existing Tauri application remains preserved as the stable local-first baseline.
+Trading Buddy owns its Tauri/React frontend. The `somsom786/hermes-agent` fork under
+[`next/agent`](next/README.md) is a backend-logic donor and integration target only. Hermes Desktop
+is not the Trading Buddy interface.
 
-The preview slice:
+The canonical application opens the project-owned buddy first, keeps Companion Home hidden until
+requested, and uses a compact project-owned bubble. Its optional skin picker requests a small,
+validated selection from the official Petdex manifest only after the user opens it; the original
+Trading Buddy skin remains available offline.
 
-- uses the `somsom786/hermes-agent` fork as a submodule at `next/agent`;
-- runs a Petdex-compatible Trading Buddy buddy from `next/pets/trading-buddy-default`;
-- starts companion-first with the pet visible and the main Hermes Desktop window hidden;
-- exposes Petdex skin selection from the buddy bubble, right-click pet menu, and tray;
-- uses a warm compact pet bubble and custom menu as the current Task 12B UI direction checkpoint;
-- uses local Ollama through `http://localhost:11434/v1`;
-- installs an isolated local profile under `%LOCALAPPDATA%\TradingBuddy`;
-- uses a no-tools Hermes toolset named `trading-buddy-companion`.
-
-Run the reformation preview:
+Run the canonical desktop:
 
 ```powershell
-corepack pnpm next:dev
+corepack pnpm desktop:dev
 ```
 
-Verify the reformation-only pack/tests:
+`next:dev` remains as a compatibility alias for the same Tauri application. It no longer launches
+the Hermes Desktop frontend.
+
+Verify the Petdex-compatible pack/tests:
 
 ```powershell
 corepack pnpm next:check
-```
-
-Build the Hermes Desktop preview:
-
-```powershell
-npm run build --workspace apps/desktop --prefix next/agent
-```
-
-Create an unpacked developer package after committing changes:
-
-```powershell
-npm run pack --workspace apps/desktop --prefix next/agent
 ```
 
 The reformation docs are in [`docs/reformation/`](docs/reformation/), and the Task 12 handoff
@@ -133,7 +119,7 @@ still be an explicit loopback HTTP URL such as `http://127.0.0.1:11435`.
 Run the complete desktop application:
 
 ```powershell
-pnpm tauri dev
+pnpm desktop:dev
 ```
 
 Run only the browser frontend:

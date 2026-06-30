@@ -217,18 +217,41 @@ pub fn safe_buddy_home<R: Runtime>(app: &AppHandle<R>) -> Result<Point, String> 
             x: area
                 .right()
                 .saturating_sub(i64::from(size.width as i32))
-                .saturating_sub(48)
+                .saturating_sub(8)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
             y: area
                 .bottom()
                 .saturating_sub(i64::from(size.height as i32))
-                .saturating_sub(48)
+                .saturating_sub(8)
                 .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
         },
         size.width as i32,
         size.height as i32,
         8,
     ))
+}
+
+pub fn current_buddy_work_area<R: Runtime>(app: &AppHandle<R>) -> Result<SurfaceRect, String> {
+    let buddy = app
+        .get_webview_window("buddy")
+        .ok_or_else(|| "buddy window not found".to_owned())?;
+    let position = buddy.outer_position().map_err(|error| error.to_string())?;
+    let size = buddy.outer_size().map_err(|error| error.to_string())?;
+    let center = Point {
+        x: position.x.saturating_add(size.width as i32 / 2),
+        y: position.y.saturating_add(size.height as i32 / 2),
+    };
+    let (work_areas, primary_bounds) = work_areas_with_primary(app)?;
+    work_areas
+        .iter()
+        .find(|area| area.contains(center))
+        .or_else(|| {
+            primary_bounds
+                .and_then(|primary| work_areas.iter().find(|area| area.intersects(primary)))
+        })
+        .or_else(|| nearest_rect(&work_areas, center))
+        .copied()
+        .ok_or_else(|| "no monitor work area is available".to_owned())
 }
 
 fn work_areas_with_primary<R: Runtime>(

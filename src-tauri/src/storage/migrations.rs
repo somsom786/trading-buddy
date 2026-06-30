@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 9;
+pub const CURRENT_SCHEMA_VERSION: i64 = 10;
 
 struct Migration {
     version: i64,
@@ -742,6 +742,20 @@ CREATE INDEX IF NOT EXISTS idx_continuity_usage_source ON continuity_usage_recor
 CREATE INDEX IF NOT EXISTS idx_continuity_usage_conversation ON continuity_usage_records(conversation_id, used_at DESC);
 "#,
     },
+    Migration {
+        version: 10,
+        name: "pet_first_desktop_defaults",
+        sql: r#"
+UPDATE app_settings
+SET buddy_placement_mode = 'taskbar_perch',
+    bubble_width = 300
+WHERE id = 1
+  AND buddy_placement_mode = 'free'
+  AND buddy_free_position_x IS NULL
+  AND buddy_free_position_y IS NULL
+  AND bubble_width = 340;
+"#,
+    },
 ];
 
 pub fn configure_connection(connection: &Connection) -> Result<(), StorageError> {
@@ -871,6 +885,14 @@ mod tests {
             schema_version(&connection).expect("version"),
             CURRENT_SCHEMA_VERSION
         );
+        let companion_defaults: (String, i64) = connection
+            .query_row(
+                "SELECT buddy_placement_mode, bubble_width FROM app_settings WHERE id = 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("companion defaults");
+        assert_eq!(companion_defaults, ("taskbar_perch".to_owned(), 300));
     }
 
     #[test]

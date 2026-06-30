@@ -1,15 +1,13 @@
 # Architecture
 
-## Task 12 reformation track
+## Task 12 backend reformation track
 
-The current stable app remains the Tauri 2 architecture described below. Task 12 adds a reversible
-experimental track under `next/`:
+The Tauri 2 application described below is the canonical Trading Buddy product. Task 12 keeps a
+reversible backend-integration track under `next/`:
 
 ```text
 next/
-  agent/                       Hermes Agent + Hermes Desktop fork submodule
-  apps/desktop/                distribution notes; source remains in next/agent/apps/desktop
-  apps/pet/                    Pet runtime notes; source remains in the Hermes pet overlay
+  agent/                       Hermes Agent fork; backend/session logic donor
   packages/petdex-adapter/     manifest and atlas validation
   packages/trading-buddy-soul/ companion identity, boundaries, safety, and state schema
   pets/trading-buddy-default/  bundled Petdex-compatible buddy
@@ -17,14 +15,11 @@ next/
   skills/trader-companion/     local-first trader companion skill
 ```
 
-The Hermes preview starts with the buddy visible and the main window hidden, uses an isolated
-`%LOCALAPPDATA%\TradingBuddy` profile, talks to local Ollama through loopback, and defaults to the
-empty `trading-buddy-companion` toolset. This keeps the reformation safe while the team evaluates
-whether Hermes Desktop/Petdex should become the long-term shell.
-
-Task 12B keeps Petdex as the single skin authority. The detached pet overlay sends narrow controls
-to the main renderer; the main renderer opens the existing Petdex gallery (`pets`) and persists
-selection through the Hermes/Petdex profile path. The overlay does not own a duplicate skin store.
+Hermes Desktop is not a product shell. Trading Buddy may reuse and adapt Hermes backend/session
+logic behind narrow service boundaries, while every visible companion surface remains
+project-owned. Petdex is consumed through its documented read-only manifest and static package
+format. The remote catalog is requested only after the user opens the skin picker, and untrusted
+manifest fields are validated before use.
 
 ## Shape
 

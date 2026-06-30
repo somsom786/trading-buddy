@@ -18,7 +18,8 @@
     "buddy:extract": "node scripts/extract-buddy-poses.mjs",
     "next:pet:build": "node next/scripts/build-petdex-pack.mjs",
     "next:pet:test": "node --test next/packages/petdex-adapter/manifest.node-test.mjs",
-    "next:dev": "powershell -ExecutionPolicy Bypass -File next/scripts/dev.ps1",
+    "desktop:dev": "tauri dev",
+    "next:dev": "pnpm desktop:dev",
     "typecheck": "tsc -b --pretty false",
     "check": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test",
     "next:check": "corepack pnpm next:pet:build && corepack pnpm next:pet:test"

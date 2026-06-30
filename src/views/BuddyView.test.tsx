@@ -1,9 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { BuddyView } from './BuddyView';
+import { BuddyView, DEVELOPMENT_SLEEP_AFTER_SECONDS } from './BuddyView';
 
 describe('BuddyView', () => {
+  it('uses the short development sleep timer', () => {
+    expect(DEVELOPMENT_SLEEP_AFTER_SECONDS).toBe(5);
+  });
+
   it('toggles the desktop bubble when activated', async () => {
     const user = userEvent.setup();
     const toggleCompanionBubble = vi.fn().mockResolvedValue(undefined);

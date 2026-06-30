@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useReducer, useRef, useState, type KeyboardEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react';
 import { buddyStateForLifecycle } from '../domain/companion/buddyState';
 import {
   conversationModePrompt,
@@ -69,6 +77,13 @@ import {
   sessionHasMeaningfulContent,
 } from '../domain/journal/session';
 import type { JournalKind, JournalMode } from '../domain/journal/types';
+import {
+  DEFAULT_PET_SKIN,
+  loadSelectedPetSkin,
+  saveSelectedPetSkin,
+  type PetSkinSelection,
+} from '../domain/petdex/skins';
+import { fetchFeaturedPetdexSkins } from '../services/petdexCatalog';
 
 type PersistenceMode = 'persistent' | 'temporary';
 
@@ -90,6 +105,7 @@ interface BubbleViewProps {
   windowService?: WindowService;
   tradingService?: TradingService;
   continuityService?: ContinuityService;
+  petdexCatalog?: () => Promise<PetSkinSelection[]>;
 }
 
 interface ActiveAssistantPersistence {
@@ -109,6 +125,7 @@ export function BubbleView({
   windowService = tauriWindowService,
   tradingService = tauriTradingService,
   continuityService = tauriContinuityService,
+  petdexCatalog = fetchFeaturedPetdexSkins,
 }: BubbleViewProps) {
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
@@ -126,6 +143,14 @@ export function BubbleView({
   const [semanticStatus, setSemanticStatus] = useState<SemanticMemoryStatus>('lexical_memory_mode');
   const [conversationMemoryOptOut, setConversationMemoryOptOut] = useState(false);
   const [journalSession, setJournalSession] = useState(createIdleJournalSession);
+  const [showSkinPicker, setShowSkinPicker] = useState(false);
+  const [petSkins, setPetSkins] = useState<PetSkinSelection[]>([DEFAULT_PET_SKIN]);
+  const [selectedPetSkin, setSelectedPetSkin] = useState<PetSkinSelection>(() =>
+    loadSelectedPetSkin(),
+  );
+  const [petSkinStatus, setPetSkinStatus] = useState<'idle' | 'loading' | 'ready' | 'offline'>(
+    'idle',
+  );
   const activeRequestRef = useRef<string | null>(null);
   const nativeRequestInFlightRef = useRef(false);
   const selectedModelRef = useRef<string | null>(null);
@@ -758,7 +783,7 @@ export function BubbleView({
     (session.selectedModel !== null ||
       currentTradingIntent !== 'not_trading_intent' ||
       currentJournalIntent.type !== 'none');
-  const visibleMessages = session.messages.slice(-4);
+  const visibleMessages = session.messages.slice(-3);
   const modelLabel = session.selectedModel ?? 'No model selected';
   const journalActive =
     journalSession.status === 'active' ||
@@ -767,6 +792,30 @@ export function BubbleView({
     journalSession.status === 'error';
   const currentJournalPrompt =
     journalPromptsForKind(journalSession.kind)[journalSession.promptIndex] ?? null;
+
+  const toggleSkinPicker = () => {
+    const opening = !showSkinPicker;
+    setShowSkinPicker(opening);
+    if (!opening || petSkinStatus !== 'idle') {
+      return;
+    }
+    setPetSkinStatus('loading');
+    void petdexCatalog()
+      .then((skins) => {
+        setPetSkins([DEFAULT_PET_SKIN, ...skins]);
+        setPetSkinStatus('ready');
+      })
+      .catch(() => {
+        setPetSkinStatus('offline');
+      });
+  };
+
+  const selectPetSkin = (skin: PetSkinSelection) => {
+    setSelectedPetSkin(skin);
+    saveSelectedPetSkin(skin);
+    void companionService.send({ type: 'set_skin', skin });
+    setShowSkinPicker(false);
+  };
 
   return (
     <main className="bubble-view" aria-label="Trading Buddy conversation bubble">
@@ -777,6 +826,15 @@ export function BubbleView({
             <span>{statusLabel(providerStatus)}</span>
           </div>
           <div className="bubble-card__actions">
+            <button
+              type="button"
+              className="text-button"
+              aria-label="Choose pet skin"
+              aria-expanded={showSkinPicker}
+              onClick={toggleSkinPicker}
+            >
+              Skin
+            </button>
             <button
               type="button"
               className="text-button"
@@ -794,6 +852,32 @@ export function BubbleView({
             </button>
           </div>
         </header>
+
+        {showSkinPicker ? (
+          <section className="pet-skin-picker" aria-label="Pet skins">
+            <div className="pet-skin-picker__list">
+              {petSkins.map((skin) => (
+                <button
+                  type="button"
+                  className="pet-skin-option"
+                  aria-pressed={selectedPetSkin.id === skin.id}
+                  key={skin.id}
+                  onClick={() => {
+                    selectPetSkin(skin);
+                  }}
+                >
+                  <PetSkinThumbnail skin={skin} />
+                  <span>{skin.displayName}</span>
+                </button>
+              ))}
+            </div>
+            {petSkinStatus === 'loading' ? <small>Loading Petdex…</small> : null}
+            {petSkinStatus === 'offline' ? (
+              <small>Petdex is offline. Your Trading Buddy skin remains available.</small>
+            ) : null}
+            <small>Online skins load from Petdex only when this picker is opened.</small>
+          </section>
+        ) : null}
 
         <div className="bubble-messages">
           {visibleMessages.length === 0 ? (
@@ -903,12 +987,15 @@ export function BubbleView({
           </div>
         ) : null}
 
-        <TradingBubblePanel
-          windowService={windowService}
-          localAiOffline={
-            providerStatus.status === 'ollama_not_running' || providerStatus.status === 'error'
-          }
-        />
+        <details className="bubble-tools">
+          <summary>Trading tools</summary>
+          <TradingBubblePanel
+            windowService={windowService}
+            localAiOffline={
+              providerStatus.status === 'ollama_not_running' || providerStatus.status === 'error'
+            }
+          />
+        </details>
 
         <textarea
           value={input}
@@ -951,6 +1038,22 @@ export function BubbleView({
         </footer>
       </section>
     </main>
+  );
+}
+
+function PetSkinThumbnail({ skin }: { skin: PetSkinSelection }) {
+  if (skin.source === 'local') {
+    return <span className="pet-skin-thumbnail pet-skin-thumbnail--local">TB</span>;
+  }
+  return (
+    <span
+      className="pet-skin-thumbnail"
+      style={
+        {
+          '--petdex-sheet': `url("${skin.spritesheetUrl ?? ''}")`,
+        } as CSSProperties
+      }
+    />
   );
 }
 

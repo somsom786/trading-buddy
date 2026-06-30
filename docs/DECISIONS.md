@@ -44,11 +44,26 @@ configured before domain features are introduced.
 
 ## 006B - Petdex owns pet skins in the Hermes reformation preview
 
-**Status:** Accepted
+**Status:** Superseded by Decision 090
 
 The Task 12B buddy bubble, custom pet menu, and tray open the existing Petdex gallery instead of
 adding a second Trading Buddy skin selector. This keeps skin choice profile-scoped, persisted, and
 compatible with Hermes/Petdex manifests while the reformation track is still experimental.
+
+## 090 - Trading Buddy owns the frontend; Hermes is backend-only
+
+**Status:** Accepted
+
+The project-owned Tauri/React application is the only canonical Trading Buddy interface. The
+Hermes fork may supply agent, session, streaming, and recovery logic behind narrow services, but
+Hermes Desktop branding and renderer structure are not exposed as the product.
+
+DyberPet is a behavioral reference for edge dwelling, taskbar rest, sleep, drag, and release. Its
+GPL-3.0 implementation is not copied into this repository.
+
+Petdex is integrated through its documented read-only manifest and static spritesheet format.
+Trading Buddy validates trusted asset hosts and identifiers, fetches the catalog only after an
+explicit picker action, and preserves the project-owned offline skin as the fallback.
 
 ## 007 — Desktop-first local inference
 

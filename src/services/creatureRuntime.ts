@@ -524,6 +524,7 @@ export class DesktopCreatureRuntime {
             surface.id === this.clock?.simulation.physical.currentSurfaceId ||
             surface.monitorId === currentArea?.monitorId,
         );
+    const userIdleSeconds = Math.floor((nowMs - this.lastInteractionAtMs) / 1_000);
     const plan = planCreatureAction(this.clock.simulation, {
       nowMs,
       autonomyEnabled: this.preferences.autonomousMovementEnabled,
@@ -531,7 +532,7 @@ export class DesktopCreatureRuntime {
       doNotDisturb: this.doNotDisturb,
       conversationActive: this.conversationActive,
       journalActive: this.journalActive,
-      userIdleSeconds: Math.floor((nowMs - this.lastInteractionAtMs) / 1_000),
+      userIdleSeconds,
       sleepAfterSeconds: this.sleepAfterSeconds,
       intensity: this.preferences.movementIntensity,
       surfaces: plannerSurfaces,
@@ -539,7 +540,10 @@ export class DesktopCreatureRuntime {
     });
     this.lastPlannerDecision = plan.reason;
     this.pendingAnimationReason = 'autonomous_plan';
-    this.nextDecisionAtMs = plan.nextDecisionAtMs;
+    const sleepDeadlineMs = nowMs + Math.max(0, this.sleepAfterSeconds - userIdleSeconds) * 1_000;
+    this.nextDecisionAtMs = ['wander', 'sit', 'write', 'rest'].includes(plan.reason)
+      ? Math.min(plan.nextDecisionAtMs, sleepDeadlineMs)
+      : plan.nextDecisionAtMs;
     this.clock.simulation = {
       ...this.clock.simulation,
       behavior: plan.behavior,

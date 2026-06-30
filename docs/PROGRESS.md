@@ -6,6 +6,22 @@ Trading Buddy is currently in active development under the label **BETA v0.2**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### June 30, 2026 - Task 12B frontend ownership and placement correction
+
+- Restored the project-owned Tauri/React application as the only canonical frontend; Hermes remains
+  a backend/session logic donor rather than a product interface.
+- Added a compact attached bubble, taskbar/right-edge default placement, five-second development
+  sleep, hover wake, and validated Petdex skin selection with an offline local fallback.
+- Added backend-only support-mode request context without exposing or modifying Hermes Desktop as
+  the Trading Buddy UI.
+- Passed formatting, lint, strict TypeScript, 175 frontend tests, 89 Rust tests, 12 focused backend
+  tests, a Tauri debug build, and a live Windows smoke of placement, skins, persistence, sleep, and
+  wake.
+- Task 12B remains open until the Tauri UI uses one shared Hermes-derived streaming session and the
+  exact Windows walkthrough passes.
+- Detailed handoff report:
+  [`docs/reports/TASK-012B-frontend-ownership-correction.md`](reports/TASK-012B-frontend-ownership-correction.md)
+
 ### June 29, 2026 - Task 12B physical pet and lifecycle correction
 
 - Added deterministic autonomous walking, drag state, physical release/fall/landing/recovery, and

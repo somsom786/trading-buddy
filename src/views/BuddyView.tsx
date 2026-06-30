@@ -8,6 +8,11 @@ import type { CreatureLocomotion } from '../domain/creature/types';
 import type { CreatureAnimationIntent } from '../domain/creature/animation';
 import type { CreatureMovementPreferences } from '../domain/creature/preferences';
 import type { CompanionPreferences } from '../domain/storage/types';
+import {
+  loadSelectedPetSkin,
+  saveSelectedPetSkin,
+  type PetSkinSelection,
+} from '../domain/petdex/skins';
 import { DesktopCreatureRuntime } from '../services/creatureRuntime';
 import { tauriCompanionService, type CompanionService } from '../services/tauri/companionService';
 import {
@@ -24,6 +29,8 @@ interface BuddyViewProps {
   storageService?: Pick<StorageService, 'getSettings'>;
 }
 
+export const DEVELOPMENT_SLEEP_AFTER_SECONDS = 5;
+
 export function BuddyView({
   windowService = tauriWindowService,
   companionService = tauriCompanionService,
@@ -34,6 +41,7 @@ export function BuddyView({
   const [visualState, setVisualState] = useState<BuddyVisualState>(buddyStateToVisualState('idle'));
   const [locomotion, setLocomotion] = useState<CreatureLocomotion>('idle');
   const [animationIntent, setAnimationIntent] = useState<CreatureAnimationIntent | null>(null);
+  const [skin, setSkin] = useState<PetSkinSelection>(() => loadSelectedPetSkin());
   const lastInteractionRef = useRef(0);
   const creatureRuntimeRef = useRef<DesktopCreatureRuntime | null>(null);
   const renderCountRef = useRef(0);
@@ -49,6 +57,7 @@ export function BuddyView({
     const runtime = new DesktopCreatureRuntime({
       worldService: desktopWorldService,
       reducedMotion,
+      sleepAfterSeconds: DEVELOPMENT_SLEEP_AFTER_SECONDS,
       onLocomotionChange(nextLocomotion) {
         setLocomotion(nextLocomotion);
         setVisualState(visualStateForLocomotion(nextLocomotion));
@@ -106,6 +115,9 @@ export function BuddyView({
           creatureRuntimeRef.current?.setPreferences(command.preferences);
         } else if (command.type === 'creature_lab_action') {
           void creatureRuntimeRef.current?.applyLabAction(command.action);
+        } else if (command.type === 'set_skin') {
+          setSkin(command.skin);
+          saveSelectedPetSkin(command.skin);
         }
       })
       .then((unlisten) => {
@@ -148,7 +160,7 @@ export function BuddyView({
         {
           enabled: true,
           reducedMotion,
-          sleepAfterInactivitySeconds: 900,
+          sleepAfterInactivitySeconds: DEVELOPMENT_SLEEP_AFTER_SECONDS,
           nowMs: Date.now(),
           lastUserInteractionMs: lastInteractionRef.current,
           rng: Math.random,
@@ -158,9 +170,14 @@ export function BuddyView({
         setVisualState(decision.state);
         setState(decision.state.activity === 'sleeping' ? 'sleeping' : 'idle');
       }
-      timeout = window.setTimeout(() => {
-        void schedule();
-      }, decision.nextDelayMs);
+      const inactiveMs = Date.now() - lastInteractionRef.current;
+      const untilSleepMs = Math.max(250, DEVELOPMENT_SLEEP_AFTER_SECONDS * 1_000 - inactiveMs);
+      timeout = window.setTimeout(
+        () => {
+          void schedule();
+        },
+        Math.min(decision.nextDelayMs, untilSleepMs),
+      );
     };
 
     timeout = window.setTimeout(() => {
@@ -198,6 +215,7 @@ export function BuddyView({
         {...(animationIntent ? { animationIntent } : {})}
         reducedMotion={animationIntent?.intensity === 0}
         companionService={companionService}
+        skin={skin}
         onActivate={toggleBubble}
         onDragStart={() => {
           creatureRuntimeRef.current?.beginDrag();
@@ -208,7 +226,10 @@ export function BuddyView({
         onHoverStart={() => {
           lastInteractionRef.current = Date.now();
           creatureRuntimeRef.current?.noteInteraction();
-          if (state !== 'sleeping') {
+          if (state === 'sleeping') {
+            setState('idle');
+            setVisualState({ emotion: 'curious', activity: 'waking' });
+          } else {
             setVisualState({ emotion: 'curious', activity: 'looking' });
           }
         }}

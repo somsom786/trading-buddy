@@ -9,6 +9,7 @@ import {
   type CreatureLabAction,
   type CreatureRuntimeDiagnostics,
 } from '../creature/diagnostics';
+import { isPetSkinSelection, type PetSkinSelection } from '../petdex/skins';
 
 export const COMPANION_EVENT_NAMES = {
   command: 'trading-buddy://companion-command',
@@ -24,6 +25,7 @@ export type CompanionCommand =
   | { type: 'toggle_bubble' }
   | { type: 'do_not_disturb' }
   | { type: 'bring_buddy_back' }
+  | { type: 'set_skin'; skin: PetSkinSelection }
   | { type: 'movement_preferences_changed'; preferences: CreatureMovementPreferences }
   | { type: 'creature_lab_action'; action: CreatureLabAction };
 
@@ -45,6 +47,9 @@ export function isCompanionCommand(value: unknown): value is CompanionCommand {
   }
   if (value.type === 'creature_lab_action') {
     return isCreatureLabAction(value.action);
+  }
+  if (value.type === 'set_skin') {
+    return isPetSkinSelection(value.skin);
   }
   return [
     'wake',

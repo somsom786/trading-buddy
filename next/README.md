@@ -1,40 +1,26 @@
-# Reformed application (in progress)
+# Hermes backend and Petdex compatibility work
 
-Run the current vertical slice from the repository root:
+The Trading Buddy frontend is the project-owned Tauri/React application in the repository root.
+`next/agent` contains the `somsom786/hermes-agent` fork for agent/session backend integration work.
+The Hermes Desktop renderer is not a product frontend and must not be presented as Trading Buddy.
+
+Run the current product from the repository root:
 
 ```powershell
-corepack pnpm next:dev
+corepack pnpm desktop:dev
 ```
 
-The launcher:
+`corepack pnpm next:dev` is retained as a compatibility alias for the same Tauri application.
 
-- builds the project-owned Petdex atlas;
-- creates an isolated profile under `%LOCALAPPDATA%\TradingBuddy`;
-- installs the bundled soul, safe skill, and pet without touching an existing Hermes home;
-- pins ordinary Companion Safe Mode conversation to a no-tools policy;
-- starts the Hermes backend and the branded Hermes Desktop fork;
-- starts companion-first, with the full window hidden and the pet visible.
+The legacy `next/scripts/dev.ps1` Hermes Desktop launcher remains only as historical integration
+scaffolding while backend extraction is completed. Do not use it for product QA.
 
-The first run installs the Hermes Python and desktop JavaScript dependencies and is therefore slower.
-If a supported 8–9B Ollama model is already installed, the isolated profile selects it without
-downloading anything. Otherwise provider setup remains explicit. No cloud fallback is configured.
-The preserved Tauri application continues to run through the existing root commands until the
-reformation reaches parity.
-
-## Developer build and package
-
-From the repository root:
+## Petdex compatibility verification
 
 ```powershell
 corepack pnpm next:check
-npm run build --workspace apps/desktop --prefix next/agent
-npm run pack --workspace apps/desktop --prefix next/agent
 ```
 
-The unpacked package is written under:
-
-```text
-next/agent/apps/desktop/release/
-```
-
-This is a developer package, not a signed production installer.
+This builds and validates the project-owned offline Petdex-compatible pack. The product-owned
+bubble can also request a small, validated selection from Petdex's documented read-only manifest
+after the user explicitly opens the skin picker.

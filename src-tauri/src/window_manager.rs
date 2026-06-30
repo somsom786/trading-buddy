@@ -12,8 +12,8 @@ const BUBBLE_LABEL: &str = "bubble";
 const MAIN_LABEL: &str = "main";
 const POSITION_FILE: &str = "buddy-window.json";
 const COMPANION_COMMAND_EVENT: &str = "trading-buddy://companion-command";
-const BUBBLE_GAP: i32 = 10;
-const SCREEN_MARGIN: i32 = 14;
+const BUBBLE_GAP: i32 = 4;
+const SCREEN_MARGIN: i32 = 6;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SavedWindowPosition {
@@ -99,7 +99,7 @@ pub fn position_bubble<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     let buddy_position = buddy.outer_position().map_err(|error| error.to_string())?;
     let buddy_size = buddy.outer_size().map_err(|error| error.to_string())?;
     let bubble_size = bubble.outer_size().map_err(|error| error.to_string())?;
-    let work_area = monitor_bounds(app, &buddy)?;
+    let work_area = crate::desktop_world::current_buddy_work_area(app)?;
 
     let buddy_right = buddy_position.x + buddy_size.width as i32;
     let right_x = buddy_right + BUBBLE_GAP;
@@ -200,6 +200,12 @@ pub fn apply_startup_preferences<R: Runtime>(
 ) {
     if let Some(buddy) = app.get_webview_window(BUDDY_LABEL) {
         let _ = buddy.set_always_on_top(preferences.buddy_always_on_top);
+        if matches!(
+            preferences.placement_mode,
+            crate::storage::models::CompanionPlacementMode::TaskbarPerch
+        ) {
+            let _ = bring_buddy_back(app);
+        }
         if preferences.buddy_visible {
             let _ = buddy.show();
         } else {
@@ -354,40 +360,6 @@ fn set_buddy_position<R: Runtime>(
         persist_buddy_position(app, physical_position);
     }
     position_bubble(app)
-}
-
-#[derive(Clone, Copy)]
-struct NativeRect {
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-}
-
-fn monitor_bounds<R: Runtime>(
-    app: &AppHandle<R>,
-    buddy: &tauri::WebviewWindow<R>,
-) -> Result<NativeRect, String> {
-    let monitor = buddy
-        .current_monitor()
-        .map_err(|error| error.to_string())?
-        .or(app.primary_monitor().map_err(|error| error.to_string())?);
-    let Some(monitor) = monitor else {
-        return Ok(NativeRect {
-            x: 0,
-            y: 0,
-            width: 1920,
-            height: 1080,
-        });
-    };
-    let position = monitor.position();
-    let size = monitor.size();
-    Ok(NativeRect {
-        x: position.x,
-        y: position.y,
-        width: size.width as i32,
-        height: size.height as i32,
-    })
 }
 
 fn clamp_i32(value: i32, min: i32, max: i32) -> i32 {

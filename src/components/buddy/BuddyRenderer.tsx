@@ -2,6 +2,7 @@ import { useRef, type PointerEvent } from 'react';
 import { buddyStateToVisualState, type BuddyState } from '../../domain/companion/buddyState';
 import type { BuddyVisualState } from '../../domain/companion/visualState';
 import type { CreatureAnimationIntent } from '../../domain/creature/animation';
+import type { PetSkinSelection } from '../../domain/petdex/skins';
 import {
   cancelPointer,
   movePointer,
@@ -24,6 +25,7 @@ interface BuddyRendererProps {
   onHoverEnd?: () => void;
   animationIntent?: CreatureAnimationIntent;
   reducedMotion?: boolean;
+  skin?: PetSkinSelection;
 }
 
 export function BuddyRenderer({
@@ -37,6 +39,7 @@ export function BuddyRenderer({
   onHoverEnd,
   animationIntent,
   reducedMotion = false,
+  skin,
 }: BuddyRendererProps) {
   const pointerState = useRef<CreaturePointerState>(resetPointer());
 
@@ -93,6 +96,7 @@ export function BuddyRenderer({
       visualState={visualState}
       {...(animationIntent ? { animationIntent } : {})}
       reducedMotion={reducedMotion}
+      {...(skin ? { skin } : {})}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

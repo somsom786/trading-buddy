@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CompanionService } from '../services/tauri/companionService';
 import type { LocalAiService } from '../services/tauri/localAiService';
 import type { StorageService } from '../services/tauri/storageService';
@@ -10,9 +10,10 @@ import { defaultJournalPreferences } from '../domain/journal/types';
 import { DEFAULT_CONTINUITY_PREFERENCES } from '../domain/continuity/types';
 import { BubbleView } from './BubbleView';
 
+const companionSend = vi.fn().mockResolvedValue(undefined);
 const companionService: CompanionService = {
   setState: vi.fn().mockResolvedValue(undefined),
-  send: vi.fn().mockResolvedValue(undefined),
+  send: companionSend,
   emitInteraction: vi.fn().mockResolvedValue(undefined),
   subscribe: vi.fn().mockResolvedValue(() => undefined),
   subscribeInteractions: vi.fn().mockResolvedValue(() => undefined),
@@ -227,6 +228,11 @@ function createStorageService(): {
 }
 
 describe('BubbleView', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
   it('sends through the persistent storage and local AI pipeline', async () => {
     const user = userEvent.setup();
     const {
@@ -329,5 +335,41 @@ describe('BubbleView', () => {
       }),
     );
     expect(streamChat).not.toHaveBeenCalled();
+  });
+
+  it('loads the read-only Petdex catalog only when the skin picker opens', async () => {
+    const user = userEvent.setup();
+    const { service: storageService } = createStorageService();
+    const petdexCatalog = vi.fn().mockResolvedValue([
+      {
+        id: 'boba',
+        displayName: 'Boba',
+        source: 'petdex',
+        submittedBy: 'railly',
+        spritesheetUrl: 'https://assets.petdex.dev/community/boba/spritesheet.webp',
+      },
+    ]);
+    render(
+      <BubbleView
+        localAiService={{
+          listModels: vi.fn().mockResolvedValue([{ name: 'qwen3:4b' }]),
+          streamChat: vi.fn(),
+          cancel: vi.fn(),
+        }}
+        storageService={storageService}
+        companionService={companionService}
+        windowService={createWindowService().service}
+        petdexCatalog={petdexCatalog}
+      />,
+    );
+
+    expect(petdexCatalog).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Choose pet skin' }));
+    await user.click(await screen.findByRole('button', { name: /Boba/ }));
+
+    expect(companionSend).toHaveBeenCalledWith({
+      type: 'set_skin',
+      skin: expect.objectContaining({ id: 'boba', source: 'petdex' }),
+    });
   });
 });

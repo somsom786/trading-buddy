@@ -2,6 +2,7 @@ mod commands;
 mod continuity;
 mod desktop_world;
 mod local_ai;
+mod petdex;
 mod storage;
 mod trading;
 mod window_manager;
@@ -126,6 +127,7 @@ pub fn run() {
             commands::local_ai::list_local_models,
             commands::local_ai::stream_local_chat,
             commands::local_ai::cancel_local_chat,
+            petdex::list_featured_petdex_skins,
             commands::storage::get_storage_status,
             commands::storage::get_storage_diagnostics,
             commands::storage::get_app_settings,
