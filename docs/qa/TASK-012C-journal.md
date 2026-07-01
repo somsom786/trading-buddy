@@ -146,3 +146,40 @@ corepack pnpm tauri build --no-bundle
 
 Automatic bounded crash restart, ordered prompt streaming, and user-visible integration remain S4–S7
 work and are not claimed here.
+
+## S4 — Ordered stream and idempotent persistence
+
+### Implemented
+
+- Added one Rust-owned submit path that validates clean user text, request/turn identifiers, model
+  names, support mode, temporary mode, and bounded hidden companion context.
+- Added transactional local persistence for one user message, one assistant placeholder, and one
+  `agent_turn_attempts` record per request ID. Repeated preparation with the same request ID returns
+  the original records.
+- Added Rust-assigned monotonic stream sequences and closed lifecycle events for accepted,
+  listening, thinking, visible content deltas, completed, cancelled, failed, and connection lost.
+- Broadcast transcript snapshots and stream content only to `bubble` and `main`; the buddy receives
+  only a narrow visual-state command.
+- Added bounded delta checkpointing and terminal persistence into the existing assistant
+  placeholder. Stale request events and repeated terminal events are ignored and counted.
+- Extended the forked gateway with:
+  - strict `client_request_id` validation and live-session deduplication;
+  - Trading Buddy ephemeral sessions with gateway and agent transcript persistence disabled;
+  - a narrow Trading Buddy runtime-session deletion method;
+  - bounded hidden `companion_context` separate from visible user text;
+  - clean visible user-message persistence when support metadata or context wraps the model prompt;
+  - Trading Buddy generic Hermes memory disabled to avoid a competing memory authority.
+
+### Focused verification
+
+- Strict TypeScript: passed.
+- Rust tests: 96 passed, including idempotent turn preparation and real gateway lifecycle smoke.
+- Rust clippy with warnings denied: passed.
+- Hermes focused gateway/support suite: 315 passed.
+- `git diff --check`: passed; Git reported only the clone's expected LF-to-CRLF warnings.
+
+### Checkpoint boundary
+
+The runtime and fork protocol are ready for frontend adoption. Bubble and Companion Home still use
+their legacy generation owners, so shared live rendering, Stop/Retry/Copy, reconnect restoration,
+privacy synchronization, and the Windows walkthrough remain unclaimed S5–S9 work.

@@ -15,14 +15,26 @@ export interface AgentSessionOpenRequest {
   temporary: boolean;
 }
 
+export interface AgentSessionSubmitRequest {
+  localConversationId: string | null;
+  requestId: string;
+  turnId: string;
+  text: string;
+  model: string;
+  temporary: boolean;
+  hiddenContext: string;
+}
+
 export interface AgentSessionService {
   snapshot(): Promise<AgentSessionSnapshot>;
   start(): Promise<AgentSessionSnapshot>;
   retryConnection(): Promise<AgentSessionSnapshot>;
   open(request: AgentSessionOpenRequest): Promise<AgentSessionSnapshot>;
+  submit(request: AgentSessionSubmitRequest): Promise<AgentSessionSnapshot>;
   setSupportMode(supportMode: CompanionSupportMode): Promise<AgentSessionSnapshot>;
   interrupt(): Promise<AgentSessionSnapshot>;
   close(): Promise<AgentSessionSnapshot>;
+  purgeConversation(conversationId: string): Promise<boolean>;
   stop(): Promise<void>;
   subscribeSnapshot(handler: (snapshot: AgentSessionSnapshot) => void): Promise<UnlistenFn>;
   subscribeStream(handler: (event: AgentStreamEvent) => void): Promise<UnlistenFn>;
@@ -41,6 +53,9 @@ export const tauriAgentSessionService: AgentSessionService = {
   open(request) {
     return invokeSnapshot('agent_session_open', { request });
   },
+  submit(request) {
+    return invokeSnapshot('agent_session_submit', { request });
+  },
   setSupportMode(supportMode) {
     return invokeSnapshot('agent_session_set_support_mode', { supportMode });
   },
@@ -49,6 +64,14 @@ export const tauriAgentSessionService: AgentSessionService = {
   },
   close() {
     return invokeSnapshot('agent_session_close');
+  },
+  async purgeConversation(conversationId) {
+    ensureTauri();
+    const value = await invoke<unknown>('agent_session_purge_conversation', { conversationId });
+    if (typeof value !== 'boolean') {
+      throw new Error('Invalid local agent cleanup response.');
+    }
+    return value;
   },
   async stop() {
     ensureTauri();

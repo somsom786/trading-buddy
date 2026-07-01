@@ -9,6 +9,7 @@ import {
   tauriAgentSessionService,
   type AgentSessionOpenRequest,
   type AgentSessionService,
+  type AgentSessionSubmitRequest,
 } from '../../services/tauri/agentSessionService';
 
 export interface AgentSessionController {
@@ -17,6 +18,7 @@ export interface AgentSessionController {
   error: string | null;
   start(): Promise<void>;
   open(request: AgentSessionOpenRequest): Promise<void>;
+  submit(request: AgentSessionSubmitRequest): Promise<void>;
   setSupportMode(mode: CompanionSupportMode): Promise<void>;
   interrupt(): Promise<void>;
   retryConnection(): Promise<void>;
@@ -84,6 +86,7 @@ export function useAgentSession(
     error,
     start: () => run(() => service.start()),
     open: (request) => run(() => service.open(request)),
+    submit: (request) => run(() => service.submit(request)),
     setSupportMode: (mode) => run(() => service.setSupportMode(mode)),
     interrupt: () => run(() => service.interrupt()),
     retryConnection: () => run(() => service.retryConnection()),

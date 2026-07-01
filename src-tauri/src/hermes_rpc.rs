@@ -14,10 +14,11 @@ pub enum HermesMethod {
     PromptSubmit,
     SessionInterrupt,
     SessionClose,
+    TradingBuddySessionDelete,
 }
 
 impl HermesMethod {
-    const ALL: [Self; 8] = [
+    const ALL: [Self; 9] = [
         Self::SessionCreate,
         Self::SessionResume,
         Self::SessionList,
@@ -26,6 +27,7 @@ impl HermesMethod {
         Self::PromptSubmit,
         Self::SessionInterrupt,
         Self::SessionClose,
+        Self::TradingBuddySessionDelete,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -38,6 +40,7 @@ impl HermesMethod {
             Self::PromptSubmit => "prompt.submit",
             Self::SessionInterrupt => "session.interrupt",
             Self::SessionClose => "session.close",
+            Self::TradingBuddySessionDelete => "trading_buddy.session_delete",
         }
     }
 }

@@ -191,6 +191,14 @@ impl HermesProcessManager {
         }
     }
 
+    pub fn subscribe_events(&self) -> broadcast::Receiver<GatewayEvent> {
+        self.events.subscribe()
+    }
+
+    pub fn subscribe_status(&self) -> watch::Receiver<HermesRuntimeStatus> {
+        self.status.subscribe()
+    }
+
     pub async fn start(&self) -> Result<(), String> {
         let mut state = self.state.lock().await;
         if state

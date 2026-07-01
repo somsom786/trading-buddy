@@ -17,13 +17,14 @@ use super::{
         JournalSort, JournalSourceKind, JournalStatus, Memory, MemoryApprovalMode, MemoryCategory,
         MemoryDiagnostics, MemoryDraft, MemoryExportFile, MemoryListOptions, MemoryPreferences,
         MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
-        MessageExport, MovementIntensity, PrepareGenerationRequest, PrepareGenerationResponse,
-        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageMetadata,
-        StoredMessage, StoredMessageRole, StoredMessageStatus, UpsertAgentSessionLink,
-        MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH, MAX_JOURNAL_SUMMARY_LENGTH,
-        MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH, MAX_JOURNAL_TITLE_LENGTH,
-        MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH,
-        MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        MessageExport, MovementIntensity, PrepareAgentTurnRequest, PrepareAgentTurnResponse,
+        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
+        RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
+        StoredMessageStatus, UpsertAgentSessionLink, MAX_JOURNAL_BODY_LENGTH,
+        MAX_JOURNAL_SEARCH_LENGTH, MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS,
+        MAX_JOURNAL_TAG_LENGTH, MAX_JOURNAL_TITLE_LENGTH, MAX_MEMORY_CONTENT_LENGTH,
+        MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH,
+        MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -729,12 +730,121 @@ pub fn prepare_generation(
     })
 }
 
+pub fn prepare_agent_turn(
+    connection: &mut Connection,
+    request: PrepareAgentTurnRequest,
+) -> Result<PrepareAgentTurnResponse, StorageError> {
+    validate_identifier(&request.request_id, "request ID")?;
+    validate_identifier(&request.turn_id, "turn ID")?;
+    validate_support_mode(&request.support_mode)?;
+    if let Some(existing) = existing_agent_turn(connection, &request.request_id)? {
+        return Ok(existing);
+    }
+
+    let prepared = prepare_generation(
+        connection,
+        PrepareGenerationRequest {
+            conversation_id: request.conversation_id,
+            request_id: request.request_id.clone(),
+            user_content: request.user_content,
+            model_name: request.model_name,
+        },
+    )?;
+    let now = timestamp();
+    if let Err(error) = connection.execute(
+        "INSERT INTO agent_turn_attempts (
+            request_id, turn_id, local_conversation_id, user_message_id,
+            assistant_message_id, support_mode, attempt, status, created_at, updated_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'submitting', ?7, ?7)",
+        params![
+            request.request_id,
+            request.turn_id,
+            prepared.conversation.id,
+            prepared.user_message.id,
+            prepared.assistant_message.id,
+            request.support_mode,
+            now
+        ],
+    ) {
+        let _ = connection.execute(
+            "DELETE FROM messages WHERE id IN (?1, ?2)",
+            params![prepared.user_message.id, prepared.assistant_message.id],
+        );
+        return Err(StorageError::from_sql_write(error));
+    }
+    Ok(PrepareAgentTurnResponse {
+        conversation: prepared.conversation,
+        user_message: prepared.user_message,
+        assistant_message: prepared.assistant_message,
+        turn_id: request.turn_id,
+        support_mode: request.support_mode,
+        attempt: 1,
+        reused: false,
+    })
+}
+
+fn existing_agent_turn(
+    connection: &Connection,
+    request_id: &str,
+) -> Result<Option<PrepareAgentTurnResponse>, StorageError> {
+    let row: Option<(String, String, String, String, String, u32)> = connection
+        .query_row(
+            "SELECT turn_id, local_conversation_id, user_message_id, assistant_message_id,
+                    support_mode, attempt
+             FROM agent_turn_attempts
+             WHERE request_id = ?1",
+            params![request_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)?;
+    let Some((
+        turn_id,
+        conversation_id,
+        user_message_id,
+        assistant_message_id,
+        support_mode,
+        attempt,
+    )) = row
+    else {
+        return Ok(None);
+    };
+    Ok(Some(PrepareAgentTurnResponse {
+        conversation: conversation_summary(connection, &conversation_id)?,
+        user_message: message(connection, &user_message_id)?,
+        assistant_message: message(connection, &assistant_message_id)?,
+        turn_id,
+        support_mode,
+        attempt,
+        reused: true,
+    }))
+}
+
 fn validate_agent_link_status(status: &str) -> Result<(), StorageError> {
     if ["active", "closed", "missing", "failed"].contains(&status) {
         Ok(())
     } else {
         Err(StorageError::invalid_request(
             "Invalid agent session link status.",
+        ))
+    }
+}
+
+fn validate_support_mode(mode: &str) -> Result<(), StorageError> {
+    if ["listen", "reflect", "plan", "hang_out", "presence"].contains(&mode) {
+        Ok(())
+    } else {
+        Err(StorageError::invalid_request(
+            "Invalid companion support mode.",
         ))
     }
 }
@@ -2075,6 +2185,24 @@ fn update_assistant_status(
         .map_err(StorageError::from_sql_write)?;
     transaction
         .execute(
+            "UPDATE agent_turn_attempts
+             SET status = ?1, updated_at = ?2
+             WHERE request_id = ?3",
+            params![status.as_db(), now, update.request_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    if status == StoredMessageStatus::Completed {
+        transaction
+            .execute(
+                "UPDATE agent_session_links
+                 SET last_completed_message_id = ?1, last_request_id = ?2, updated_at = ?3
+                 WHERE local_conversation_id = ?4",
+                params![update.message_id, update.request_id, now, conversation_id],
+            )
+            .map_err(StorageError::from_sql_write)?;
+    }
+    transaction
+        .execute(
             "UPDATE conversations
              SET updated_at = ?1, last_message_at = ?1
              WHERE id = ?2",
@@ -3100,6 +3228,68 @@ mod tests {
         assert!(agent_session_link(&connection, &prepared.conversation.id)
             .expect("query link")
             .is_none());
+    }
+
+    #[test]
+    fn prepares_one_agent_turn_per_request_and_finalizes_mapping_once() {
+        let mut connection = database();
+        let request = PrepareAgentTurnRequest {
+            conversation_id: None,
+            request_id: "request-agent-1".to_owned(),
+            turn_id: "turn-agent-1".to_owned(),
+            user_content: "I need to talk.".to_owned(),
+            model_name: "qwen3:4b".to_owned(),
+            support_mode: "listen".to_owned(),
+        };
+        let first = prepare_agent_turn(&mut connection, request.clone()).expect("first prepare");
+        let second = prepare_agent_turn(&mut connection, request).expect("idempotent prepare");
+        assert!(!first.reused);
+        assert!(second.reused);
+        assert_eq!(first.user_message.id, second.user_message.id);
+        assert_eq!(first.assistant_message.id, second.assistant_message.id);
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM messages", [], |row| row
+                    .get::<_, i64>(0))
+                .expect("message count"),
+            2
+        );
+
+        upsert_agent_session_link(
+            &connection,
+            UpsertAgentSessionLink {
+                local_conversation_id: first.conversation.id.clone(),
+                remote_session_id: "live-agent-1".to_owned(),
+                remote_session_key: "stored-agent-1".to_owned(),
+                status: "active".to_owned(),
+            },
+        )
+        .expect("link");
+        complete_assistant(
+            &mut connection,
+            AssistantMessageUpdate {
+                message_id: first.assistant_message.id.clone(),
+                request_id: "request-agent-1".to_owned(),
+                content: "I am here.".to_owned(),
+            },
+        )
+        .expect("complete");
+        let turn_status: String = connection
+            .query_row(
+                "SELECT status FROM agent_turn_attempts WHERE request_id = 'request-agent-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("turn status");
+        assert_eq!(turn_status, "completed");
+        let link = agent_session_link(&connection, &first.conversation.id)
+            .expect("query link")
+            .expect("link exists");
+        assert_eq!(
+            link.last_completed_message_id.as_deref(),
+            Some(first.assistant_message.id.as_str())
+        );
+        assert_eq!(link.last_request_id.as_deref(), Some("request-agent-1"));
     }
 
     #[test]

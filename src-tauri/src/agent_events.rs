@@ -51,6 +51,18 @@ pub enum CompanionSupportMode {
     Presence,
 }
 
+impl CompanionSupportMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Listen => "listen",
+            Self::Reflect => "reflect",
+            Self::Plan => "plan",
+            Self::HangOut => "hang_out",
+            Self::Presence => "presence",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSessionDiagnostics {
@@ -122,5 +134,35 @@ pub struct AgentSessionError {
     pub retryable: bool,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentStreamEventType {
+    Accepted,
+    Listening,
+    Thinking,
+    ContentDelta,
+    Completed,
+    Cancelled,
+    Failed,
+    ConnectionLost,
+    ConnectionRestored,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentStreamEvent {
+    pub session_id: String,
+    pub request_id: String,
+    pub turn_id: String,
+    pub sequence: u64,
+    #[serde(rename = "type")]
+    pub event_type: AgentStreamEventType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<AgentSessionError>,
+}
+
 pub const AGENT_RUNTIME_STATUS_EVENT: &str = "agent://runtime-status";
 pub const AGENT_SESSION_SNAPSHOT_EVENT: &str = "agent://session-snapshot";
+pub const AGENT_STREAM_EVENT: &str = "agent://stream-event";
