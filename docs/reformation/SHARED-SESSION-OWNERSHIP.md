@@ -35,9 +35,14 @@ React does not parse raw Hermes payloads and does not launch provider processes.
 - active request/turn identity;
 - monotonic stream sequencing, duplicate/stale rejection, and terminal idempotency;
 - authoritative visible transcript persistence in `trading-buddy.db`;
-- deterministic intents, safety refusal, hidden context budgeting, and post-turn scheduling;
+- idempotent prompt/assistant attempt ownership and terminal persistence;
 - cross-window snapshot/event broadcasts;
 - bounded reconnect and explicit retry semantics.
+
+Existing framework-independent TypeScript domain modules still classify deterministic journal and
+trading intents and construct bounded hidden context from narrow Rust-backed memory, continuity,
+and read-only trading services. They run before the gateway call. Post-turn memory extraction,
+usage recording, and continuity scheduling run only after Rust broadcasts durable completion.
 
 ## Hermes owns
 
@@ -84,9 +89,9 @@ not exposed to React or normal companion chat.
 ## Temporary chat
 
 Temporary chat has no SQLite transcript, durable session link, memory extraction, continuity
-consolidation, or implicit trading context. Its Hermes execution session must be explicitly
-ephemeral and destroyed when reset or closed. If the gateway cannot prove this behavior, temporary
-chat remains unavailable through Hermes until the fork supplies the guarantee.
+consolidation, or implicit trading context. Its Hermes execution session is explicitly ephemeral;
+the fork disables gateway-row and agent transcript persistence and destroys the live session when
+reset or closed.
 
 ## Deletion
 

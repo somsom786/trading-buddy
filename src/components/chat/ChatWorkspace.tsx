@@ -118,6 +118,14 @@ interface ActiveAssistantPersistence {
   continuityItems: ContinuityRetrievalItem[];
 }
 
+interface PendingPostTurn {
+  content: string;
+  model: string;
+  conversationOptedOut: boolean;
+  memoryIds: string[];
+  continuityItems: ContinuityRetrievalItem[];
+}
+
 export function ChatWorkspace({
   localAiService = tauriLocalAiService,
   storageService = tauriStorageService,
@@ -163,6 +171,7 @@ export function ChatWorkspace({
   const errorTimerRef = useRef<number | null>(null);
   const assistantPersistenceRef = useRef<ActiveAssistantPersistence | null>(null);
   const checkpointTimerRef = useRef<number | null>(null);
+  const pendingPostTurnRef = useRef<PendingPostTurn | null>(null);
 
   useEffect(() => {
     activeRequestRef.current = agentSession.snapshot.activeRequestId ?? session.activeRequestId;
@@ -172,6 +181,82 @@ export function ChatWorkspace({
   useEffect(() => {
     void agentSessionService.start().catch(() => undefined);
   }, [agentSessionService]);
+
+  useEffect(() => {
+    if (
+      agentSession.snapshot.turnStatus === 'failed' ||
+      agentSession.snapshot.turnStatus === 'cancelled'
+    ) {
+      pendingPostTurnRef.current = null;
+      return;
+    }
+    if (agentSession.snapshot.turnStatus !== 'completed' || !pendingPostTurnRef.current) {
+      return;
+    }
+    const pending = pendingPostTurnRef.current;
+    pendingPostTurnRef.current = null;
+    const storedUser = [...agentSession.snapshot.messages]
+      .reverse()
+      .find((message) => message.role === 'user');
+    const storedAssistant = [...agentSession.snapshot.messages]
+      .reverse()
+      .find((message) => message.role === 'assistant' && message.status === 'completed');
+    const completedConversationId = agentSession.snapshot.localConversationId;
+    if (!agentSession.snapshot.temporary && completedConversationId && storedAssistant) {
+      if (pending.memoryIds.length > 0) {
+        void storageService.recordMemoryUsage({
+          memoryIds: pending.memoryIds,
+          conversationId: completedConversationId,
+          assistantMessageId: storedAssistant.id,
+          reasonCode: 'home_chat_context',
+        });
+      }
+      if (pending.continuityItems.length > 0) {
+        void continuityService.recordUsage({
+          conversationId: completedConversationId,
+          assistantMessageId: storedAssistant.id,
+          items: pending.continuityItems,
+        });
+      }
+      void storageService
+        .getSettings()
+        .then((settings) =>
+          settings.continuityPreferences.consolidationEnabled
+            ? continuityService.enqueue(completedConversationId)
+            : null,
+        )
+        .catch(() => undefined);
+    }
+    void storageService
+      .getSettings()
+      .then((settings) =>
+        runBackgroundMemoryExtraction({
+          storageService,
+          localAiService,
+          content: pending.content,
+          model: pending.model,
+          requestId: createId('memory_request'),
+          sourceConversationId: agentSession.snapshot.temporary
+            ? undefined
+            : (agentSession.snapshot.localConversationId ?? undefined),
+          sourceMessageId: agentSession.snapshot.temporary ? undefined : storedUser?.id,
+          temporaryChat: agentSession.snapshot.temporary,
+          conversationOptedOut: pending.conversationOptedOut,
+          preferences: settings.memoryPreferences,
+        }),
+      )
+      .catch((error: unknown) => {
+        setStorageError(normalizeStorageError(error));
+      });
+  }, [
+    agentSession.snapshot.localConversationId,
+    agentSession.snapshot.messages,
+    agentSession.snapshot.temporary,
+    agentSession.snapshot.turnStatus,
+    localAiService,
+    continuityService,
+    storageService,
+  ]);
 
   const setBuddyState = useCallback(
     (state: BuddyState) => {
@@ -529,6 +614,7 @@ export function ChatWorkspace({
       const userMessage = createChatMessage('user', content);
       const assistantMessage = createChatMessage('assistant', '');
       let memoryContext: string | null = null;
+      let memoryIds: string[] = [];
       let continuityItems: ContinuityRetrievalItem[] = [];
       let memoryOptedOutForRequest = conversationMemoryOptOut;
       let memoryNotice: string | null = null;
@@ -557,6 +643,7 @@ export function ChatWorkspace({
           });
           memoryContext = memoryContextResult.context;
           const retrievedMemories = memoryContextResult.retrieved;
+          memoryIds = retrievedMemories.map((memory) => memory.id);
           setUsedMemories(retrievedMemories);
           const forgetResult = await handleForgetMemoryIntent({
             storageService,
@@ -632,6 +719,13 @@ export function ChatWorkspace({
         setStorageError(null);
         setStorageNotice(memoryNotice);
         setBuddyState(buddyStateForLifecycle('message_submitted'));
+        pendingPostTurnRef.current = {
+          content,
+          model: selectedModel,
+          conversationOptedOut: memoryOptedOutForRequest,
+          memoryIds,
+          continuityItems,
+        };
         try {
           const next = await agentSessionService.submit({
             localConversationId: mode === 'persistent' ? activeConversationId : null,
@@ -644,27 +738,8 @@ export function ChatWorkspace({
           });
           setActiveConversationId(next.temporary ? null : next.localConversationId);
           await refreshConversationLists();
-          const storedUser = [...next.messages]
-            .reverse()
-            .find((message) => message.role === 'user');
-          const settings = await storageService.getSettings();
-          void runBackgroundMemoryExtraction({
-            storageService,
-            localAiService,
-            content,
-            model: selectedModel,
-            requestId: createId('memory_request'),
-            sourceConversationId: next.temporary
-              ? undefined
-              : (next.localConversationId ?? undefined),
-            sourceMessageId: next.temporary ? undefined : storedUser?.id,
-            temporaryChat: next.temporary,
-            conversationOptedOut: memoryOptedOutForRequest,
-            preferences: settings.memoryPreferences,
-          }).catch((error: unknown) => {
-            setStorageError(normalizeStorageError(error));
-          });
         } catch (error) {
+          pendingPostTurnRef.current = null;
           setStorageError(normalizeStorageError(error));
         }
         return;
@@ -706,7 +781,6 @@ export function ChatWorkspace({
       conversationMemoryOptOut,
       continuityService,
       handleStreamEvent,
-      localAiService,
       mode,
       refreshConversationLists,
       session.id,

@@ -40,12 +40,34 @@ buddy renderer + native position
     <- geometry-only desktop world snapshot
 
 conversation surfaces
-  -> typed service interfaces
-    -> narrow Tauri commands
-      -> Rust local-model service -> Ollama on loopback
+  -> shared validated agent-session contract
+    -> narrow Tauri commands/events
+      -> one Rust AgentSessionRuntime
+        -> typed JSON-RPC over private stdio
+          -> pinned Trading Buddy Hermes gateway -> Ollama on loopback
       -> Rust storage service -> SQLite in app-local data
       -> optional read-only skills -> allowlisted provider clients
 ```
+
+## Canonical shared conversation runtime
+
+Rust-owned SQLite remains authoritative for visible conversations and message status. One
+process-wide `AgentSessionRuntime` owns the active local conversation, mapped Hermes session,
+support mode, request/turn IDs, ordered stream sequence, persistence checkpoint, reconnect state,
+and diagnostics. `agent_session_links` maps persistent local conversations lazily;
+`agent_turn_attempts` gives each retry a separate assistant attempt linked to the original user
+message.
+
+Only the Bubble and `main` windows receive transcript snapshots and stream content. The buddy
+window receives narrow visual-state commands without conversation text. Gateway requests are
+restricted by a closed Rust method enum; arbitrary command dispatch, shell, filesystem, browser,
+clipboard reading, approvals, delegation, and tools are not exposed to React or companion chat.
+
+Unexpected gateway exit never blindly resubmits a prompt. The active placeholder is finalized as
+recoverably failed, restart is bounded to 250 ms, 1 second, and 3 seconds, and a persistent session
+is resumed where possible. Missing backend state creates a continuation session whose next prompt
+receives bounded local context. Temporary chats use an explicit ephemeral gateway option and never
+create a durable SQLite mapping.
 
 The product hierarchy is companion-first:
 

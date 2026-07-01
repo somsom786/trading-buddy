@@ -579,8 +579,11 @@ async fn read_stderr(stderr: tokio::process::ChildStderr) {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use serde_json::json;
     use tempfile::TempDir;
+    use tokio::time::{timeout, Duration};
 
     use crate::hermes_rpc::HermesMethod;
 
@@ -638,5 +641,100 @@ mod tests {
         let diagnostics = manager.diagnostics().await;
         assert_eq!(diagnostics.status, HermesRuntimeStatus::Stopped);
         assert_eq!(diagnostics.process_id, None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "requires a running local Ollama with qwen3:8b installed"]
+    async fn streams_one_real_companion_turn_through_ollama() {
+        let data = TempDir::new().expect("temp");
+        let config = GatewayLaunchConfig::development(data.path()).expect("pinned gateway");
+        let manager = HermesProcessManager::new(config);
+        let mut events = manager.subscribe_events();
+        let started_at = Instant::now();
+        manager.start().await.expect("gateway ready");
+        let gateway_ready = started_at.elapsed();
+        let session_started_at = Instant::now();
+        let created = manager
+            .request(
+                HermesMethod::SessionCreate,
+                json!({
+                    "cols": 80,
+                    "source": "trading_buddy",
+                    "model": "qwen3:8b",
+                    "provider": "custom",
+                    "close_on_disconnect": true,
+                    "trading_buddy_ephemeral": true,
+                }),
+            )
+            .await
+            .expect("create ephemeral session");
+        let session_created = session_started_at.elapsed();
+        let session_id = created
+            .get("session_id")
+            .and_then(serde_json::Value::as_str)
+            .expect("session id")
+            .to_owned();
+        let prompt_started_at = Instant::now();
+        manager
+            .request(
+                HermesMethod::PromptSubmit,
+                json!({
+                    "session_id": session_id,
+                    "text": "Reply with one short calm sentence confirming the local test.",
+                    "support_mode": "presence",
+                    "client_request_id": "real-ollama-smoke-1",
+                    "companion_context": "This is a bounded local integration smoke test.",
+                }),
+            )
+            .await
+            .expect("submit prompt");
+        let accepted = prompt_started_at.elapsed();
+        let (visible_text, first_token) = timeout(Duration::from_secs(180), async {
+            let mut visible_text = String::new();
+            let mut first_token = None;
+            loop {
+                let event = events.recv().await.expect("gateway event");
+                if event.session_id.as_deref() != Some(session_id.as_str()) {
+                    continue;
+                }
+                if event.event_type == "message.delta" {
+                    if let Some(text) = event
+                        .payload
+                        .as_ref()
+                        .and_then(|payload| payload.get("text"))
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        first_token.get_or_insert_with(|| prompt_started_at.elapsed());
+                        visible_text.push_str(text);
+                    }
+                }
+                if event.event_type == "message.complete" {
+                    break (visible_text, first_token);
+                }
+                if event.event_type == "error" {
+                    panic!("gateway reported a sanitized prompt error");
+                }
+            }
+        })
+        .await
+        .expect("real local model response timed out");
+        assert!(!visible_text.trim().is_empty());
+        println!(
+            "gateway_ready_ms={} session_create_ms={} accepted_ms={} first_token_ms={} completed_ms={}",
+            gateway_ready.as_millis(),
+            session_created.as_millis(),
+            accepted.as_millis(),
+            first_token.expect("first visible token").as_millis(),
+            prompt_started_at.elapsed().as_millis(),
+        );
+        manager
+            .request(
+                HermesMethod::SessionClose,
+                json!({"session_id": session_id}),
+            )
+            .await
+            .expect("close session");
+        manager.stop().await.expect("stop gateway");
     }
 }

@@ -58,8 +58,15 @@ The real S3 smoke test verifies that no `tui_gateway.entry` Python process remai
 
 ## Recovery status
 
-Explicit Retry currently performs a controlled stop/start and increments diagnostics.
+Unexpected exit marks an active local placeholder recoverably failed and never blindly resubmits
+the prompt. The manager then retries after 250 ms, one second, and three seconds. After three
+failures it stays failed until explicit Retry.
 
-The required automatic crash policy—250 ms, one second, three seconds, then failed until explicit
-Retry—is reserved for S7. A crash during generation will not be blindly resubmitted; ordered
-reconciliation must land in S4 before automatic restart is enabled.
+On recovery, a persistent local conversation resumes its mapped session key. If Hermes reports the
+stored session missing, Rust creates a fresh continuation runtime, updates the mapping, and the
+next request supplies bounded local context. Temporary sessions are not made durable. Explicit
+Retry connection performs a controlled stop/start and increments diagnostics.
+
+The uv-created Windows virtual environment appears in process inspection as a small venv launcher
+plus one base Python runtime. They represent one gateway instance and one stdio actor; no public
+listener is opened.

@@ -1,6 +1,6 @@
 # MVP
 
-## Task 12 preview evidence
+## Task 12C shared-session evidence
 
 The MVP target remains a local-first desktop creature with private conversation, memory, journal,
 and optional read-only skills. Task 12 adds evidence that a Hermes/Petdex shell can support that
@@ -10,12 +10,16 @@ direction:
 - main window hidden by default;
 - pet click opens the composer;
 - existing Petdex skin selection is reachable from the buddy bubble, pet menu, and tray;
-- local Ollama response streams through a persisted Hermes session;
+- the project-owned Bubble and Companion Home share one Rust-owned session and local transcript;
+- real local Ollama output streams through the pinned Hermes gateway over private stdio;
+- stop, retry without duplicate user messages, explicit copy, five support modes, transcript
+  restoration, temporary sessions, and bounded reconnect are implemented;
 - default companion mode uses zero tools;
 - bundled Petdex buddy art builds from project-owned temporary pose assets.
 
-This does not close the MVP. Migration from the Tauri data model, packaging, production art,
-multi-monitor manual QA, and upstream Hermes suite cleanup remain open.
+This does not close the MVP. The exact native 25-step Windows interaction walkthrough,
+mixed-DPI/secondary-monitor QA, production art, signing, and broader product validation remain
+open.
 
 ## Goal
 

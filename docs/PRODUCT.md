@@ -20,6 +20,11 @@ Task 12B is making the Tauri application more pet-first: the detached buddy star
 taskbar, opens a compact attached bubble, sleeps after inactivity, and offers optional Petdex skins
 without replacing the local offline buddy.
 
+Task 12C connects that project-owned experience to one shared Hermes-derived execution runtime.
+The compact Bubble and Companion Home display the same Rust-authoritative conversation, support
+mode, live stream, stop state, and retry attempts. Hermes remains backend logic only; the app does
+not launch or embed Hermes Desktop.
+
 **Current development label:** BETA v0.3
 
 Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity

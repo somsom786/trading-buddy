@@ -772,3 +772,30 @@ interfaces, validation, tests, and documentation.
 The reformation preview uses Petdex's current 192 by 208 cell and 1536 by 1872 atlas convention.
 The local adapter rejects path traversal, absolute paths, executable/script metadata, and wrong
 atlas dimensions before a pet pack is treated as valid.
+
+## 090 - Keep SQLite authoritative and Hermes execution-only
+
+**Status:** Accepted
+
+The visible transcript, message lifecycle, continuity references, privacy deletion, and retry
+attempts remain authoritative in Rust-owned SQLite. A Hermes session is an isolated execution
+runtime mapped lazily to one local conversation. This avoids a competing user-facing history and
+keeps existing local-first deletion and inspection behavior intact.
+
+## 091 - Use one typed stdio gateway runtime
+
+**Status:** Accepted
+
+One process-wide Rust runtime launches the pinned Hermes gateway and communicates through
+newline-delimited JSON-RPC over private stdio. A closed method enum, bounded frames, strict
+frontend validation, sanitized errors, and no-tools configuration are preferred over a public
+listener, embedding Hermes Desktop, or allowing React to dispatch arbitrary gateway methods.
+
+## 092 - Never automatically resubmit after an ambiguous disconnect
+
+**Status:** Accepted
+
+Gateway loss finalizes an active turn as recoverable, performs only bounded process restart, and
+requires an explicit retry with a new request ID. Retry reuses the original user message and
+creates a new assistant attempt. This favors duplicate safety over pretending an ambiguous remote
+operation is safe to repeat.

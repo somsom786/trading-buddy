@@ -253,3 +253,40 @@ privacy synchronization, and the Windows walkthrough remain unclaimed S5–S9 wo
 The complete automated suites, Tauri builds, real Hermes/Ollama prompt path, exact native Windows
 walkthrough, process/performance observations, final documentation, and report remain S9. No native
 walkthrough result is claimed yet.
+
+## S9 — Windows smoke, performance, and documentation
+
+### Final automated verification
+
+- Prettier, ESLint, strict TypeScript, frontend build, and `git diff --check` passed.
+- Vitest: 50 files, 183 tests passed.
+- Petdex pack validation: 3 tests passed.
+- Rust: 97 passed, 1 real-provider test ignored by default; formatting and clippy passed.
+- Hermes focused gateway/support suite: 315 passed.
+- Tauri debug MSI/NSIS and release no-bundle builds passed.
+
+### Real Hermes and Ollama
+
+The ignored real-provider test was run explicitly with the pinned gateway and installed local
+`qwen3:8b`. It passed an ephemeral Trading Buddy session, Presence metadata, bounded hidden
+context, visible streaming, completion, close, and clean shutdown.
+
+Warm local observations: gateway ready 393 ms; session create 189 ms; submit accepted under 1 ms;
+first visible token 16,939 ms; completion 19,946 ms. The first cold run took 97.62 seconds,
+dominated by model load.
+
+### Native Tauri process smoke
+
+`corepack pnpm desktop:dev` reached Vite ready in 212 ms and launched one Tauri process with the
+buddy window title plus one logical stdio gateway. No gateway-owned listening socket was present.
+Observed idle working sets were approximately 47.6 MiB for Tauri and 111.7 MiB combined for the uv
+Python launcher/runtime. A five-second idle sample used 0.047 CPU seconds in Tauri and 0 in the
+gateway. The final process check found no Trading Buddy or gateway process.
+
+### Unverified acceptance steps
+
+The cursor-driven 25-step native walkthrough was not automated against the user's live desktop.
+Bubble attachment, drag/fall/land, cross-window Stop, retry/copy, Ollama stop/restart UI,
+mid-generation gateway kill, tray Quit, secondary monitor, and mixed-DPI observation remain
+explicitly unverified. Task 12C therefore remains open despite the completed implementation and
+green automated/real-provider evidence.

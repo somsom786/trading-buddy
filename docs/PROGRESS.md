@@ -6,6 +6,24 @@ Trading Buddy is currently in active development under the label **BETA v0.3**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### July 1, 2026 - Task 12C shared companion session checkpoint
+
+- Connected the project-owned Bubble and Companion Home to one Rust-owned Hermes-derived session
+  with ordered live streaming and SQLite-authoritative persistence.
+- Added real support modes, shared Stop, retry without duplicate user messages, explicit Copy,
+  transcript restoration, ephemeral temporary chat, bounded reconnect, missing-session
+  continuation, privacy cleanup, and redacted diagnostics.
+- Verified 183 frontend tests, 97 Rust tests plus one ignored-by-default real Ollama stream test,
+  315 focused Hermes tests, strict formatting/lint/type checks, frontend/Petdex builds, and both
+  Tauri build modes.
+- Ran a native development process smoke and observed one Tauri process, one logical gateway over
+  private stdio, no gateway listener, and clean final process state. The gateway's uv-created
+  Windows environment appears as a small launcher plus one Python runtime process.
+- The exact interactive 25-step walkthrough and mixed-DPI hardware checks remain open; Task 12C is
+  not claimed fully complete.
+- Detailed handoff report:
+  [`docs/reports/TASK-012C-shared-session-companion.md`](reports/TASK-012C-shared-session-companion.md)
+
 ### July 1, 2026 - BETA v0.3 label and default-branch publication
 
 - Advanced current product, package, Tauri, Rust, window, tray, and read-only provider labels to

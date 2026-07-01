@@ -3,6 +3,28 @@
 Date: 2026-06-29  
 Branch: `codex/task-12b-pet-skins-ui`
 
+## July 1 Task 12C update
+
+The former shared-session implementation gaps are now closed in code and automated coverage:
+
+| Area                              | Task 12C status                                                                |
+| --------------------------------- | ------------------------------------------------------------------------------ |
+| Tauri-to-Hermes shared session    | Implemented; one process-wide Rust runtime over typed private stdio            |
+| Bubble/Home shared live stream    | Implemented and covered by shared-session UI tests                             |
+| Support modes                     | Implemented as separate metadata and verified by the real gateway suite        |
+| Stop/retry/copy                   | Implemented; retry persistence proves one user message and multiple attempts   |
+| Transcript reopen/restart         | Implemented from Rust-owned SQLite and lazy mapped-session resume              |
+| Temporary chat                    | Implemented with no SQLite mapping and explicit Hermes ephemeral mode          |
+| Backend reconnect                 | Implemented with bounded restart and no blind resubmission                     |
+| Privacy cleanup                   | Implemented with backend purge attempts plus authoritative local deletion      |
+| Real gateway/Ollama stream        | Passed with the pinned gateway and installed local `qwen3:8b`                  |
+| Exact 25-step Windows walkthrough | Still incomplete; native interaction and mixed-DPI steps remain directly unrun |
+
+The historical audit below remains useful evidence of why Task 12C was required, but its
+“not implemented” rows no longer describe the current branch. Task 12B/12C must still remain open
+until the exact native walkthrough is completed without silently converting automated evidence
+into interaction evidence.
+
 ## June 30 architecture correction
 
 The matrix below records the state of the former Hermes Desktop preview and is retained as

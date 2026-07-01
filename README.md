@@ -27,6 +27,11 @@ Trading Buddy owns its Tauri/React frontend. The `somsom786/hermes-agent` fork u
 [`next/agent`](next/README.md) is a backend-logic donor and integration target only. Hermes Desktop
 is not the Trading Buddy interface.
 
+The Bubble and Companion Home now share one Rust-owned agent session. Rust launches one logical
+Hermes gateway over private stdio, maps it to the Rust-owned SQLite transcript, and broadcasts a
+validated ordered stream to both project-owned windows. The buddy receives visual lifecycle state
+only. Hermes never owns the visible frontend or the authoritative user transcript.
+
 The canonical application opens the project-owned buddy first, keeps Companion Home hidden until
 requested, and uses a compact project-owned bubble. Its optional skin picker requests a small,
 validated selection from the official Petdex manifest only after the user opens it; the original
@@ -77,10 +82,24 @@ with `corepack`, for example `corepack pnpm install`.
 
 ```powershell
 pnpm install
+git submodule update --init --recursive
 pnpm tauri icon src-tauri/icons/app-icon.svg
 ```
 
 The icon command is only needed when regenerating the checked-in application icons.
+
+The development gateway uses the project-pinned environment at
+`next\agent\venv\Scripts\python.exe`. If it is absent, install
+[uv](https://docs.astral.sh/uv/) and create it explicitly:
+
+```powershell
+cd next\agent
+uv venv venv --python 3.12
+uv pip install --python venv\Scripts\python.exe -e ".[dev]"
+cd ..\..
+```
+
+No Hermes Desktop or public gateway port is launched by the canonical app.
 
 ## Local AI setup
 
@@ -157,6 +176,9 @@ The persisted setting `Open Companion Home at startup` exists and defaults to di
 4. Click the buddy to open the attached bubble.
 5. Type a message and press Enter. Use Shift+Enter for a newline.
 6. Use **Stop** to cancel the active local request.
+7. Select Listen, Reflect, Plan, Hang out, or Presence to send explicit support-mode metadata.
+8. Use **Retry** to create a new assistant attempt without duplicating the user message, or
+   **Copy** to copy an assistant response through an explicit user action.
 
 The bubble shows local AI status, the selected model, recent messages, a multiline input, collapse
 control, and an explicit **Open Home** action. It streams through the existing local Ollama and

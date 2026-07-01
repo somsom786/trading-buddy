@@ -1,5 +1,26 @@
 # Tasks
 
+## Task 12C - Canonical Tauri to Hermes shared session
+
+- [x] Add the validated frontend agent-session contract and deterministic ordered reducer.
+- [x] Add one Rust-owned Hermes stdio process/session runtime and closed RPC allowlist.
+- [x] Add SQLite conversation mappings, idempotent submit ownership, and retry attempts.
+- [x] Connect Bubble and Companion Home to one transcript and live stream.
+- [x] Connect Listen, Reflect, Plan, Hang out, and Presence to real gateway requests.
+- [x] Add shared Stop, retry without duplicate user messages, and explicit Copy.
+- [x] Restore persistent transcripts and use non-durable temporary gateway sessions.
+- [x] Add bounded reconnect without blind resubmission and safe missing-session continuation.
+- [x] Synchronize supported backend cleanup with conversation deletion and delete-all.
+- [x] Add redacted developer diagnostics and automated regression coverage.
+- [x] Verify one real pinned gateway to local Ollama streamed turn.
+- [x] Pass frontend, Rust, Hermes, build, and Tauri packaging checks.
+- [ ] Complete and record all 25 native interaction steps, including real Stop/Retry across both
+      windows, Ollama outage/recovery, gateway kill/recovery, tray Quit, and mixed-DPI hardware.
+
+Task 12C is implementation-complete through S8 and automated/real-provider S9 evidence is green.
+It remains open because the exact native interaction walkthrough has not been directly observed in
+full.
+
 ## Task 12 - Hermes/Petdex architectural reformation
 
 - [x] Tag the preserved pre-reformation Tauri baseline.
