@@ -28,15 +28,23 @@ function service(snapshot = readySnapshot()): {
   return {
     setSupportMode,
     fake: {
+      diagnostics: vi.fn().mockResolvedValue({
+        status: 'ready',
+        processId: 1,
+        restartCount: 0,
+        lastError: null,
+      }),
       snapshot: vi.fn().mockResolvedValue(snapshot),
       start: vi.fn().mockResolvedValue(snapshot),
       retryConnection: vi.fn().mockResolvedValue(snapshot),
       open: vi.fn().mockResolvedValue(snapshot),
       submit: vi.fn().mockResolvedValue(snapshot),
+      retry: vi.fn().mockResolvedValue(snapshot),
       setSupportMode,
       interrupt: vi.fn().mockResolvedValue(snapshot),
       close: vi.fn().mockResolvedValue(snapshot),
       purgeConversation: vi.fn().mockResolvedValue(false),
+      purgeAll: vi.fn().mockResolvedValue(0),
       stop: vi.fn().mockResolvedValue(undefined),
       subscribeSnapshot: vi.fn().mockResolvedValue(() => undefined),
       subscribeStream: vi.fn().mockResolvedValue(() => undefined),

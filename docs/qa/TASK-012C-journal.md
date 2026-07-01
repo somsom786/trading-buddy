@@ -183,3 +183,73 @@ work and are not claimed here.
 The runtime and fork protocol are ready for frontend adoption. Bubble and Companion Home still use
 their legacy generation owners, so shared live rendering, Stop/Retry/Copy, reconnect restoration,
 privacy synchronization, and the Windows walkthrough remain unclaimed S5–S9 work.
+
+## S5 — Bubble and Home shared live session
+
+### Implemented
+
+- Real Bubble and Companion Home sends now call `agent_session_submit`; neither surface directly
+  calls the legacy Ollama stream for user conversation.
+- Both windows subscribe to the same process-wide Rust snapshot and ordered stream.
+- Both render the same Rust-authoritative local transcript, including a live assistant placeholder.
+- Opening a saved conversation lazily creates/resumes one mapped gateway session and restores its
+  SQLite transcript. Repeated Bubble/Home opens of the same conversation are idempotent.
+- Existing deterministic journal and execution-refusal paths remain ahead of the agent call.
+- Existing bounded read-only trading, memory, identity, and continuity material is passed as hidden
+  companion context rather than pasted into visible user text.
+
+## S6 — Support modes, Stop, Retry, and Copy
+
+### Implemented
+
+- Added the five support modes to both project-owned surfaces and routed the selected mode as
+  separate gateway metadata.
+- Stop in either surface interrupts the one shared Hermes request.
+- Retry creates a new assistant attempt linked to the original user message; it never inserts a
+  second user message.
+- Home retains per-message explicit Copy and the compact Bubble now exposes Copy for the latest
+  assistant response.
+- Added shared-session UI fakes and updated prior UI tests to assert the new boundary rather than
+  direct provider orchestration.
+
+## S7 — Reconnect, restoration, and temporary chat
+
+### Implemented
+
+- Unexpected gateway exit marks an active turn recoverably failed without resubmission.
+- Added bounded restart delays of 250 ms, 1 second, and 3 seconds, followed by explicit user retry.
+- Persistent conversations resume their stored gateway key after recovery.
+- A missing stored gateway session creates a fresh continuation runtime; bounded local context is
+  supplied on the next turn and the mapping is updated.
+- Temporary sessions have no SQLite transcript or durable mapping and request Hermes ephemeral
+  mode; close/reset destroys the live temporary runtime.
+- Provider/gateway failure does not stop the independent buddy body or local saved-history views.
+
+## S8 — Privacy, diagnostics, and regression coverage
+
+### Implemented
+
+- Conversation deletion attempts isolated gateway-session purge before local deletion.
+- Delete-all enumerates all durable mappings in Rust rather than relying on the UI's paginated
+  conversation list.
+- Local deletion still proceeds if an offline backend cache cannot be verified, with an honest
+  notice.
+- Added a development-only Agent Session Lab with redacted keys, process/runtime status, IDs,
+  sequence, support mode, duplicate/stale counters, sanitized errors, and bounded lifecycle
+  controls.
+
+### Verification through S8
+
+- Prettier: passed after formatting.
+- ESLint: passed with zero warnings.
+- Strict TypeScript: passed.
+- Vitest: 50 files, 183 tests passed.
+- Frontend production build: passed.
+- Rust retry-focused test: passed and proves two attempts retain exactly one user message.
+- Rust clippy with warnings denied: passed.
+
+### Remaining boundary
+
+The complete automated suites, Tauri builds, real Hermes/Ollama prompt path, exact native Windows
+walkthrough, process/performance observations, final documentation, and report remain S9. No native
+walkthrough result is claimed yet.

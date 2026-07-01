@@ -20,7 +20,8 @@ use crate::{
     storage::{
         models::{
             AssistantMessageFailure, AssistantMessageUpdate, PrepareAgentTurnRequest,
-            StoredMessage, StoredMessageRole, StoredMessageStatus, UpsertAgentSessionLink,
+            RetryAgentTurnRequest, StoredMessage, StoredMessageRole, StoredMessageStatus,
+            UpsertAgentSessionLink,
         },
         repository, StorageService,
     },
@@ -38,6 +39,7 @@ pub struct AgentSessionRuntime {
     storage: StorageService,
     snapshot: Arc<Mutex<AgentSessionSnapshot>>,
     persistence: Arc<Mutex<Option<ActivePersistence>>>,
+    active_model: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,10 +63,21 @@ struct SubmitSessionRequest {
     hidden_context: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RetrySessionRequest {
+    request_id: String,
+    turn_id: String,
+    model: String,
+    #[serde(default)]
+    hidden_context: String,
+}
+
 #[derive(Clone, Debug)]
 struct ActivePersistence {
     assistant_message_id: String,
     request_id: String,
+    turn_id: String,
     content: String,
     last_checkpoint_characters: usize,
     persistent: bool,
@@ -83,6 +96,7 @@ impl AgentSessionRuntime {
             storage,
             snapshot: Arc::new(Mutex::new(AgentSessionSnapshot::default())),
             persistence: Arc::new(Mutex::new(None)),
+            active_model: Arc::new(Mutex::new(None)),
         };
         runtime.spawn_monitors();
         Ok(runtime)
@@ -137,8 +151,41 @@ impl AgentSessionRuntime {
 
     async fn open(&self, request: OpenSessionRequest) -> Result<AgentSessionSnapshot, String> {
         validate_model(&request.model)?;
+        *self.active_model.lock().await = Some(request.model.clone());
         if let Some(conversation_id) = request.local_conversation_id.as_deref() {
             validate_identifier(conversation_id)?;
+        }
+        let local_messages = if !request.temporary {
+            if let Some(conversation_id) = request.local_conversation_id.clone() {
+                let detail_id = conversation_id;
+                self.storage
+                    .run(move |connection, _| repository::get_conversation(connection, &detail_id))
+                    .await
+                    .map_err(|error| error.to_string())?
+                    .messages
+                    .iter()
+                    .map(agent_message)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+        {
+            let mut snapshot = self.snapshot.lock().await;
+            if snapshot.hermes_session_id.is_some()
+                && snapshot.local_conversation_id == request.local_conversation_id
+                && snapshot.temporary == request.temporary
+            {
+                if snapshot.active_request_id.is_none() {
+                    snapshot.messages = local_messages;
+                }
+                let result = snapshot.clone();
+                drop(snapshot);
+                self.broadcast_snapshot().await;
+                return Ok(result);
+            }
         }
         self.process.start().await?;
         let existing_link = if request.temporary {
@@ -153,8 +200,10 @@ impl AgentSessionRuntime {
         } else {
             None
         };
+        let mut recovered_missing_session = false;
         let result = if let Some(link) = existing_link {
-            self.process
+            match self
+                .process
                 .request(
                     HermesMethod::SessionResume,
                     json!({
@@ -164,7 +213,27 @@ impl AgentSessionRuntime {
                     }),
                 )
                 .await
-                .map_err(|error| error.message)?
+            {
+                Ok(result) => result,
+                Err(error) if is_session_not_found(&error.message) => {
+                    recovered_missing_session = true;
+                    self.process
+                        .request(
+                            HermesMethod::SessionCreate,
+                            json!({
+                                "cols": 80,
+                                "source": "trading_buddy",
+                                "model": request.model,
+                                "provider": "custom",
+                                "close_on_disconnect": false,
+                                "trading_buddy_ephemeral": false,
+                            }),
+                        )
+                        .await
+                        .map_err(|create_error| create_error.message)?
+                }
+                Err(error) => return Err(error.message),
+            }
         } else {
             self.process
                 .request(
@@ -210,7 +279,18 @@ impl AgentSessionRuntime {
             snapshot.hermes_session_key = Some(stored_key);
             snapshot.connection_status = AgentConnectionStatus::Ready;
             snapshot.temporary = request.temporary;
-            snapshot.recoverable_error = None;
+            if snapshot.active_request_id.is_none() {
+                snapshot.messages = local_messages;
+                snapshot.active_turn_id = None;
+                snapshot.turn_status = AgentTurnStatus::Idle;
+            }
+            snapshot.recoverable_error = recovered_missing_session.then(|| AgentSessionError {
+                code: "session_not_found".to_owned(),
+                user_message:
+                    "Buddy safely continued this saved chat in a fresh local agent session."
+                        .to_owned(),
+                retryable: false,
+            });
         }
         self.broadcast_snapshot().await;
         Ok(self.snapshot().await)
@@ -309,6 +389,7 @@ impl AgentSessionRuntime {
         *self.persistence.lock().await = Some(ActivePersistence {
             assistant_message_id,
             request_id: request.request_id.clone(),
+            turn_id: request.turn_id.clone(),
             content: String::new(),
             last_checkpoint_characters: 0,
             persistent: !request.temporary,
@@ -473,6 +554,130 @@ impl AgentSessionRuntime {
         }
     }
 
+    async fn retry(&self, request: RetrySessionRequest) -> Result<AgentSessionSnapshot, String> {
+        validate_identifier(&request.request_id)?;
+        validate_identifier(&request.turn_id)?;
+        validate_model(&request.model)?;
+        if request.hidden_context.len() > MAX_HIDDEN_CONTEXT_CHARS {
+            return Err("Hidden companion context is too large.".to_owned());
+        }
+        let mut current = self.snapshot.lock().await.clone();
+        if current.active_request_id.is_some() {
+            return Err("A companion response is already active.".to_owned());
+        }
+        let conversation_id = current
+            .local_conversation_id
+            .clone()
+            .ok_or_else(|| "There is no companion response to retry.".to_owned())?;
+        if current.hermes_session_id.is_none() {
+            current = self
+                .open(OpenSessionRequest {
+                    local_conversation_id: Some(conversation_id.clone()),
+                    model: request.model.clone(),
+                    temporary: current.temporary,
+                })
+                .await?;
+        }
+        let support_mode = current.support_mode;
+        let (messages, assistant_message_id, text, persistent) = if current.temporary {
+            let user = current
+                .messages
+                .iter()
+                .rev()
+                .find(|message| message.role == "user")
+                .cloned()
+                .ok_or_else(|| "There is no companion response to retry.".to_owned())?;
+            let assistant_id = format!("message-{}", Uuid::new_v4());
+            let mut messages = current.messages;
+            messages.push(AgentSessionMessage {
+                id: assistant_id.clone(),
+                role: "assistant".to_owned(),
+                content: String::new(),
+                created_at: Utc::now().to_rfc3339(),
+                status: "streaming".to_owned(),
+                request_id: Some(request.request_id.clone()),
+                source_user_message_id: Some(user.id),
+                attempt: Some(2),
+            });
+            (messages, assistant_id, user.content, false)
+        } else {
+            let retry = RetryAgentTurnRequest {
+                conversation_id: conversation_id.clone(),
+                request_id: request.request_id.clone(),
+                turn_id: request.turn_id.clone(),
+                model_name: request.model.clone(),
+                support_mode: support_mode.as_str().to_owned(),
+            };
+            let prepared = self
+                .storage
+                .run(move |connection, _| repository::retry_agent_turn(connection, retry))
+                .await
+                .map_err(|error| error.to_string())?;
+            let detail_id = conversation_id.clone();
+            let detail = self
+                .storage
+                .run(move |connection, _| repository::get_conversation(connection, &detail_id))
+                .await
+                .map_err(|error| error.to_string())?;
+            (
+                detail.messages.iter().map(agent_message).collect(),
+                prepared.assistant_message.id,
+                prepared.user_message.content,
+                true,
+            )
+        };
+        {
+            let mut snapshot = self.snapshot.lock().await;
+            snapshot.messages = messages;
+            snapshot.active_request_id = Some(request.request_id.clone());
+            snapshot.active_turn_id = Some(request.turn_id.clone());
+            snapshot.turn_status = AgentTurnStatus::Submitting;
+            snapshot.recoverable_error = None;
+        }
+        *self.persistence.lock().await = Some(ActivePersistence {
+            assistant_message_id,
+            request_id: request.request_id.clone(),
+            turn_id: request.turn_id.clone(),
+            content: String::new(),
+            last_checkpoint_characters: 0,
+            persistent,
+        });
+        self.publish_lifecycle(AgentStreamEventType::Accepted, None, None)
+            .await;
+        self.publish_lifecycle(AgentStreamEventType::Listening, None, None)
+            .await;
+        self.set_buddy_state("listening");
+        let session_id = current
+            .hermes_session_id
+            .ok_or_else(|| "The local agent session could not be reopened.".to_owned())?;
+        if let Err(error) = self
+            .process
+            .request(
+                HermesMethod::PromptSubmit,
+                json!({
+                    "session_id": session_id,
+                    "text": text,
+                    "support_mode": support_mode.as_str(),
+                    "client_request_id": request.request_id,
+                    "companion_context": request.hidden_context,
+                }),
+            )
+            .await
+        {
+            self.finalize_turn(
+                AgentStreamEventType::Failed,
+                Some(AgentSessionError {
+                    code: "backend_unavailable".to_owned(),
+                    user_message: error.message.clone(),
+                    retryable: true,
+                }),
+            )
+            .await;
+            return Err(error.message);
+        }
+        Ok(self.snapshot().await)
+    }
+
     async fn handle_process_status(&self, status: HermesRuntimeStatus) {
         {
             let mut snapshot = self.snapshot.lock().await;
@@ -482,31 +687,67 @@ impl AgentSessionRuntime {
             AGENT_RUNTIME_STATUS_EVENT,
             AgentConnectionStatus::from(status),
         );
-        if status == HermesRuntimeStatus::Offline
-            && self.snapshot.lock().await.active_request_id.is_some()
-        {
-            self.publish_lifecycle(
-                AgentStreamEventType::ConnectionLost,
-                None,
-                Some(AgentSessionError {
-                    code: "request_interrupted".to_owned(),
+        if status == HermesRuntimeStatus::Offline {
+            if self.snapshot.lock().await.active_request_id.is_some() {
+                self.publish_lifecycle(
+                    AgentStreamEventType::ConnectionLost,
+                    None,
+                    Some(AgentSessionError {
+                        code: "request_interrupted".to_owned(),
+                        user_message:
+                            "Buddy lost the local agent connection. Your message was not resubmitted."
+                                .to_owned(),
+                        retryable: true,
+                    }),
+                )
+                .await;
+                self.finalize_turn(
+                    AgentStreamEventType::Failed,
+                    Some(AgentSessionError {
+                        code: "request_interrupted".to_owned(),
+                        user_message: "The response was interrupted. You can retry it safely."
+                            .to_owned(),
+                        retryable: true,
+                    }),
+                )
+                .await;
+            }
+            let recovery = {
+                let mut snapshot = self.snapshot.lock().await;
+                snapshot.hermes_session_id = None;
+                snapshot.hermes_session_key = None;
+                snapshot.diagnostics.reconnect_count =
+                    snapshot.diagnostics.reconnect_count.saturating_add(1);
+                (
+                    snapshot.local_conversation_id.clone(),
+                    snapshot.temporary,
+                    self.active_model.lock().await.clone(),
+                )
+            };
+            if self.process.recover_bounded().await.is_ok() {
+                if let (Some(conversation_id), Some(model)) = (recovery.0, recovery.2) {
+                    if !recovery.1 {
+                        let _ = self
+                            .open(OpenSessionRequest {
+                                local_conversation_id: Some(conversation_id),
+                                model,
+                                temporary: false,
+                            })
+                            .await;
+                    }
+                }
+                self.snapshot.lock().await.connection_status = AgentConnectionStatus::Ready;
+            } else {
+                let mut snapshot = self.snapshot.lock().await;
+                snapshot.connection_status = AgentConnectionStatus::Failed;
+                snapshot.recoverable_error = Some(AgentSessionError {
+                    code: "backend_unavailable".to_owned(),
                     user_message:
-                        "Buddy lost the local agent connection. Your message was not resubmitted."
+                        "Buddy could not restart the local agent. Use Retry connection when ready."
                             .to_owned(),
                     retryable: true,
-                }),
-            )
-            .await;
-            self.finalize_turn(
-                AgentStreamEventType::Failed,
-                Some(AgentSessionError {
-                    code: "request_interrupted".to_owned(),
-                    user_message: "The response was interrupted. You can retry it safely."
-                        .to_owned(),
-                    retryable: true,
-                }),
-            )
-            .await;
+                });
+            }
         }
         self.broadcast_snapshot().await;
     }
@@ -724,6 +965,33 @@ impl AgentSessionRuntime {
         Ok(true)
     }
 
+    async fn purge_all_conversation_runtimes(&self) -> Result<u32, String> {
+        let links = self
+            .storage
+            .run(move |connection, _| repository::all_agent_session_links(connection))
+            .await
+            .map_err(|error| error.to_string())?;
+        let mut removed = 0_u32;
+        for link in links {
+            self.process
+                .request(
+                    HermesMethod::TradingBuddySessionDelete,
+                    json!({"session_id": link.remote_session_key}),
+                )
+                .await
+                .map_err(|error| error.message)?;
+            let conversation_id = link.local_conversation_id;
+            self.storage
+                .run(move |connection, _| {
+                    repository::delete_agent_session_link(connection, &conversation_id)
+                })
+                .await
+                .map_err(|error| error.to_string())?;
+            removed = removed.saturating_add(1);
+        }
+        Ok(removed)
+    }
+
     async fn stop(&self) -> Result<(), String> {
         self.process.stop().await?;
         self.update_connection(HermesRuntimeStatus::Stopped).await;
@@ -801,14 +1069,11 @@ impl AgentSessionRuntime {
             let Some(session_id) = snapshot.hermes_session_id.clone() else {
                 return;
             };
-            let Some(turn_id) = snapshot.active_turn_id.clone() else {
-                return;
-            };
             snapshot.last_sequence = snapshot.last_sequence.saturating_add(1);
             AgentStreamEvent {
                 session_id,
                 request_id: persistence.request_id.clone(),
-                turn_id,
+                turn_id: persistence.turn_id.clone(),
                 sequence: snapshot.last_sequence,
                 event_type,
                 content: None,
@@ -883,6 +1148,16 @@ pub async fn agent_session_submit(
 }
 
 #[tauri::command]
+pub async fn agent_session_retry(
+    runtime: tauri::State<'_, AgentSessionRuntime>,
+    request: Value,
+) -> Result<AgentSessionSnapshot, String> {
+    let request: RetrySessionRequest = serde_json::from_value(request)
+        .map_err(|_| "Invalid local agent retry request.".to_owned())?;
+    runtime.retry(request).await
+}
+
+#[tauri::command]
 pub async fn agent_session_set_support_mode(
     runtime: tauri::State<'_, AgentSessionRuntime>,
     support_mode: CompanionSupportMode,
@@ -910,6 +1185,13 @@ pub async fn agent_session_purge_conversation(
     conversation_id: String,
 ) -> Result<bool, String> {
     runtime.purge_conversation_runtime(conversation_id).await
+}
+
+#[tauri::command]
+pub async fn agent_session_purge_all(
+    runtime: tauri::State<'_, AgentSessionRuntime>,
+) -> Result<u32, String> {
+    runtime.purge_all_conversation_runtimes().await
 }
 
 #[tauri::command]
@@ -956,6 +1238,11 @@ fn validate_model(value: &str) -> Result<(), String> {
     } else {
         Err("Invalid local model name.".to_owned())
     }
+}
+
+fn is_session_not_found(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+    normalized.contains("session") && normalized.contains("not found")
 }
 
 fn bounded_text(value: &str, max_bytes: usize) -> String {

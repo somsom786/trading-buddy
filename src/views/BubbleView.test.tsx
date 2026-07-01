@@ -9,6 +9,7 @@ import { defaultMemoryPreferences } from '../domain/memory/types';
 import { defaultJournalPreferences } from '../domain/journal/types';
 import { DEFAULT_CONTINUITY_PREFERENCES } from '../domain/continuity/types';
 import { BubbleView } from './BubbleView';
+import { createFakeAgentSessionService } from '../test/fakeAgentSessionService';
 
 const companionSend = vi.fn().mockResolvedValue(undefined);
 const companionService: CompanionService = {
@@ -235,11 +236,8 @@ describe('BubbleView', () => {
 
   it('sends through the persistent storage and local AI pipeline', async () => {
     const user = userEvent.setup();
-    const {
-      service: storageService,
-      prepareGeneration,
-      completeAssistant,
-    } = createStorageService();
+    const { service: storageService, prepareGeneration } = createStorageService();
+    const agent = createFakeAgentSessionService({ responseText: 'Desk hello' });
     const streamChat = vi.fn((request, onEvent) => {
       onEvent({ type: 'started', requestId: request.requestId });
       onEvent({ type: 'content_delta', requestId: request.requestId, content: 'Desk hello' });
@@ -257,6 +255,7 @@ describe('BubbleView', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={createWindowService().service}
+        agentSessionService={agent.service}
       />,
     );
 
@@ -265,9 +264,9 @@ describe('BubbleView', () => {
     await user.keyboard('{Enter}');
 
     await screen.findByText('Desk hello');
-    expect(prepareGeneration).toHaveBeenCalledOnce();
-    expect(streamChat).toHaveBeenCalledOnce();
-    expect(completeAssistant).toHaveBeenCalledOnce();
+    expect(agent.submit).toHaveBeenCalledOnce();
+    expect(prepareGeneration).not.toHaveBeenCalled();
+    expect(streamChat).not.toHaveBeenCalled();
   });
 
   it('collapses with Escape and opens Companion Home only through an explicit action', async () => {
@@ -284,6 +283,7 @@ describe('BubbleView', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
 
@@ -311,6 +311,7 @@ describe('BubbleView', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={createWindowService().service}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
 
@@ -360,6 +361,7 @@ describe('BubbleView', () => {
         companionService={companionService}
         windowService={createWindowService().service}
         petdexCatalog={petdexCatalog}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
 

@@ -8,6 +8,7 @@ import {
 import {
   tauriAgentSessionService,
   type AgentSessionOpenRequest,
+  type AgentSessionRetryRequest,
   type AgentSessionService,
   type AgentSessionSubmitRequest,
 } from '../../services/tauri/agentSessionService';
@@ -19,6 +20,7 @@ export interface AgentSessionController {
   start(): Promise<void>;
   open(request: AgentSessionOpenRequest): Promise<void>;
   submit(request: AgentSessionSubmitRequest): Promise<void>;
+  retry(request: AgentSessionRetryRequest): Promise<void>;
   setSupportMode(mode: CompanionSupportMode): Promise<void>;
   interrupt(): Promise<void>;
   retryConnection(): Promise<void>;
@@ -87,6 +89,7 @@ export function useAgentSession(
     start: () => run(() => service.start()),
     open: (request) => run(() => service.open(request)),
     submit: (request) => run(() => service.submit(request)),
+    retry: (request) => run(() => service.retry(request)),
     setSupportMode: (mode) => run(() => service.setSupportMode(mode)),
     interrupt: () => run(() => service.interrupt()),
     retryConnection: () => run(() => service.retryConnection()),

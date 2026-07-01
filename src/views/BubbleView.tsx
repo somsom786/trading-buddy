@@ -36,7 +36,6 @@ import {
   normalizeLocalAiError,
   type LocalAiStatus,
   type LocalChatEvent,
-  type LocalChatRequest,
 } from '../domain/local-ai/types';
 import {
   normalizeStorageError,
@@ -84,6 +83,16 @@ import {
   type PetSkinSelection,
 } from '../domain/petdex/skins';
 import { fetchFeaturedPetdexSkins } from '../services/petdexCatalog';
+import {
+  agentMessageToChatMessage,
+  buildHiddenCompanionContext,
+} from '../domain/agent-session/presentation';
+import { SupportModePicker } from '../features/agent-session/SupportModePicker';
+import { useAgentSession } from '../features/agent-session/useAgentSession';
+import {
+  tauriAgentSessionService,
+  type AgentSessionService,
+} from '../services/tauri/agentSessionService';
 
 type PersistenceMode = 'persistent' | 'temporary';
 
@@ -106,6 +115,7 @@ interface BubbleViewProps {
   tradingService?: TradingService;
   continuityService?: ContinuityService;
   petdexCatalog?: () => Promise<PetSkinSelection[]>;
+  agentSessionService?: AgentSessionService;
 }
 
 interface ActiveAssistantPersistence {
@@ -126,7 +136,9 @@ export function BubbleView({
   tradingService = tauriTradingService,
   continuityService = tauriContinuityService,
   petdexCatalog = fetchFeaturedPetdexSkins,
+  agentSessionService = tauriAgentSessionService,
 }: BubbleViewProps) {
+  const agentSession = useAgentSession(agentSessionService);
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
   );
@@ -157,9 +169,13 @@ export function BubbleView({
   const persistenceRef = useRef<ActiveAssistantPersistence | null>(null);
 
   useEffect(() => {
-    activeRequestRef.current = session.activeRequestId;
+    activeRequestRef.current = agentSession.snapshot.activeRequestId ?? session.activeRequestId;
     selectedModelRef.current = session.selectedModel;
-  }, [session.activeRequestId, session.selectedModel]);
+  }, [agentSession.snapshot.activeRequestId, session.activeRequestId, session.selectedModel]);
+
+  useEffect(() => {
+    void agentSessionService.start().catch(() => undefined);
+  }, [agentSessionService]);
 
   const setBuddyState = useCallback(
     (eventState: ReturnType<typeof buddyStateForLifecycle>) => {
@@ -279,6 +295,11 @@ export function BubbleView({
             conversationId: lastConversationId,
             messages: detail.messages.map(storedMessageToChatMessage),
           });
+          await agentSessionService.open({
+            localConversationId: lastConversationId,
+            model: settings.selectedLocalModel ?? LOCAL_AI_CONFIG.recommendedModel,
+            temporary: false,
+          });
         }
       } catch (error) {
         setStorageError(normalizeStorageError(error));
@@ -290,7 +311,7 @@ export function BubbleView({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [refreshModels, storageService]);
+  }, [agentSessionService, refreshModels, storageService]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -507,8 +528,7 @@ export function BubbleView({
     const requestId = createId('request');
     const selectedModel = session.selectedModel;
     let conversationId = session.id;
-    let userMessage = createChatMessage('user', validation.content);
-    let assistantMessage = createChatMessage('assistant', '');
+    const assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
     let continuityItems: ContinuityRetrievalItem[] = [];
     const tradingContext: string | null = preparedTradingContext;
@@ -516,30 +536,7 @@ export function BubbleView({
     let memoryNotice: string | null = null;
 
     if (mode === 'persistent') {
-      try {
-        const prepared = await storageService.prepareGeneration({
-          requestId,
-          userContent: validation.content,
-          modelName: selectedModel,
-          ...(activeConversationId ? { conversationId: activeConversationId } : {}),
-        });
-        conversationId = prepared.conversation.id;
-        userMessage = storedMessageToChatMessage(prepared.userMessage);
-        assistantMessage = storedMessageToChatMessage(prepared.assistantMessage);
-        setActiveConversationId(conversationId);
-        persistenceRef.current = {
-          mode: 'persistent',
-          conversationId,
-          messageId: prepared.assistantMessage.id,
-          requestId,
-          content: '',
-          memoryIds: [],
-          continuityItems: [],
-        };
-      } catch (error) {
-        setStorageError(normalizeStorageError(error));
-        return;
-      }
+      conversationId = activeConversationId ?? conversationId;
     } else {
       persistenceRef.current = {
         mode: 'temporary',
@@ -561,11 +558,6 @@ export function BubbleView({
         });
         memoryContext = memoryContextResult.context;
         setUsedMemories(memoryContextResult.retrieved);
-        if (persistenceRef.current.requestId === requestId) {
-          persistenceRef.current.memoryIds = memoryContextResult.retrieved.map(
-            (memory) => memory.id,
-          );
-        }
         const forgetResult = await handleForgetMemoryIntent({
           storageService,
           content: validation.content,
@@ -578,7 +570,6 @@ export function BubbleView({
           content: validation.content,
           temporaryChat: mode === 'temporary',
           sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
           preferences: memoryContextResult.preferences,
         });
         if (proposalResult.proposal?.status === 'proposed') {
@@ -609,9 +600,6 @@ export function BubbleView({
         continuityItems = continuity.items;
         setUsedContinuity(continuity.items);
         setSemanticStatus(continuity.semanticStatus);
-        if (persistenceRef.current.requestId === requestId) {
-          persistenceRef.current.continuityItems = continuity.items;
-        }
       } catch {
         setUsedContinuity([]);
         setSemanticStatus('lexical_memory_mode');
@@ -638,33 +626,29 @@ export function BubbleView({
       currentUserMessage: validation.content,
       recentMessageLimit: 12,
     });
-    const request: LocalChatRequest = {
-      requestId,
-      conversationId,
-      model: selectedModel,
-      messages: budget.messages,
-    };
+    const hiddenContext = buildHiddenCompanionContext(
+      budget.messages
+        .slice(0, -1)
+        .map((message) => `${message.role.toUpperCase()}:\n${message.content}`),
+    );
 
     activeRequestRef.current = requestId;
-    dispatch({
-      type: 'start_generation',
-      conversationId,
-      requestId,
-      userMessage,
-      assistantMessage,
-    });
     setInput('');
     setStorageError(null);
     setStorageNotice(memoryNotice);
     setBuddyState(buddyStateForLifecycle('message_submitted'));
-
     try {
-      nativeRequestInFlightRef.current = true;
-      try {
-        await localAiService.streamChat(request, handleStreamEvent);
-      } finally {
-        nativeRequestInFlightRef.current = false;
-      }
+      const next = await agentSessionService.submit({
+        localConversationId: mode === 'persistent' ? activeConversationId : null,
+        requestId,
+        turnId: createId('turn'),
+        text: validation.content,
+        model: selectedModel,
+        temporary: mode === 'temporary',
+        hiddenContext,
+      });
+      setActiveConversationId(next.temporary ? null : next.localConversationId);
+      const storedUser = [...next.messages].reverse().find((message) => message.role === 'user');
       if (!isFactIntent(tradingIntent)) {
         const settings = await storageService.getSettings();
         void runBackgroundMemoryExtraction({
@@ -673,32 +657,28 @@ export function BubbleView({
           content: validation.content,
           model: selectedModel,
           requestId: createId('memory_request'),
-          sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
-          temporaryChat: mode === 'temporary',
+          sourceConversationId: next.temporary
+            ? undefined
+            : (next.localConversationId ?? undefined),
+          sourceMessageId: next.temporary ? undefined : storedUser?.id,
+          temporaryChat: next.temporary,
           conversationOptedOut: memoryOptedOutForRequest,
           preferences: settings.memoryPreferences,
-        })
-          .then((proposal) => {
-            if (proposal?.status === 'proposed') {
-              setPendingMemory(proposal);
-              void companionService.setState('thinking');
-            }
-          })
-          .catch((error: unknown) => {
-            setStorageError(normalizeStorageError(error));
-          });
+        }).catch((error: unknown) => {
+          setStorageError(normalizeStorageError(error));
+        });
       }
     } catch (error) {
-      handleStreamEvent({
-        type: 'failed',
-        requestId,
-        error: normalizeLocalAiError(error),
-      });
+      setStorageError(normalizeStorageError(error));
     }
+    return;
   };
 
   const stop = async () => {
+    if (agentSession.snapshot.activeRequestId) {
+      await agentSession.interrupt();
+      return;
+    }
     const requestId = activeRequestRef.current;
     if (!requestId) {
       return;
@@ -714,7 +694,7 @@ export function BubbleView({
       const tradingIntent = validation.valid ? detectTradingIntent(input) : 'not_trading_intent';
       const journalIntent = validation.valid ? detectJournalIntent(input) : { type: 'none' };
       if (
-        session.activeRequestId === null &&
+        agentSession.snapshot.activeRequestId === null &&
         validation.valid &&
         (mode === 'temporary' || storageStatus?.available === true) &&
         (session.selectedModel !== null ||
@@ -777,13 +757,17 @@ export function BubbleView({
     ? detectJournalIntent(input)
     : { type: 'none' };
   const canSend =
-    session.activeRequestId === null &&
+    agentSession.snapshot.activeRequestId === null &&
     inputValidation.valid &&
     (mode === 'temporary' || storageStatus?.available === true) &&
     (session.selectedModel !== null ||
       currentTradingIntent !== 'not_trading_intent' ||
       currentJournalIntent.type !== 'none');
-  const visibleMessages = session.messages.slice(-3);
+  const sharedMessages = agentSession.snapshot.messages.map(agentMessageToChatMessage);
+  const visibleMessages = (sharedMessages.length > 0 ? sharedMessages : session.messages).slice(-3);
+  const latestSharedAssistant = [...agentSession.snapshot.messages]
+    .reverse()
+    .find((message) => message.role === 'assistant');
   const modelLabel = session.selectedModel ?? 'No model selected';
   const journalActive =
     journalSession.status === 'active' ||
@@ -889,6 +873,47 @@ export function BubbleView({
               </p>
             ))
           )}
+        </div>
+
+        <SupportModePicker
+          compact
+          value={agentSession.snapshot.supportMode}
+          disabled={agentSession.loading}
+          onChange={(supportMode) => {
+            void agentSession.setSupportMode(supportMode);
+          }}
+        />
+
+        <div className="bubble-response-actions">
+          {agentSession.snapshot.activeRequestId ? (
+            <button type="button" className="text-button" onClick={() => void stop()}>
+              Stop
+            </button>
+          ) : latestSharedAssistant ? (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() =>
+                void agentSession.retry({
+                  requestId: createId('request'),
+                  turnId: createId('turn'),
+                  model: session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel,
+                  hiddenContext: '',
+                })
+              }
+            >
+              Retry
+            </button>
+          ) : null}
+          {latestSharedAssistant?.content ? (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => void navigator.clipboard.writeText(latestSharedAssistant.content)}
+            >
+              Copy
+            </button>
+          ) : null}
         </div>
 
         {pendingMemory ? (

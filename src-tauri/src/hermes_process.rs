@@ -374,6 +374,31 @@ impl HermesProcessManager {
         self.start().await
     }
 
+    pub async fn recover_bounded(&self) -> Result<(), String> {
+        const BACKOFFS: [Duration; 3] = [
+            Duration::from_millis(250),
+            Duration::from_secs(1),
+            Duration::from_secs(3),
+        ];
+        let mut last_error = "Local agent gateway is offline.".to_owned();
+        for backoff in BACKOFFS {
+            let _ = self.status.send(HermesRuntimeStatus::Reconnecting);
+            tokio::time::sleep(backoff).await;
+            {
+                let mut state = self.state.lock().await;
+                state.restart_count = state.restart_count.saturating_add(1);
+            }
+            match self.start().await {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    last_error = error;
+                }
+            }
+        }
+        self.record_failure(&last_error).await;
+        Err(last_error)
+    }
+
     async fn record_failure(&self, message: &str) {
         let mut state = self.state.lock().await;
         state.last_error = Some(message.chars().take(500).collect());

@@ -27,7 +27,6 @@ import {
   type LocalAiError,
   type LocalAiStatus,
   type LocalChatEvent,
-  type LocalChatRequest,
 } from '../../domain/local-ai/types';
 import {
   normalizeStorageError,
@@ -82,6 +81,17 @@ import { TradingPanel } from '../trading/TradingPanel';
 import { ContinuityPanel } from '../continuity/ContinuityPanel';
 import type { JournalDiagnostics, JournalEntrySummary } from '../../domain/journal/types';
 import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
+import {
+  agentMessageToChatMessage,
+  buildHiddenCompanionContext,
+} from '../../domain/agent-session/presentation';
+import { SupportModePicker } from '../../features/agent-session/SupportModePicker';
+import { useAgentSession } from '../../features/agent-session/useAgentSession';
+import { AgentSessionLab } from '../../features/agent-session/AgentSessionLab';
+import {
+  tauriAgentSessionService,
+  type AgentSessionService,
+} from '../../services/tauri/agentSessionService';
 
 const CHECKPOINT_CHAR_THRESHOLD = 500;
 const CHECKPOINT_INTERVAL_MS = 1_200;
@@ -92,6 +102,7 @@ interface ChatWorkspaceProps {
   companionService?: CompanionService;
   windowService?: WindowService;
   continuityService?: ContinuityService;
+  agentSessionService?: AgentSessionService;
 }
 
 type PersistenceMode = 'persistent' | 'temporary';
@@ -113,7 +124,9 @@ export function ChatWorkspace({
   companionService = tauriCompanionService,
   windowService = tauriWindowService,
   continuityService = tauriContinuityService,
+  agentSessionService = tauriAgentSessionService,
 }: ChatWorkspaceProps) {
+  const agentSession = useAgentSession(agentSessionService);
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
   );
@@ -152,9 +165,13 @@ export function ChatWorkspace({
   const checkpointTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    activeRequestRef.current = session.activeRequestId;
+    activeRequestRef.current = agentSession.snapshot.activeRequestId ?? session.activeRequestId;
     selectedModelRef.current = session.selectedModel;
-  }, [session.activeRequestId, session.selectedModel]);
+  }, [agentSession.snapshot.activeRequestId, session.activeRequestId, session.selectedModel]);
+
+  useEffect(() => {
+    void agentSessionService.start().catch(() => undefined);
+  }, [agentSessionService]);
 
   const setBuddyState = useCallback(
     (state: BuddyState) => {
@@ -226,11 +243,16 @@ export function ChatWorkspace({
         setStorageError(null);
         setStorageNotice(null);
         await storageService.setLastOpenedConversation(conversationId);
+        await agentSessionService.open({
+          localConversationId: conversationId,
+          model: selectedModelRef.current ?? LOCAL_AI_CONFIG.recommendedModel,
+          temporary: false,
+        });
       } catch (error) {
         setStorageError(normalizeStorageError(error));
       }
     },
-    [confirmLeavingTemporary, storageService],
+    [agentSessionService, confirmLeavingTemporary, storageService],
   );
 
   useEffect(() => {
@@ -269,6 +291,11 @@ export function ChatWorkspace({
           setActiveConversationId(target.id);
           setConversationMemoryOptOut(false);
           await storageService.setLastOpenedConversation(target.id);
+          await agentSessionService.open({
+            localConversationId: target.id,
+            model: settings.selectedLocalModel ?? LOCAL_AI_CONFIG.recommendedModel,
+            temporary: false,
+          });
         }
       } catch (error) {
         if (!effectState.disposed) {
@@ -283,7 +310,7 @@ export function ChatWorkspace({
     return () => {
       effectState.disposed = true;
     };
-  }, [refreshConversationLists, storageService]);
+  }, [agentSessionService, refreshConversationLists, storageService]);
 
   useEffect(() => {
     let disposed = false;
@@ -499,41 +526,16 @@ export function ChatWorkspace({
       const requestId = createId('request');
       const selectedModel = session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel;
       let conversationId = session.id;
-      let userMessage = createChatMessage('user', content);
-      let assistantMessage = createChatMessage('assistant', '');
+      const userMessage = createChatMessage('user', content);
+      const assistantMessage = createChatMessage('assistant', '');
       let memoryContext: string | null = null;
       let continuityItems: ContinuityRetrievalItem[] = [];
       let memoryOptedOutForRequest = conversationMemoryOptOut;
       let memoryNotice: string | null = null;
 
       if (requestMode === 'real' && mode === 'persistent') {
-        try {
-          const prepared = await storageService.prepareGeneration({
-            requestId,
-            userContent: content,
-            modelName: selectedModel,
-            ...(activeConversationId ? { conversationId: activeConversationId } : {}),
-          });
-          conversationId = prepared.conversation.id;
-          userMessage = storedMessageToChatMessage(prepared.userMessage);
-          assistantMessage = storedMessageToChatMessage(prepared.assistantMessage);
-          setActiveConversationId(prepared.conversation.id);
-          assistantPersistenceRef.current = {
-            mode: 'persistent',
-            conversationId,
-            messageId: prepared.assistantMessage.id,
-            requestId,
-            content: '',
-            lastSavedLength: 0,
-            memoryIds: [],
-            continuityItems: [],
-          };
-          await refreshConversationLists();
-        } catch (error) {
-          setStorageError(normalizeStorageError(error));
-          return;
-        }
-      } else {
+        conversationId = activeConversationId ?? conversationId;
+      } else if (requestMode === 'mock') {
         assistantPersistenceRef.current = {
           mode: 'temporary',
           conversationId,
@@ -556,11 +558,6 @@ export function ChatWorkspace({
           memoryContext = memoryContextResult.context;
           const retrievedMemories = memoryContextResult.retrieved;
           setUsedMemories(retrievedMemories);
-          if (assistantPersistenceRef.current.requestId === requestId) {
-            assistantPersistenceRef.current.memoryIds = retrievedMemories.map(
-              (memory) => memory.id,
-            );
-          }
           const forgetResult = await handleForgetMemoryIntent({
             storageService,
             content,
@@ -573,7 +570,6 @@ export function ChatWorkspace({
             content,
             temporaryChat: mode === 'temporary',
             sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-            sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
             preferences: memoryContextResult.preferences,
           });
           if (proposalResult.proposal?.status === 'proposed') {
@@ -601,9 +597,6 @@ export function ChatWorkspace({
           continuityItems = continuity.items;
           setUsedContinuity(continuity.items);
           setSemanticStatus(continuity.semanticStatus);
-          if (assistantPersistenceRef.current.requestId === requestId) {
-            assistantPersistenceRef.current.continuityItems = continuity.items;
-          }
         } catch {
           continuityItems = [];
           setUsedContinuity([]);
@@ -628,17 +621,57 @@ export function ChatWorkspace({
         currentUserMessage: content,
         recentMessageLimit: 12,
       });
-      const request: LocalChatRequest = {
-        requestId,
-        conversationId,
-        model: selectedModel,
-        messages: budget.messages,
-        think: thinking,
-      };
-
+      if (requestMode === 'real') {
+        const hiddenContext = buildHiddenCompanionContext(
+          budget.messages
+            .slice(0, -1)
+            .map((message) => `${message.role.toUpperCase()}:\n${message.content}`),
+        );
+        activeRequestRef.current = requestId;
+        setInput('');
+        setStorageError(null);
+        setStorageNotice(memoryNotice);
+        setBuddyState(buddyStateForLifecycle('message_submitted'));
+        try {
+          const next = await agentSessionService.submit({
+            localConversationId: mode === 'persistent' ? activeConversationId : null,
+            requestId,
+            turnId: createId('turn'),
+            text: content,
+            model: selectedModel,
+            temporary: mode === 'temporary',
+            hiddenContext,
+          });
+          setActiveConversationId(next.temporary ? null : next.localConversationId);
+          await refreshConversationLists();
+          const storedUser = [...next.messages]
+            .reverse()
+            .find((message) => message.role === 'user');
+          const settings = await storageService.getSettings();
+          void runBackgroundMemoryExtraction({
+            storageService,
+            localAiService,
+            content,
+            model: selectedModel,
+            requestId: createId('memory_request'),
+            sourceConversationId: next.temporary
+              ? undefined
+              : (next.localConversationId ?? undefined),
+            sourceMessageId: next.temporary ? undefined : storedUser?.id,
+            temporaryChat: next.temporary,
+            conversationOptedOut: memoryOptedOutForRequest,
+            preferences: settings.memoryPreferences,
+          }).catch((error: unknown) => {
+            setStorageError(normalizeStorageError(error));
+          });
+        } catch (error) {
+          setStorageError(normalizeStorageError(error));
+        }
+        return;
+      }
       activeRequestRef.current = requestId;
       requestKindRef.current = requestMode;
-      mockRunRef.current = requestMode === 'mock' ? { requestId, cancelled: false } : null;
+      mockRunRef.current = { requestId, cancelled: false };
       dispatch({
         type: 'start_generation',
         conversationId,
@@ -651,64 +684,25 @@ export function ChatWorkspace({
       setStorageNotice(memoryNotice);
       setBuddyState(buddyStateForLifecycle('message_submitted'));
 
-      if (requestMode === 'mock') {
-        const mockEvents: LocalChatEvent[] = [
-          { type: 'started', requestId },
-          { type: 'content_delta', requestId, content: 'This is a ' },
-          { type: 'content_delta', requestId, content: 'local mock stream. ' },
-          { type: 'content_delta', requestId, content: 'No Ollama request was made.' },
-          { type: 'completed', requestId },
-        ];
-        for (const event of mockEvents) {
-          await delay(180);
-          if (mockRunRef.current?.requestId === requestId && mockRunRef.current.cancelled) {
-            handleStreamEvent({ type: 'cancelled', requestId });
-            return;
-          }
-          handleStreamEvent(event);
+      const mockEvents: LocalChatEvent[] = [
+        { type: 'started', requestId },
+        { type: 'content_delta', requestId, content: 'This is a ' },
+        { type: 'content_delta', requestId, content: 'local mock stream. ' },
+        { type: 'content_delta', requestId, content: 'No Ollama request was made.' },
+        { type: 'completed', requestId },
+      ];
+      for (const event of mockEvents) {
+        await delay(180);
+        if (mockRunRef.current.requestId === requestId && mockRunRef.current.cancelled) {
+          handleStreamEvent({ type: 'cancelled', requestId });
+          return;
         }
-        return;
-      }
-
-      try {
-        nativeRequestInFlightRef.current = true;
-        try {
-          await localAiService.streamChat(request, handleStreamEvent);
-        } finally {
-          nativeRequestInFlightRef.current = false;
-        }
-        const settings = await storageService.getSettings();
-        void runBackgroundMemoryExtraction({
-          storageService,
-          localAiService,
-          content,
-          model: selectedModel,
-          requestId: createId('memory_request'),
-          sourceConversationId: mode === 'persistent' ? conversationId : undefined,
-          sourceMessageId: mode === 'persistent' ? userMessage.id : undefined,
-          temporaryChat: mode === 'temporary',
-          conversationOptedOut: memoryOptedOutForRequest,
-          preferences: settings.memoryPreferences,
-        })
-          .then((proposal) => {
-            if (proposal?.status === 'proposed') {
-              setPendingMemory(proposal);
-              setBuddyState('thinking');
-            }
-          })
-          .catch((error: unknown) => {
-            setStorageError(normalizeStorageError(error));
-          });
-      } catch (error) {
-        handleStreamEvent({
-          type: 'failed',
-          requestId,
-          error: normalizeLocalAiError(error),
-        });
+        handleStreamEvent(event);
       }
     },
     [
       activeConversationId,
+      agentSessionService,
       conversationMemoryOptOut,
       continuityService,
       handleStreamEvent,
@@ -720,7 +714,6 @@ export function ChatWorkspace({
       session.selectedModel,
       setBuddyState,
       storageService,
-      thinking,
     ],
   );
 
@@ -732,6 +725,10 @@ export function ChatWorkspace({
   };
 
   const stop = useCallback(async () => {
+    if (agentSession.snapshot.activeRequestId) {
+      await agentSession.interrupt();
+      return;
+    }
     const requestId = activeRequestRef.current;
     if (!requestId) {
       return;
@@ -744,7 +741,7 @@ export function ChatWorkspace({
       await localAiService.cancel(requestId);
     }
     handleStreamEvent({ type: 'cancelled', requestId });
-  }, [handleStreamEvent, localAiService]);
+  }, [agentSession, handleStreamEvent, localAiService]);
 
   const startNewPersistentChat = () => {
     if (activeRequestRef.current) {
@@ -758,6 +755,7 @@ export function ChatWorkspace({
     setActiveConversationId(null);
     setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
+    void agentSessionService.close();
     setStorageNotice('New chat is ready. It will be saved after your first message.');
   };
 
@@ -774,6 +772,7 @@ export function ChatWorkspace({
     setActiveConversationId(null);
     setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
+    void agentSessionService.close();
     setStorageNotice('Temporary chat is on. Conversation content will not be written to disk.');
   };
 
@@ -789,6 +788,7 @@ export function ChatWorkspace({
     setActiveConversationId(null);
     setConversationMemoryOptOut(false);
     dispatch({ type: 'clear_session' });
+    void agentSessionService.close();
     setStorageNotice('Temporary chat cleared. New saved chat is ready.');
   };
 
@@ -874,6 +874,9 @@ export function ChatWorkspace({
     setBusyAction('delete');
     try {
       await stop();
+      const runtimePurged = await agentSessionService
+        .purgeConversation(activeConversationId)
+        .catch(() => false);
       await storageService.deleteConversation(activeConversationId);
       setActiveConversationId(null);
       dispatch({ type: 'clear_session' });
@@ -881,7 +884,11 @@ export function ChatWorkspace({
       if (active[0]) {
         await loadConversation(active[0].id);
       }
-      setStorageNotice('Conversation deleted.');
+      setStorageNotice(
+        runtimePurged
+          ? 'Conversation and its isolated agent session were deleted.'
+          : 'Conversation deleted locally. The offline agent cache could not be verified.',
+      );
     } catch (error) {
       setStorageError(normalizeStorageError(error));
     } finally {
@@ -920,11 +927,19 @@ export function ChatWorkspace({
     setBusyAction('delete-all');
     try {
       await stop();
+      const runtimePurged = await agentSessionService
+        .purgeAll()
+        .then(() => true)
+        .catch(() => false);
       const result = await storageService.deleteAllConversationData();
       setActiveConversationId(null);
       dispatch({ type: 'clear_session' });
       await refreshConversationLists();
-      setStorageNotice(`Deleted ${String(result.deletedConversations)} saved conversation(s).`);
+      setStorageNotice(
+        `Deleted ${String(result.deletedConversations)} saved conversation(s).${
+          runtimePurged ? '' : ' The offline agent cache could not be verified.'
+        }`,
+      );
     } catch (error) {
       setStorageError(normalizeStorageError(error));
     } finally {
@@ -1117,8 +1132,15 @@ export function ChatWorkspace({
   };
 
   const models = providerStatus.status === 'connected' ? providerStatus.models : [];
+  const sharedMessages = agentSession.snapshot.messages.map(agentMessageToChatMessage);
+  const displayedMessages = sharedMessages.length > 0 ? sharedMessages : session.messages;
+  const sharedGenerating = agentSession.snapshot.activeRequestId !== null;
+  const latestSharedAssistant = [...agentSession.snapshot.messages]
+    .reverse()
+    .find((message) => message.role === 'assistant');
   const canSend =
     canSubmitMessage(session, input, LOCAL_AI_CONFIG.maxInputLength) &&
+    !sharedGenerating &&
     (mode === 'temporary' || storageStatus?.available === true);
   const activeConversation = conversations.find(
     (conversation) => conversation.id === activeConversationId,
@@ -1257,7 +1279,7 @@ export function ChatWorkspace({
             models={models}
             selectedModel={session.selectedModel}
             thinking={thinking}
-            disabled={session.status === 'generating'}
+            disabled={sharedGenerating || session.status === 'generating'}
             onSelect={(model) => {
               dispatch({ type: 'select_model', model });
               if (model) {
@@ -1336,7 +1358,37 @@ export function ChatWorkspace({
           </details>
         ) : null}
 
-        <MessageList messages={session.messages} generating={session.status === 'generating'} />
+        <SupportModePicker
+          value={agentSession.snapshot.supportMode}
+          disabled={agentSession.loading}
+          onChange={(supportMode) => {
+            void agentSession.setSupportMode(supportMode);
+          }}
+        />
+
+        {latestSharedAssistant && !sharedGenerating ? (
+          <div className="button-row agent-response-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() =>
+                void agentSession.retry({
+                  requestId: createId('request'),
+                  turnId: createId('turn'),
+                  model: session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel,
+                  hiddenContext: '',
+                })
+              }
+            >
+              Retry response
+            </button>
+          </div>
+        ) : null}
+
+        <MessageList
+          messages={displayedMessages}
+          generating={sharedGenerating || session.status === 'generating'}
+        />
 
         {session.error ? (
           <div className="chat-error" role="alert">
@@ -1359,7 +1411,7 @@ export function ChatWorkspace({
           input={input}
           maxLength={LOCAL_AI_CONFIG.maxInputLength}
           canSend={canSend}
-          generating={session.status === 'generating'}
+          generating={sharedGenerating || session.status === 'generating'}
           onInput={handleInput}
           onSend={send}
           onStop={() => void stop()}
@@ -1484,6 +1536,7 @@ export function ChatWorkspace({
 
         {import.meta.env.DEV ? (
           <>
+            <AgentSessionLab snapshot={agentSession.snapshot} service={agentSessionService} />
             <StorageLab
               diagnostics={storageDiagnostics}
               activeConversationId={activeConversationId}

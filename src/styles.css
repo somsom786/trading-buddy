@@ -636,6 +636,45 @@ button {
   color: #251d19;
 }
 
+.support-mode-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block: 0.65rem;
+}
+
+.support-mode-picker button {
+  border: 1px solid #8a796b;
+  border-radius: 999px;
+  background: #fffaf0;
+  padding: 0.35rem 0.65rem;
+  color: inherit;
+}
+
+.support-mode-picker button[aria-pressed='true'] {
+  border-color: #7150a3;
+  background: #e8dcf6;
+}
+
+.support-mode-picker--compact {
+  flex-wrap: nowrap;
+  gap: 0.2rem;
+  overflow-x: auto;
+  margin-block: 0.35rem;
+}
+
+.support-mode-picker--compact button {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.bubble-response-actions,
+.agent-response-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .bubble-messages {
   display: flex;
   min-height: 0;

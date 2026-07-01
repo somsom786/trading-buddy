@@ -19,12 +19,12 @@ use super::{
         MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
         MessageExport, MovementIntensity, PrepareAgentTurnRequest, PrepareAgentTurnResponse,
         PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
-        RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
-        StoredMessageStatus, UpsertAgentSessionLink, MAX_JOURNAL_BODY_LENGTH,
-        MAX_JOURNAL_SEARCH_LENGTH, MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS,
-        MAX_JOURNAL_TAG_LENGTH, MAX_JOURNAL_TITLE_LENGTH, MAX_MEMORY_CONTENT_LENGTH,
-        MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH,
-        MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        RetrievedMemory, RetryAgentTurnRequest, RetryAgentTurnResponse, StorageDiagnostics,
+        StorageMetadata, StoredMessage, StoredMessageRole, StoredMessageStatus,
+        UpsertAgentSessionLink, MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH,
+        MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH,
+        MAX_JOURNAL_TITLE_LENGTH, MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH,
+        MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -646,6 +646,36 @@ pub fn delete_agent_session_link(
     Ok(existing)
 }
 
+pub fn all_agent_session_links(
+    connection: &Connection,
+) -> Result<Vec<AgentSessionLink>, StorageError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT local_conversation_id, backend, remote_session_id, remote_session_key,
+                    status, last_completed_message_id, last_request_id, created_at, updated_at
+             FROM agent_session_links
+             ORDER BY created_at ASC",
+        )
+        .map_err(StorageError::from_sql_read)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(AgentSessionLink {
+                local_conversation_id: row.get(0)?,
+                backend: row.get(1)?,
+                remote_session_id: row.get(2)?,
+                remote_session_key: row.get(3)?,
+                status: row.get(4)?,
+                last_completed_message_id: row.get(5)?,
+                last_request_id: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })
+        .map_err(StorageError::from_sql_read)?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(StorageError::from_sql_read)
+}
+
 pub fn prepare_generation(
     connection: &mut Connection,
     request: PrepareGenerationRequest,
@@ -827,6 +857,86 @@ fn existing_agent_turn(
         attempt,
         reused: true,
     }))
+}
+
+pub fn retry_agent_turn(
+    connection: &mut Connection,
+    request: RetryAgentTurnRequest,
+) -> Result<RetryAgentTurnResponse, StorageError> {
+    validate_identifier(&request.conversation_id, "conversation ID")?;
+    validate_identifier(&request.request_id, "request ID")?;
+    validate_identifier(&request.turn_id, "turn ID")?;
+    validate_model_name(&request.model_name)?;
+    validate_support_mode(&request.support_mode)?;
+    ensure_conversation_exists(connection, &request.conversation_id)?;
+    if existing_agent_turn(connection, &request.request_id)?.is_some() {
+        return Err(StorageError::invalid_request(
+            "Retry request ID has already been used.",
+        ));
+    }
+    let source: Option<(String, u32)> = connection
+        .query_row(
+            "SELECT user_message_id, MAX(attempt)
+             FROM agent_turn_attempts
+             WHERE local_conversation_id = ?1
+             GROUP BY user_message_id
+             ORDER BY MAX(created_at) DESC
+             LIMIT 1",
+            params![request.conversation_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)?;
+    let (user_message_id, previous_attempt) = source
+        .ok_or_else(|| StorageError::invalid_request("There is no companion response to retry."))?;
+    let now = Utc::now();
+    let created_at = now.to_rfc3339();
+    let assistant_message_id = generate_id("message");
+    let attempt = previous_attempt.saturating_add(1);
+    let transaction = connection
+        .transaction()
+        .map_err(StorageError::from_sql_write)?;
+    transaction
+        .execute(
+            "INSERT INTO messages
+             (id, conversation_id, role, content, status, model_name, request_id, created_at, updated_at)
+             VALUES (?1, ?2, 'assistant', '', 'streaming', ?3, ?4, ?5, ?5)",
+            params![
+                assistant_message_id,
+                request.conversation_id,
+                request.model_name,
+                request.request_id,
+                created_at
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    transaction
+        .execute(
+            "INSERT INTO agent_turn_attempts (
+                request_id, turn_id, local_conversation_id, user_message_id,
+                assistant_message_id, support_mode, attempt, status, created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'submitting', ?8, ?8)",
+            params![
+                request.request_id,
+                request.turn_id,
+                request.conversation_id,
+                user_message_id,
+                assistant_message_id,
+                request.support_mode,
+                attempt,
+                created_at
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    transaction.commit().map_err(StorageError::from_sql_write)?;
+    Ok(RetryAgentTurnResponse {
+        conversation: conversation_summary(connection, &request.conversation_id)?,
+        user_message: message(connection, &user_message_id)?,
+        assistant_message: message(connection, &assistant_message_id)?,
+        turn_id: request.turn_id,
+        support_mode: request.support_mode,
+        attempt,
+    })
 }
 
 fn validate_agent_link_status(status: &str) -> Result<(), StorageError> {
@@ -3290,6 +3400,65 @@ mod tests {
             Some(first.assistant_message.id.as_str())
         );
         assert_eq!(link.last_request_id.as_deref(), Some("request-agent-1"));
+    }
+
+    #[test]
+    fn retries_an_agent_turn_without_duplicating_the_user_message() {
+        let mut connection = database();
+        let first = prepare_agent_turn(
+            &mut connection,
+            PrepareAgentTurnRequest {
+                conversation_id: None,
+                request_id: "request-first".to_owned(),
+                turn_id: "turn-first".to_owned(),
+                user_content: "Please stay with this thought.".to_owned(),
+                model_name: "qwen3:4b".to_owned(),
+                support_mode: "reflect".to_owned(),
+            },
+        )
+        .expect("first turn");
+        cancel_assistant(
+            &mut connection,
+            AssistantMessageUpdate {
+                message_id: first.assistant_message.id,
+                request_id: "request-first".to_owned(),
+                content: "A partial response".to_owned(),
+            },
+        )
+        .expect("cancel first attempt");
+
+        let retry = retry_agent_turn(
+            &mut connection,
+            RetryAgentTurnRequest {
+                conversation_id: first.conversation.id.clone(),
+                request_id: "request-retry".to_owned(),
+                turn_id: "turn-retry".to_owned(),
+                model_name: "qwen3:4b".to_owned(),
+                support_mode: "listen".to_owned(),
+            },
+        )
+        .expect("retry turn");
+
+        assert_eq!(retry.user_message.id, first.user_message.id);
+        assert_eq!(retry.attempt, 2);
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM messages WHERE role = 'user'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("user count"),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM agent_turn_attempts", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("attempt count"),
+            2
+        );
     }
 
     #[test]

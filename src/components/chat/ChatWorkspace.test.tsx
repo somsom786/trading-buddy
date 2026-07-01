@@ -9,6 +9,7 @@ import { defaultMemoryPreferences } from '../../domain/memory/types';
 import { defaultJournalPreferences } from '../../domain/journal/types';
 import { DEFAULT_CONTINUITY_PREFERENCES } from '../../domain/continuity/types';
 import { ChatWorkspace } from './ChatWorkspace';
+import { createFakeAgentSessionService } from '../../test/fakeAgentSessionService';
 
 const companionService: CompanionService = {
   setState: vi.fn().mockResolvedValue(undefined),
@@ -314,6 +315,7 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
 
@@ -327,11 +329,8 @@ describe('ChatWorkspace', () => {
 
   it('lists models and streams a response into the assistant placeholder', async () => {
     const user = userEvent.setup();
-    const {
-      service: storageService,
-      prepareGeneration,
-      completeAssistant,
-    } = createStorageService();
+    const { service: storageService, prepareGeneration } = createStorageService();
+    const agent = createFakeAgentSessionService({ responseText: 'Local hello' });
     const streamChat = vi.fn((request, onEvent) => {
       onEvent({ type: 'started', requestId: request.requestId });
       onEvent({ type: 'content_delta', requestId: request.requestId, content: 'Local hello' });
@@ -349,6 +348,7 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={agent.service}
       />,
     );
 
@@ -359,9 +359,9 @@ describe('ChatWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
     await screen.findByText('Local hello');
-    expect(streamChat).toHaveBeenCalledOnce();
-    expect(prepareGeneration).toHaveBeenCalledOnce();
-    expect(completeAssistant).toHaveBeenCalledOnce();
+    expect(agent.submit).toHaveBeenCalledOnce();
+    expect(streamChat).not.toHaveBeenCalled();
+    expect(prepareGeneration).not.toHaveBeenCalled();
     expect(screen.getByText('Hello')).toBeInTheDocument();
   });
 
@@ -380,19 +380,23 @@ describe('ChatWorkspace', () => {
       cancel: vi.fn().mockResolvedValue(undefined),
       streamChat,
     };
+    const agent = createFakeAgentSessionService({ holdResponse: true });
     render(
       <ChatWorkspace
         localAiService={service}
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={agent.service}
       />,
     );
     await screen.findByText('Ollama connected');
     await user.type(screen.getByRole('textbox', { name: 'Message' }), 'One request');
     await user.click(screen.getByRole('button', { name: 'Send' }));
     expect(screen.getByRole('button', { name: 'Stop generation' })).toBeInTheDocument();
-    expect(streamChat).toHaveBeenCalledOnce();
+    expect(agent.submit).toHaveBeenCalledOnce();
+    expect(streamChat).not.toHaveBeenCalled();
+    agent.release();
     if (release) {
       release();
     }
@@ -416,6 +420,7 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
     await waitFor(() => {
@@ -443,6 +448,7 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
     await screen.findByText('Local AI is offline');
@@ -467,12 +473,14 @@ describe('ChatWorkspace', () => {
       cancel: vi.fn().mockResolvedValue(undefined),
       streamChat,
     };
+    const agent = createFakeAgentSessionService({ responseText: 'Temporary hello' });
     render(
       <ChatWorkspace
         localAiService={service}
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={agent.service}
       />,
     );
 
@@ -483,7 +491,8 @@ describe('ChatWorkspace', () => {
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
     await screen.findByText('Temporary hello');
-    expect(streamChat).toHaveBeenCalledOnce();
+    expect(agent.submit).toHaveBeenCalledOnce();
+    expect(streamChat).not.toHaveBeenCalled();
     expect(prepareGeneration).not.toHaveBeenCalled();
   });
 
@@ -506,6 +515,7 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
+        agentSessionService={createFakeAgentSessionService().service}
       />,
     );
 

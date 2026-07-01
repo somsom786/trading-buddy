@@ -1054,6 +1054,27 @@ pub struct PrepareAgentTurnResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RetryAgentTurnRequest {
+    pub conversation_id: String,
+    pub request_id: String,
+    pub turn_id: String,
+    pub model_name: String,
+    pub support_mode: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RetryAgentTurnResponse {
+    pub conversation: ConversationSummary,
+    pub user_message: StoredMessage,
+    pub assistant_message: StoredMessage,
+    pub turn_id: String,
+    pub support_mode: String,
+    pub attempt: u32,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct AssistantMessageUpdate {
     pub message_id: String,
     pub request_id: String,
