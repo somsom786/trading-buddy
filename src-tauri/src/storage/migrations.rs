@@ -3,7 +3,7 @@ use rusqlite::{params, Connection};
 
 use super::errors::StorageError;
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 11;
 
 struct Migration {
     version: i64,
@@ -756,6 +756,50 @@ WHERE id = 1
   AND bubble_width = 340;
 "#,
     },
+    Migration {
+        version: 11,
+        name: "agent_session_links",
+        sql: r#"
+CREATE TABLE IF NOT EXISTS agent_session_links (
+  local_conversation_id TEXT PRIMARY KEY NOT NULL
+    REFERENCES conversations(id) ON DELETE CASCADE,
+  backend TEXT NOT NULL CHECK (backend = 'hermes'),
+  remote_session_id TEXT NOT NULL,
+  remote_session_key TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL CHECK (status IN ('active', 'closed', 'missing', 'failed')),
+  last_completed_message_id TEXT
+    REFERENCES messages(id) ON DELETE SET NULL,
+  last_request_id TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_turn_attempts (
+  request_id TEXT PRIMARY KEY NOT NULL,
+  turn_id TEXT NOT NULL UNIQUE,
+  local_conversation_id TEXT NOT NULL
+    REFERENCES conversations(id) ON DELETE CASCADE,
+  user_message_id TEXT NOT NULL
+    REFERENCES messages(id) ON DELETE CASCADE,
+  assistant_message_id TEXT NOT NULL UNIQUE
+    REFERENCES messages(id) ON DELETE CASCADE,
+  support_mode TEXT NOT NULL
+    CHECK (support_mode IN ('listen', 'reflect', 'plan', 'hang_out', 'presence')),
+  attempt INTEGER NOT NULL CHECK (attempt >= 1),
+  status TEXT NOT NULL
+    CHECK (status IN ('submitting', 'streaming', 'completed', 'cancelled', 'failed', 'interrupted')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_links_status
+  ON agent_session_links(status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_turns_conversation
+  ON agent_turn_attempts(local_conversation_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_agent_turns_user
+  ON agent_turn_attempts(user_message_id, attempt DESC);
+"#,
+    },
 ];
 
 pub fn configure_connection(connection: &Connection) -> Result<(), StorageError> {
@@ -893,6 +937,16 @@ mod tests {
             )
             .expect("companion defaults");
         assert_eq!(companion_defaults, ("taskbar_perch".to_owned(), 300));
+        let agent_tables: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table'
+                   AND name IN ('agent_session_links', 'agent_turn_attempts')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("agent session tables");
+        assert_eq!(agent_tables, 2);
     }
 
     #[test]

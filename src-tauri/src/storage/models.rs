@@ -1008,6 +1008,29 @@ pub struct PrepareGenerationResponse {
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentSessionLink {
+    pub local_conversation_id: String,
+    pub backend: String,
+    pub remote_session_id: String,
+    pub remote_session_key: String,
+    pub status: String,
+    pub last_completed_message_id: Option<String>,
+    pub last_request_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct UpsertAgentSessionLink {
+    pub local_conversation_id: String,
+    pub remote_session_id: String,
+    pub remote_session_key: String,
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub struct AssistantMessageUpdate {
     pub message_id: String,
     pub request_id: String,

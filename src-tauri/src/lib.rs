@@ -1,6 +1,10 @@
+mod agent_events;
+mod agent_session;
 mod commands;
 mod continuity;
 mod desktop_world;
+mod hermes_process;
+mod hermes_rpc;
 mod local_ai;
 mod petdex;
 mod storage;
@@ -76,7 +80,17 @@ pub fn run() {
                 .settings_snapshot()
                 .ok()
                 .map(|settings| settings.companion_preferences);
-            app.manage(storage);
+            app.manage(storage.clone());
+            let app_data_dir = app
+                .path()
+                .app_local_data_dir()
+                .map_err(|error| error.to_string())?;
+            let agent_runtime = agent_session::AgentSessionRuntime::new(
+                app.handle().clone(),
+                &app_data_dir,
+                storage,
+            )?;
+            app.manage(agent_runtime);
             let continuity_storage = app.state::<storage::StorageService>().inner().clone();
             let continuity_ai = app.state::<local_ai::LocalAiService>().inner().clone();
             tauri::async_runtime::spawn(async move {
@@ -127,6 +141,15 @@ pub fn run() {
             commands::local_ai::list_local_models,
             commands::local_ai::stream_local_chat,
             commands::local_ai::cancel_local_chat,
+            agent_session::agent_runtime_status,
+            agent_session::agent_session_snapshot,
+            agent_session::agent_runtime_start,
+            agent_session::agent_runtime_retry_connection,
+            agent_session::agent_session_open,
+            agent_session::agent_session_set_support_mode,
+            agent_session::agent_session_interrupt,
+            agent_session::agent_session_close,
+            agent_session::agent_runtime_stop,
             petdex::list_featured_petdex_skins,
             commands::storage::get_storage_status,
             commands::storage::get_storage_diagnostics,

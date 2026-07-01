@@ -6,23 +6,24 @@ use super::{
     errors::StorageError,
     migrations,
     models::{
-        AppSettings, AssistantMessageFailure, AssistantMessageUpdate, CompanionFreePosition,
-        CompanionPlacementMode, CompanionPreferences, ContinuityPreferences, ConversationDetail,
-        ConversationExport, ConversationExportFile, ConversationRetentionPolicy,
-        ConversationSummary, DeleteAllJournalResult, DeleteAllMemoriesResult, DeleteAllResult,
-        DevelopmentFixtureResult, DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult,
-        JournalDiagnostics, JournalEntry, JournalEntryDraft, JournalEntrySummary,
-        JournalEntryUpdate, JournalExportFile, JournalKind, JournalListOptions, JournalMode,
-        JournalPreferences, JournalSort, JournalSourceKind, JournalStatus, Memory,
-        MemoryApprovalMode, MemoryCategory, MemoryDiagnostics, MemoryDraft, MemoryExportFile,
-        MemoryListOptions, MemoryPreferences, MemorySensitivity, MemorySourceKind, MemoryStatus,
-        MemoryUsageRecord, MemoryUsageRequest, MessageExport, MovementIntensity,
-        PrepareGenerationRequest, PrepareGenerationResponse, RetentionCleanupResult,
-        RetrievedMemory, StorageDiagnostics, StorageMetadata, StoredMessage, StoredMessageRole,
-        StoredMessageStatus, MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH,
-        MAX_JOURNAL_SUMMARY_LENGTH, MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH,
-        MAX_JOURNAL_TITLE_LENGTH, MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH,
-        MAX_MESSAGE_CONTENT_LENGTH, MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
+        AgentSessionLink, AppSettings, AssistantMessageFailure, AssistantMessageUpdate,
+        CompanionFreePosition, CompanionPlacementMode, CompanionPreferences, ContinuityPreferences,
+        ConversationDetail, ConversationExport, ConversationExportFile,
+        ConversationRetentionPolicy, ConversationSummary, DeleteAllJournalResult,
+        DeleteAllMemoriesResult, DeleteAllResult, DevelopmentFixtureResult,
+        DevelopmentJournalFixtureResult, DevelopmentMemoryFixtureResult, JournalDiagnostics,
+        JournalEntry, JournalEntryDraft, JournalEntrySummary, JournalEntryUpdate,
+        JournalExportFile, JournalKind, JournalListOptions, JournalMode, JournalPreferences,
+        JournalSort, JournalSourceKind, JournalStatus, Memory, MemoryApprovalMode, MemoryCategory,
+        MemoryDiagnostics, MemoryDraft, MemoryExportFile, MemoryListOptions, MemoryPreferences,
+        MemorySensitivity, MemorySourceKind, MemoryStatus, MemoryUsageRecord, MemoryUsageRequest,
+        MessageExport, MovementIntensity, PrepareGenerationRequest, PrepareGenerationResponse,
+        RetentionCleanupResult, RetrievedMemory, StorageDiagnostics, StorageMetadata,
+        StoredMessage, StoredMessageRole, StoredMessageStatus, UpsertAgentSessionLink,
+        MAX_JOURNAL_BODY_LENGTH, MAX_JOURNAL_SEARCH_LENGTH, MAX_JOURNAL_SUMMARY_LENGTH,
+        MAX_JOURNAL_TAGS, MAX_JOURNAL_TAG_LENGTH, MAX_JOURNAL_TITLE_LENGTH,
+        MAX_MEMORY_CONTENT_LENGTH, MAX_MEMORY_SEARCH_LENGTH, MAX_MESSAGE_CONTENT_LENGTH,
+        MAX_MODEL_NAME_LENGTH, MAX_PAGE_LIMIT, MAX_TITLE_LENGTH,
     },
 };
 
@@ -566,6 +567,84 @@ pub fn last_opened_conversation(connection: &Connection) -> Result<Option<String
     Ok(settings(connection)?.last_opened_conversation_id)
 }
 
+pub fn upsert_agent_session_link(
+    connection: &Connection,
+    link: UpsertAgentSessionLink,
+) -> Result<AgentSessionLink, StorageError> {
+    validate_identifier(&link.local_conversation_id, "conversation ID")?;
+    validate_identifier(&link.remote_session_id, "remote session ID")?;
+    validate_identifier(&link.remote_session_key, "remote session key")?;
+    validate_agent_link_status(&link.status)?;
+    ensure_conversation_exists(connection, &link.local_conversation_id)?;
+    let now = timestamp();
+    connection
+        .execute(
+            "INSERT INTO agent_session_links (
+                local_conversation_id, backend, remote_session_id, remote_session_key,
+                status, created_at, updated_at
+             ) VALUES (?1, 'hermes', ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(local_conversation_id) DO UPDATE SET
+                remote_session_id = excluded.remote_session_id,
+                remote_session_key = excluded.remote_session_key,
+                status = excluded.status,
+                updated_at = excluded.updated_at",
+            params![
+                link.local_conversation_id,
+                link.remote_session_id,
+                link.remote_session_key,
+                link.status,
+                now
+            ],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    agent_session_link(connection, &link.local_conversation_id)?
+        .ok_or_else(|| StorageError::invalid_stored_data("Agent session link was not persisted."))
+}
+
+pub fn agent_session_link(
+    connection: &Connection,
+    conversation_id: &str,
+) -> Result<Option<AgentSessionLink>, StorageError> {
+    validate_identifier(conversation_id, "conversation ID")?;
+    connection
+        .query_row(
+            "SELECT local_conversation_id, backend, remote_session_id, remote_session_key,
+                    status, last_completed_message_id, last_request_id, created_at, updated_at
+             FROM agent_session_links
+             WHERE local_conversation_id = ?1",
+            params![conversation_id],
+            |row| {
+                Ok(AgentSessionLink {
+                    local_conversation_id: row.get(0)?,
+                    backend: row.get(1)?,
+                    remote_session_id: row.get(2)?,
+                    remote_session_key: row.get(3)?,
+                    status: row.get(4)?,
+                    last_completed_message_id: row.get(5)?,
+                    last_request_id: row.get(6)?,
+                    created_at: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            },
+        )
+        .optional()
+        .map_err(StorageError::from_sql_read)
+}
+
+pub fn delete_agent_session_link(
+    connection: &Connection,
+    conversation_id: &str,
+) -> Result<Option<AgentSessionLink>, StorageError> {
+    let existing = agent_session_link(connection, conversation_id)?;
+    connection
+        .execute(
+            "DELETE FROM agent_session_links WHERE local_conversation_id = ?1",
+            params![conversation_id],
+        )
+        .map_err(StorageError::from_sql_write)?;
+    Ok(existing)
+}
+
 pub fn prepare_generation(
     connection: &mut Connection,
     request: PrepareGenerationRequest,
@@ -648,6 +727,16 @@ pub fn prepare_generation(
         user_message: message(connection, &user_message_id)?,
         assistant_message: message(connection, &assistant_message_id)?,
     })
+}
+
+fn validate_agent_link_status(status: &str) -> Result<(), StorageError> {
+    if ["active", "closed", "missing", "failed"].contains(&status) {
+        Ok(())
+    } else {
+        Err(StorageError::invalid_request(
+            "Invalid agent session link status.",
+        ))
+    }
 }
 
 pub fn checkpoint_assistant(
@@ -2969,6 +3058,48 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn maps_one_hermes_session_per_local_conversation_and_cascades_deletion() {
+        let mut connection = database();
+        let prepared =
+            prepare_generation(&mut connection, generation("Map this session.")).expect("prepare");
+        let link = upsert_agent_session_link(
+            &connection,
+            UpsertAgentSessionLink {
+                local_conversation_id: prepared.conversation.id.clone(),
+                remote_session_id: "live-1".to_owned(),
+                remote_session_key: "stored-1".to_owned(),
+                status: "active".to_owned(),
+            },
+        )
+        .expect("create link");
+        assert_eq!(link.backend, "hermes");
+
+        let updated = upsert_agent_session_link(
+            &connection,
+            UpsertAgentSessionLink {
+                local_conversation_id: prepared.conversation.id.clone(),
+                remote_session_id: "live-2".to_owned(),
+                remote_session_key: "stored-2".to_owned(),
+                status: "active".to_owned(),
+            },
+        )
+        .expect("update link");
+        assert_eq!(updated.remote_session_id, "live-2");
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM agent_session_links", [], |row| row
+                    .get::<_, i64>(0))
+                .expect("link count"),
+            1
+        );
+
+        delete_conversation(&connection, &prepared.conversation.id).expect("delete conversation");
+        assert!(agent_session_link(&connection, &prepared.conversation.id)
+            .expect("query link")
+            .is_none());
     }
 
     #[test]
