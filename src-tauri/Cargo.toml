@@ -1,6 +1,6 @@
 [package]
 name = "trading-buddy"
-version = "0.2.0"
+version = "0.3.0"
 description = "A local-first desktop companion for crypto traders"
 authors = ["Trading Buddy contributors"]
 edition = "2021"

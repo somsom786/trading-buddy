@@ -1,10 +1,21 @@
 # Progress Journal
 
-## BETA v0.2
+## BETA v0.3
 
-Trading Buddy is currently in active development under the label **BETA v0.2**. This journal
+Trading Buddy is currently in active development under the label **BETA v0.3**. This journal
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
+
+### July 1, 2026 - BETA v0.3 label and default-branch publication
+
+- Advanced current product, package, Tauri, Rust, window, tray, and read-only provider labels to
+  BETA v0.3 / `0.3.0`.
+- Corrected the current product document to preserve the project-owned Tauri frontend and describe
+  Hermes as backend/session logic only.
+- Published the tested Task 12B frontend-ownership checkpoint to GitHub's default `main` branch so
+  it is visible from the repository landing page.
+- Detailed handoff report:
+  [`docs/reports/TASK-012B-beta-v0.3-main-publication.md`](reports/TASK-012B-beta-v0.3-main-publication.md)
 
 ### June 30, 2026 - Task 12B frontend ownership and placement correction
 

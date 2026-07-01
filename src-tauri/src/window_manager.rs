@@ -270,7 +270,7 @@ pub fn create_tray(app: &App) -> tauri::Result<()> {
     )?;
 
     let mut tray = TrayIconBuilder::new()
-        .tooltip("Trading Buddy — BETA v0.2")
+        .tooltip("Trading Buddy — BETA v0.3")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "talk" => {

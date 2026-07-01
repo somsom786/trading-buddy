@@ -1,4 +1,4 @@
-# Trading Buddy — BETA v0.2
+# Trading Buddy — BETA v0.3
 
 Trading Buddy is a private, local-first creature that lives on the desktop, talks through local
 Ollama models, and builds user-controlled continuity through local conversations, memories, and
@@ -17,7 +17,7 @@ Conversations, memories, journal entries, and optional read-only skill data are 
 SQLite database owned by Rust/Tauri. The app has no cloud inference, cloud account, exchange API
 secret, wallet signing, authentication, telemetry, or trading execution functionality.
 
-This repository is currently labeled **BETA v0.2** while the product direction and companion
+This repository is currently labeled **BETA v0.3** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
 [`docs/PROGRESS.md`](docs/PROGRESS.md).
 

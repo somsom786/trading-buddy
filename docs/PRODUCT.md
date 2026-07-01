@@ -2,7 +2,8 @@
 
 ## Task 12 product direction
 
-Task 12 keeps the current product promise but starts testing a new body/runtime architecture:
+Task 12 keeps the current product promise while strengthening the existing Tauri body/runtime
+architecture:
 
 - Trading Buddy remains local-first and private by default.
 - The buddy is still the primary product surface.
@@ -11,17 +12,15 @@ Task 12 keeps the current product promise but starts testing a new body/runtime 
 - No private keys, seed phrases, exchange secrets, wallet signing, cloud account, telemetry, or
   autonomous trading are introduced.
 
-The new `next/` preview uses Hermes Desktop and Petdex to test a stronger companion runtime:
-transparent pet overlay, hidden main window startup, shared composer/session path, local Ollama,
-and a constrained trader companion soul. It is not yet a data-migrated replacement for the Tauri
-application.
+The project-owned Tauri/React application is the canonical frontend. The `next/agent` Hermes fork
+is a backend/session logic donor only, while Petdex provides optional validated skins through a
+read-only manifest boundary.
 
-Task 12B begins turning the preview into a more pet-first product surface. The detached buddy now
-surfaces the existing Petdex skin chooser from the bubble, right-click pet menu, and tray, and the
-overlay UI is moving toward warm, tactile, light-first companion panels instead of a generic chat
-input.
+Task 12B is making the Tauri application more pet-first: the detached buddy starts near the
+taskbar, opens a compact attached bubble, sleeps after inactivity, and offers optional Petdex skins
+without replacing the local offline buddy.
 
-**Current development label:** BETA v0.2
+**Current development label:** BETA v0.3
 
 Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity
 through inspectable local memory, understands ordinary life and emotion, and speaks crypto
@@ -158,7 +157,7 @@ same validated memory boundary.
 
 ## Living and learning checkpoint
 
-The current BETA v0.2 implementation joins the creature body and local continuity architecture:
+The current BETA v0.3 implementation joins the creature body and local continuity architecture:
 
 - deterministic physics, pickup/drop state, conservative geometry-only surface following,
   persistent movement controls, and animation intent;

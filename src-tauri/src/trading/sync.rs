@@ -85,7 +85,7 @@ impl OfficialHyperliquidTransport {
         let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
             .timeout(Duration::from_secs(20))
-            .user_agent("Trading Buddy BETA v0.2 read-only Hyperliquid sync")
+            .user_agent("Trading Buddy BETA v0.3 read-only Hyperliquid sync")
             .build()
             .map_err(|error| {
                 TradingError::new(
