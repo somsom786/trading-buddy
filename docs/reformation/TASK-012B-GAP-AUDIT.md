@@ -25,6 +25,12 @@ The historical audit below remains useful evidence of why Task 12C was required,
 until the exact native walkthrough is completed without silently converting automated evidence
 into interaction evidence.
 
+## July 2 Task 12D update
+
+Task 12D now supplies the development-only recorder and safe diagnostics needed for that exact
+walkthrough. A live run exposed and fixed a missing Buddy drag capability. The retest and remaining
+human-observed steps are still open, so the gap audit remains unresolved at the acceptance layer.
+
 ## June 30 architecture correction
 
 The matrix below records the state of the former Hermes Desktop preview and is retained as

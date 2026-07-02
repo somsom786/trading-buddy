@@ -25,6 +25,11 @@ The compact Bubble and Companion Home display the same Rust-authoritative conver
 mode, live stream, stop state, and retry attempts. Hermes remains backend logic only; the app does
 not launch or embed Hermes Desktop.
 
+Task 12D is proving that experience through an evidence-labelled native Windows walkthrough rather
+than declaring fixture tests equivalent to pointer, focus, visual, tray, or DPI observation.
+Conversation latency is measured without storing content, and immediate lifecycle feedback remains
+honest while the hosted model is working.
+
 **Current development label:** BETA v0.3
 
 Trading Buddy is a local-first AI creature that lives on the user's desktop, develops continuity

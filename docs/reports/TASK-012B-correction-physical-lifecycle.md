@@ -3,6 +3,12 @@
 Date: June 29, 2026  
 Status: **Task 12B remains in progress**
 
+## July 2 Task 12D update
+
+The first guided native run found that Tauri rejected `start_dragging` because the capability was
+missing. Task 12D adds a dedicated Buddy-only capability and a regression test. Direct
+drag/drop/fall/land/recover retest remains open; this report is not promoted to complete.
+
 ## Summary
 
 This checkpoint moves the Hermes/Petdex reformation from a static overlay toward a physically alive

@@ -70,6 +70,18 @@ is resumed where possible. Missing backend state creates a continuation session 
 receives bounded local context. Temporary chats use an explicit ephemeral gateway option and never
 create a durable SQLite mapping.
 
+Task 12D adds development-only acceptance and timing boundaries around this runtime. The guided
+runner records evidence locally and exposes allowlisted process/window/monitor state, redacted
+session identifiers, aggregate transcript/mapping counts, and content-free durations. The pinned
+gateway emits `provider.request` immediately before model invocation, allowing Hermes preparation
+to be separated from hosted-provider wait. Bubble/Home emission and frontend event-to-paint are
+measured separately. Production builds reject the native acceptance command.
+
+A safe development crash command terminates only the owned gateway child. It deliberately follows
+the same Offline and bounded-recovery path as an unexpected exit; it never targets unrelated Python
+processes. Native window dragging is granted through a dedicated Tauri capability scoped only to
+the `buddy` window.
+
 ## Cloud inference boundary
 
 Visible companion turns are pinned in Rust to `deepseek-ai/deepseek-v4-pro` through NVIDIA's

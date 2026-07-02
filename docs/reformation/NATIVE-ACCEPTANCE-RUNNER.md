@@ -41,6 +41,8 @@ The development-only Tauri command returns an allowlisted snapshot:
 - monitor/work-area geometry and scale;
 - redacted shared-session/request/turn identifiers and stream counters;
 - provider status and pinned model identifier.
+- aggregate local conversation, message, and session-mapping counts;
+- content-free startup, request, provider, persistence, propagation, and paint durations.
 
 It does not return prompts, responses, API keys, token values, clipboard data, screen contents,
 unrelated process details, or unrelated window titles. Session identifiers are reduced to a
@@ -48,6 +50,10 @@ six-character suffix. The command rejects production builds.
 
 An orphan-process result cannot be measured from inside the process after Quit. Record that check
 from a separate terminal after using the tray Quit command.
+
+Use **Crash backend safely** in the development Agent Session Lab for the gateway-loss step. It
+terminates only the gateway child owned by Trading Buddy and follows the real bounded recovery
+path. **Stop backend** is an intentional stop and is not crash-recovery evidence.
 
 ## Export and reset
 

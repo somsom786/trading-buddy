@@ -20,6 +20,13 @@ browser, clipboard-reading, approval, delegation, wallet, signing, or trading-ex
 Task 12C is not declared fully complete because the exact 25-step native interaction walkthrough
 was not directly driven in full.
 
+## July 2 Task 12D update
+
+Task 12D adds the guided recorder, exact provider-start/timing spans, safe gateway-crash control,
+aggregate deletion diagnostics, and additional no-tools/privacy assertions. Native startup
+automatic evidence is green, but shared Bubble/Home, support-mode, recovery, Temporary, deletion,
+tray, and shutdown steps still require direct human recording.
+
 ## Architecture choices
 
 - Rust owns one process-wide `AgentSessionRuntime`; React windows mirror its validated snapshot.

@@ -830,3 +830,26 @@ Visible conversation is therefore pinned to V4 Pro using NVIDIA's documented non
 shape. The full Rust → private gateway → NVIDIA path produced its first visible token in 5.9 seconds
 and completed in 8.9 seconds. V4 Flash remains unavailable rather than silently delaying every
 conversation or introducing an untested automatic fallback.
+
+## 095 - Keep native acceptance diagnostics development-only and content-free
+
+**Status:** Accepted
+
+The Task 12D runner stores its unfinished result in local development WebView storage and exports
+only explicit evidence labels, sanitized notes, allowlisted Trading Buddy state, redacted
+identifiers, aggregate database counts, and durations. It does not capture pixels, unrelated
+windows/processes, prompts, responses, memory context, clipboard content, credentials, or tokens.
+The native command rejects production builds.
+
+Alternatives considered were screenshots, generic process/window inspection, and treating fixtures
+as native evidence. Those approaches either expand privacy risk or overstate what was observed.
+
+## 096 - Scope drag permission to Buddy and crash simulation to the owned gateway
+
+**Status:** Accepted
+
+Tauri 2 requires explicit permission for frontend-initiated native dragging. The permission is
+provided in a separate capability applying only to the `buddy` window, rather than broadening all
+windows. Recovery QA uses a development-only actor command that kills only the gateway child owned
+by Trading Buddy and follows the real Offline/bounded-restart path. It never scans for or
+terminates unrelated Python processes.

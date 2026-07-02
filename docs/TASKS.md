@@ -1,5 +1,30 @@
 # Tasks
 
+## Task 12D - Native acceptance, latency, and publication
+
+- [x] Audit the current canonical Tauri/shared-session architecture and run the pre-edit baseline.
+- [x] Add a development-only guided 25-step acceptance recorder with honest evidence classes.
+- [x] Add safe automatic window, monitor, process, session, timing, and aggregate storage
+      diagnostics.
+- [x] Instrument application, gateway/session, provider, persistence, cross-window, and frontend
+      paint latency without content.
+- [x] Add an exact provider-request marker to the pinned fork.
+- [x] Run real V4 Pro benchmarks and separate measured app/gateway overhead from variable provider
+      latency.
+- [x] Reproduce and fix the missing Buddy native-drag capability.
+- [x] Add an owned-gateway crash control that exercises bounded recovery.
+- [x] Assert the companion toolset and parent RPC allowlist expose no side-effect/capture tools.
+- [ ] Directly retest drag, drop, fall, land, and recover after the capability fix.
+- [ ] Record Bubble input, shared stream, Stop, Retry, Copy, all five support modes, restart,
+      provider failure/recovery, gateway crash/recovery, Temporary, and deletion behavior.
+- [ ] Record negative-coordinate monitor/DPI behavior and every tray action where hardware permits.
+- [ ] Quit through the tray and confirm zero owned orphan processes.
+- [ ] Complete final validation, reports, and documentation.
+- [ ] Rerun acceptance after the final merge/rebase and publish the accepted state to `main`.
+
+Task 12D remains in progress. Fixture and automatic evidence are not substitutes for the open
+human-observed steps.
+
 ## Task 12C - Canonical Tauri to Hermes shared session
 
 - [x] Add the validated frontend agent-session contract and deterministic ordered reducer.

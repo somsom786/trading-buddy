@@ -16,6 +16,12 @@ Task 12B is **not complete**. The Tauri frontend is not yet connected to the Her
 shared-session streaming backend, so the exact conversation, reconnect, and 25-step Windows
 acceptance walkthrough remain open.
 
+## July 2 Task 12D update
+
+The project-owned frontend now includes a development-only guided native acceptance recorder and
+content-free diagnostics. One real native drag permission defect was fixed, but the human
+walkthrough remains open.
+
 ## What changed
 
 - Changed `desktop:dev` and the compatibility `next:dev` command to launch the canonical Tauri

@@ -6,6 +6,24 @@ Trading Buddy is currently in active development under the label **BETA v0.3**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### July 2, 2026 - Task 12D native acceptance and latency checkpoints
+
+- Added a development-only guided 25-step native acceptance recorder with explicit human,
+  automatic, fixture, and untested evidence classes.
+- Added content-free timing spans across application setup, context construction, Rust/session
+  preparation, exact provider request start, first visible content, persistence, cross-window
+  emission, and frontend paint.
+- Four real V4 Pro samples produced a 6.67-second median first-visible time; provider/network
+  variance remains explicit.
+- A live native run found and fixed a missing Tauri drag permission using a capability scoped only
+  to Buddy.
+- Added safe owned-gateway crash simulation, aggregate transcript/mapping diagnostics, and explicit
+  no-tools/RPC privacy assertions.
+- Current branch: `codex/task-12d-native-acceptance`; latest pushed checkpoint: `65bb1ea`.
+- Human drag retest and the complete walkthrough remain open, so `main` has not moved.
+- In-progress report:
+  [`docs/reports/TASK-012D-native-companion-acceptance.md`](reports/TASK-012D-native-companion-acceptance.md)
+
 ### July 2, 2026 - Task 12E operational DeepSeek V4 Pro switch
 
 - Replaced the unresponsive hosted V4 Flash route with NVIDIA-hosted DeepSeek V4 Pro using the same

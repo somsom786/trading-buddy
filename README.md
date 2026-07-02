@@ -70,6 +70,19 @@ report is
 The latest Task 12B checkpoint report is
 [`docs/reports/TASK-012B-real-desktop-companion.md`](docs/reports/TASK-012B-real-desktop-companion.md).
 
+## Task 12D native acceptance
+
+Task 12D is currently running on branch `codex/task-12d-native-acceptance`. It adds a
+development-only 25-step native acceptance recorder, safe geometry/process/session diagnostics,
+content-free end-to-end latency spans, a Buddy-only native drag capability, and a safe owned-gateway
+crash test path. The exact human walkthrough is still open, so this work has not been published to
+`main`.
+
+After starting `corepack pnpm desktop:dev`, open Companion Home and expand **Task 12D - Guided Native
+Acceptance**. Results resume locally and can be exported as Markdown or JSON. See
+[`docs/reformation/NATIVE-ACCEPTANCE-RUNNER.md`](docs/reformation/NATIVE-ACCEPTANCE-RUNNER.md) and
+[`docs/performance/LOCAL-COMPANION-LATENCY.md`](docs/performance/LOCAL-COMPANION-LATENCY.md).
+
 ## Prerequisites
 
 - Windows 10 or 11

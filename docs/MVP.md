@@ -21,6 +21,10 @@ This does not close the MVP. The exact native 25-step Windows interaction walkth
 mixed-DPI/secondary-monitor QA, production art, signing, and broader product validation remain
 open.
 
+Task 12D now provides the guided recorder and timing evidence needed to close the native portion.
+It has also found and fixed one real Tauri drag-capability defect. That fix still requires direct
+drag/drop/fall/land/recover retesting, and the full walkthrough remains open.
+
 ## Goal
 
 Validate that a local-first creature can physically live on the desktop, continue functioning
