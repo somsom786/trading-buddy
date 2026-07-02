@@ -54,6 +54,8 @@ concrete use flow, current reality, and product boundaries.
 - Direct generation matching the requested parameters: no response before a 120,046 ms timeout.
 - Full Rust → private gateway → NVIDIA stream: no visible event before the 180-second integration
   timeout.
+- Repeating the full app-path test with the replacement ignored-file credential produced the same
+  180-second timeout; the credential itself remained unprinted and uncommitted.
 
 Credential authentication, model discovery, local provider configuration, gateway startup, and
 request dispatch were verified. A generation-speed result could not be measured because NVIDIA's
