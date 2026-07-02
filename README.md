@@ -1,9 +1,19 @@
 # Trading Buddy — BETA v0.3
 
-Trading Buddy is a private, local-first creature that lives on the desktop, talks through local
-Ollama models, and builds user-controlled continuity through local conversations, memories, and
-journaling. Its personality is crypto-native, but the user is never reduced to a wallet, trading
-account, or PnL.
+[**VISION**](VISION.md) · [Product](docs/PRODUCT.md) · [Architecture](docs/ARCHITECTURE.md) ·
+[Progress journal](docs/PROGRESS.md)
+
+## Vision
+
+![Trading Buddy character concept](public/design/buddy-concept-beta-v0.1.png)
+
+Trading Buddy is a local-first creature that lives at the edge of the desktop, opens a compact
+attached conversation bubble, and builds user-controlled continuity through local conversations,
+memories, reviews, and journaling. Its personality is crypto-native, but the user is never reduced
+to a wallet, trading account, or PnL.
+
+Read the visual direction, concrete interaction examples, and current-vs-target status in
+[`VISION.md`](VISION.md).
 
 The product north star is:
 
@@ -14,8 +24,10 @@ optional skills support that presence; Companion Home is a secondary inspection 
 surface.
 
 Conversations, memories, journal entries, and optional read-only skill data are stored in a local
-SQLite database owned by Rust/Tauri. The app has no cloud inference, cloud account, exchange API
-secret, wallet signing, authentication, telemetry, or trading execution functionality.
+SQLite database owned by Rust/Tauri. Conversation inference currently uses DeepSeek V4 Flash
+through NVIDIA's hosted OpenAI-compatible API, so messages and selected bounded context leave the
+device for inference. The app has no wallet signing, telemetry, authentication system, or trading
+execution functionality.
 
 This repository is currently labeled **BETA v0.3** while the product direction and companion
 experience are under active development. Milestone notes are recorded in
@@ -66,8 +78,9 @@ The latest Task 12B checkpoint report is
 - Rust stable
 - Microsoft C++ Build Tools with the Desktop development with C++ workload
 - Microsoft Edge WebView2 Runtime
-- [Ollama](https://ollama.com) running locally on `127.0.0.1:11434`
-- At least one locally installed Ollama model
+- An NVIDIA API key with access to `deepseek-ai/deepseek-v4-flash`
+- Internet access for conversation inference
+- Optional: [Ollama](https://ollama.com) for local embeddings and background memory extraction
 
 Enable the project-pinned pnpm version with Corepack:
 
@@ -101,37 +114,44 @@ cd ..\..
 
 No Hermes Desktop or public gateway port is launched by the canonical app.
 
-## Local AI setup
+## Cloud AI setup
 
-Install Ollama from its official website, then start the Ollama application or service. Trading
-Buddy does not start Ollama, download models, or execute setup commands for you.
+The visible companion conversation is pinned to `deepseek-ai/deepseek-v4-flash` at
+`https://integrate.api.nvidia.com/v1`. See the
+[official NVIDIA model page](https://build.nvidia.com/deepseek-ai/deepseek-v4-flash). Never commit
+an API key.
 
-Check the installed models:
-
-```powershell
-ollama list
-```
-
-The recommended small Qwen model is configured centrally as `qwen3:4b`. Install it manually if
-needed:
+For development, choose one credential source:
 
 ```powershell
-ollama pull qwen3:4b
+# Preferred: current shell only
+$env:NVIDIA_API_KEY = "your-key"
+
+# Or point to a private file outside the repository
+$env:TRADING_BUDDY_NVIDIA_API_KEY_FILE = "C:\private\nvidia-api.txt"
 ```
 
-Semantic continuity uses a separate embedding model, configured by default as
-`embeddinggemma:300m`. Trading Buddy never downloads it silently. Install it explicitly when you
-want semantic paraphrase retrieval:
+An ignored `nvidia-api.txt` in the project root is also supported for local development. The file
+may contain only the key or one code sample containing exactly one `nvapi-...` token. The key is
+read by Rust at process start, passed only to the private backend subprocess, and never written to
+the generated provider config, SQLite, frontend state, diagnostics, or Git.
+
+The app visibly discloses that message text and selected companion context are sent to NVIDIA for
+inference. Local-first now describes data ownership and application storage, not fully offline
+inference.
+
+### Optional local continuity models
+
+Ollama is no longer required for visible conversation. It remains optional for semantic embeddings
+and background memory extraction. Trading Buddy does not start Ollama or download models.
+
+Install `embeddinggemma:300m` explicitly when you want semantic paraphrase retrieval:
 
 ```powershell
 ollama pull embeddinggemma:300m
 ```
 
-Without that model, conversations still work and continuity reports **Lexical memory mode**.
-
-Other installed models can be selected in the application. The production endpoint is fixed to
-`http://127.0.0.1:11434`. Debug builds may use `TRADING_BUDDY_OLLAMA_ENDPOINT`, but the value must
-still be an explicit loopback HTTP URL such as `http://127.0.0.1:11435`.
+Without Ollama, cloud conversations still work and continuity reports **Lexical memory mode**.
 
 ## Run
 
@@ -149,7 +169,7 @@ pnpm dev
 
 The browser frontend defaults to the Companion Home view. Append `?view=buddy` to preview the buddy
 view or `?view=bubble` to preview the attached conversation bubble. Native window behavior, storage
-paths, idle awareness, and Ollama requests require the Tauri desktop application.
+paths, idle awareness, and companion inference require the Tauri desktop application.
 
 ## Desktop companion startup
 
@@ -158,31 +178,31 @@ Trading Buddy now starts companion-first:
 - The buddy appears on the desktop.
 - Companion Home stays hidden by default.
 - The tray remains available.
-- Local AI or storage failures do not automatically open the full application.
+- Inference or storage failures do not automatically open the full application.
 - The buddy position is restored and clamped to a current monitor work area.
 - Missing, extreme, or disconnected-monitor positions recover to a safe visible location.
 - The buddy can autonomously fall to a surface, walk short bounded distances, sit, rest, write, and
-  sleep without Ollama.
+  sleep without inference.
 - Click, six-pixel drag threshold, native pickup/drop, moving-window following, and reduced-motion
   behavior are represented by deterministic interaction and physics state.
 
 The persisted setting `Open Companion Home at startup` exists and defaults to disabled.
 
-## Using local chat
+## Using companion chat
 
-1. Start Ollama.
-2. Confirm at least one model appears in `ollama list`.
-3. Run `pnpm tauri dev`.
-4. Click the buddy to open the attached bubble.
-5. Type a message and press Enter. Use Shift+Enter for a newline.
-6. Use **Stop** to cancel the active local request.
+1. Configure the NVIDIA API key using one of the private sources above.
+2. Run `pnpm tauri dev`.
+3. Click the buddy to open the attached bubble.
+4. Type a message and press Enter. Use Shift+Enter for a newline.
+5. Use **Stop** to cancel the active cloud request.
+6. Watch the provider disclosure/status in Companion Home.
 7. Select Listen, Reflect, Plan, Hang out, or Presence to send explicit support-mode metadata.
 8. Use **Retry** to create a new assistant attempt without duplicating the user message, or
    **Copy** to copy an assistant response through an explicit user action.
 
-The bubble shows local AI status, the selected model, recent messages, a multiline input, collapse
-control, and an explicit **Open Home** action. It streams through the existing local Ollama and
-SQLite persistence pipeline instead of creating a separate chat backend.
+The bubble shows cloud companion status, the pinned model, recent messages, a multiline input,
+collapse control, and an explicit **Open Home** action. It shares the Rust-owned session and local
+SQLite transcript with Companion Home instead of creating a separate chat backend.
 
 Companion Home can still be opened explicitly from the bubble, tray, or app controls for history,
 privacy/storage tools, development labs, and deeper conversations.
@@ -215,9 +235,9 @@ The desktop bubble also includes compact read-only trading cards for the current
 - open orders;
 - refresh/cancel controls for the selected account only.
 
-These cards remain useful when Ollama is offline. For trading fact questions sent through the
+These cards remain useful when cloud inference is offline. For trading fact questions sent through the
 bubble, Buddy builds a bounded local context from saved facts and labels it as read-only,
-exchange-reported, and possibly stale before sending it to the selected local model. Requests to
+exchange-reported, and possibly stale before sending it to the pinned cloud model. Requests to
 place, close, cancel, or modify trades bypass the model and receive a deterministic refusal.
 
 The selected Hyperliquid account is stored in Rust-owned SQLite app settings and shared between
@@ -308,7 +328,7 @@ write directly to SQLite. Proposals are schema-validated, checked for prohibited
 shown to the user.
 
 The default mode is **Ask every time**. Proposed memories are not used until confirmed. When a
-confirmed memory is relevant, it is added to the local model request as labelled user-approved
+confirmed memory is relevant, it is added to the cloud model request as labelled user-approved
 context below the companion system prompt. It is not treated as a system instruction.
 
 Open **What Buddy Knows About Me** in Companion Home to:
@@ -420,7 +440,7 @@ Companion Lab is shown at the bottom of the main Chat view in development builds
 - Preview typed emotion/activity combinations.
 - Preview every legacy buddy state used by the current command bridge.
 - Show, hide, or focus the buddy window.
-- Run a mock streamed response without Ollama.
+- Run a mock streamed response without making a cloud request.
 - Simulate cancellation and provider errors.
 - Inspect proactive check-in templates and placement modes.
 - Inspect the current provider, model, request, and buddy state.
@@ -430,7 +450,7 @@ fixture generation, fixture cleanup, and FTS search checks.
 
 Development builds include **Trading Lab** for read-only Hyperliquid QA. It can create fixture
 accounts, run scenario syncs, cancel an active sync, inspect diagnostics/progress, and preview the
-bounded trading context that would be provided to the local model for account, position, fill,
+bounded trading context that would be provided to the cloud model for account, position, fill,
 funding, or order questions.
 
 ## Storage Lab
@@ -511,9 +531,9 @@ application config directory. Conversations are stored separately in the app-loc
 
 ## Known limitations
 
-- Only Ollama's native local API is implemented.
+- Visible conversation currently depends on NVIDIA's hosted DeepSeek V4 Flash endpoint.
 - Exactly one generation may run per conversation.
-- Model installation and Ollama startup remain manual.
+- API-key provisioning remains a manual development step; OS credential storage is not implemented.
 - Thinking content is never rendered as normal chat output.
 - The conversation database is not application-level encrypted yet.
 - Global shortcut registration is not implemented yet.

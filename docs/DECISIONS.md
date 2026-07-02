@@ -799,3 +799,21 @@ Gateway loss finalizes an active turn as recoverable, performs only bounded proc
 requires an explicit retry with a new request ID. Retry reuses the original user message and
 creates a new assistant attempt. This favors duplicate safety over pretending an ambiguous remote
 operation is safe to repeat.
+
+## 093 - Pin visible conversation to NVIDIA-hosted DeepSeek V4 Flash
+
+**Status:** Accepted for BETA v0.3 development
+
+The user explicitly selected cloud inference through NVIDIA's OpenAI-compatible endpoint and
+`deepseek-ai/deepseek-v4-flash`. Rust owns the provider and model constants and ignores frontend
+model selection for shared companion turns. Messages and bounded selected context leave the device,
+while transcripts, memories, journals, preferences, and read-only trading snapshots remain local.
+
+Alternatives considered were retaining Ollama for visible chat or exposing arbitrary provider/model
+selection in React. The fixed native route makes the current boundary easier to validate and keeps
+the product UI separate from the backend/session fork. Ollama remains optional for embeddings and
+background memory extraction.
+
+The credential is never stored in repository files, generated YAML, SQLite, frontend state, or
+diagnostics. Development supports an environment variable or ignored private file. OS credential
+storage is required before production distribution.

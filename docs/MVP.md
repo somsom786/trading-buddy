@@ -2,7 +2,7 @@
 
 ## Task 12C shared-session evidence
 
-The MVP target remains a local-first desktop creature with private conversation, memory, journal,
+The MVP target remains a local-first desktop creature with local transcripts, memory, journal,
 and optional read-only skills. Task 12 adds evidence that a Hermes/Petdex shell can support that
 direction:
 
@@ -11,7 +11,7 @@ direction:
 - pet click opens the composer;
 - existing Petdex skin selection is reachable from the buddy bubble, pet menu, and tray;
 - the project-owned Bubble and Companion Home share one Rust-owned session and local transcript;
-- real local Ollama output streams through the pinned Hermes gateway over private stdio;
+- NVIDIA-hosted DeepSeek V4 Flash output is routed through the private backend/session gateway;
 - stop, retry without duplicate user messages, explicit copy, five support modes, transcript
   restoration, temporary sessions, and bounded reconnect are implemented;
 - default companion mode uses zero tools;
@@ -23,15 +23,15 @@ open.
 
 ## Goal
 
-Validate that a private local creature can physically live on the desktop, continue functioning
-without a model, hold natural local conversations, and remember a meaningful project or event
+Validate that a local-first creature can physically live on the desktop, continue functioning
+without inference, hold natural conversations, and remember a meaningful project or event
 across restart under transparent user control.
 
 ## Candidate MVP scope
 
 - Desktop buddy visible at launch without opening Companion Home.
 - User-choosable pet skin through one canonical Petdex skin system.
-- Attached conversation bubble for the user's everyday local chat, using existing Ollama streaming
+- Attached conversation bubble for everyday chat, using cloud streaming with explicit disclosure
   and privacy-first local conversation persistence.
 - Deterministic creature movement with safe spawn, walking, falling, landing, drag/drop, recovery,
   edge handling, reduced motion, and a guaranteed bring-back path.

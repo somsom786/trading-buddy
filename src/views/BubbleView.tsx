@@ -27,16 +27,13 @@ import {
   validateMessageInput,
 } from '../domain/conversation/session';
 import { LOCAL_AI_CONFIG } from '../domain/local-ai/config';
-import { selectPreferredModel } from '../domain/local-ai/modelSelection';
 import { COMPANION_SYSTEM_PROMPT } from '../domain/local-ai/systemPrompt';
 import { buildTradingContext } from '../domain/trading/context';
 import { readOnlyExecutionRefusal } from '../domain/trading/formatting';
 import { detectTradingIntent, type TradingIntent } from '../domain/trading/intents';
-import {
-  normalizeLocalAiError,
-  type LocalAiStatus,
-  type LocalChatEvent,
-} from '../domain/local-ai/types';
+import { type LocalChatEvent } from '../domain/local-ai/types';
+import { AGENT_PROVIDER_CONFIG } from '../domain/agent-session/provider';
+import type { AgentConnectionStatus } from '../domain/agent-session/types';
 import {
   normalizeStorageError,
   storedMessageToChatMessage,
@@ -153,7 +150,6 @@ export function BubbleView({
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<PersistenceMode>('persistent');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [providerStatus, setProviderStatus] = useState<LocalAiStatus>({ status: 'checking' });
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [storageError, setStorageError] = useState<StorageError | null>(null);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
@@ -173,7 +169,7 @@ export function BubbleView({
   );
   const activeRequestRef = useRef<string | null>(null);
   const nativeRequestInFlightRef = useRef(false);
-  const selectedModelRef = useRef<string | null>(null);
+  const selectedModelRef = useRef<string | null>(AGENT_PROVIDER_CONFIG.model);
   const persistenceRef = useRef<ActiveAssistantPersistence | null>(null);
   const pendingPostTurnRef = useRef<PendingPostTurn | null>(null);
 
@@ -181,6 +177,11 @@ export function BubbleView({
     activeRequestRef.current = agentSession.snapshot.activeRequestId ?? session.activeRequestId;
     selectedModelRef.current = session.selectedModel;
   }, [agentSession.snapshot.activeRequestId, session.activeRequestId, session.selectedModel]);
+
+  useEffect(() => {
+    selectedModelRef.current = AGENT_PROVIDER_CONFIG.model;
+    dispatch({ type: 'provider_ready', selectedModel: AGENT_PROVIDER_CONFIG.model });
+  }, []);
 
   useEffect(() => {
     void agentSessionService.start().catch(() => undefined);
@@ -324,39 +325,6 @@ export function BubbleView({
     [dispatchJournal, journalSession, setBuddyState, storageService],
   );
 
-  const refreshModels = useCallback(async () => {
-    setProviderStatus({ status: 'checking' });
-    dispatch({ type: 'provider_checking' });
-    try {
-      const models = await localAiService.listModels();
-      const persistedSelection =
-        selectedModelRef.current ??
-        (await storageService
-          .getSettings()
-          .then((settings) => settings.selectedLocalModel ?? null)
-          .catch(() => null));
-      const selectedModel = selectPreferredModel(models, persistedSelection);
-      if (!selectedModel) {
-        setProviderStatus({ status: 'no_models' });
-        setBuddyState(buddyStateForLifecycle('provider_unavailable'));
-        return;
-      }
-      setProviderStatus({ status: 'connected', models });
-      selectedModelRef.current = selectedModel;
-      dispatch({ type: 'provider_ready', selectedModel });
-      setBuddyState('idle');
-    } catch (error) {
-      const normalized = normalizeLocalAiError(error);
-      setProviderStatus(
-        normalized.code === 'ollama_not_running'
-          ? { status: 'ollama_not_running' }
-          : { status: 'error', error: normalized },
-      );
-      dispatch({ type: 'provider_failed', error: normalized });
-      setBuddyState(buddyStateForLifecycle('provider_unavailable'));
-    }
-  }, [localAiService, setBuddyState, storageService]);
-
   useEffect(() => {
     void (async () => {
       try {
@@ -367,10 +335,6 @@ export function BubbleView({
           return;
         }
         const settings = await storageService.getSettings();
-        if (settings.selectedLocalModel) {
-          selectedModelRef.current = settings.selectedLocalModel;
-          dispatch({ type: 'select_model', model: settings.selectedLocalModel });
-        }
         const lastConversationId = settings.lastOpenedConversationId;
         if (lastConversationId) {
           const detail = await storageService.getConversation(lastConversationId);
@@ -382,7 +346,7 @@ export function BubbleView({
           });
           await agentSessionService.open({
             localConversationId: lastConversationId,
-            model: settings.selectedLocalModel ?? LOCAL_AI_CONFIG.recommendedModel,
+            model: AGENT_PROVIDER_CONFIG.model,
             temporary: false,
           });
         }
@@ -390,13 +354,7 @@ export function BubbleView({
         setStorageError(normalizeStorageError(error));
       }
     })();
-    const timer = window.setTimeout(() => {
-      void refreshModels();
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [agentSessionService, refreshModels, storageService]);
+  }, [agentSessionService, storageService]);
 
   useEffect(() => {
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -575,8 +533,8 @@ export function BubbleView({
         appendDeterministicReply(
           validation.content,
           accountId
-            ? 'Local AI is offline, but your saved account fact cards are still available below.'
-            : 'Local AI is offline, and no Hyperliquid account is selected. Open Trading to connect or select an account.',
+            ? 'The cloud companion is offline, but your saved account fact cards are still available below.'
+            : 'The cloud companion is offline, and no Hyperliquid account is selected. Open Trading to connect or select an account.',
         );
       }
       return;
@@ -611,7 +569,7 @@ export function BubbleView({
       }
     }
     const requestId = createId('request');
-    const selectedModel = session.selectedModel;
+    const selectedModel = AGENT_PROVIDER_CONFIG.model;
     let conversationId = session.id;
     const assistantMessage = createChatMessage('assistant', '');
     let memoryContext: string | null = null;
@@ -845,7 +803,7 @@ export function BubbleView({
   const latestSharedAssistant = [...agentSession.snapshot.messages]
     .reverse()
     .find((message) => message.role === 'assistant');
-  const modelLabel = session.selectedModel ?? 'No model selected';
+  const modelLabel = AGENT_PROVIDER_CONFIG.modelLabel;
   const journalActive =
     journalSession.status === 'active' ||
     journalSession.status === 'reviewing' ||
@@ -884,7 +842,7 @@ export function BubbleView({
         <header className="bubble-card__header">
           <div>
             <strong>Buddy</strong>
-            <span>{statusLabel(providerStatus)}</span>
+            <span>{statusLabel(agentSession.snapshot.connectionStatus)}</span>
           </div>
           <div className="bubble-card__actions">
             <button
@@ -974,7 +932,7 @@ export function BubbleView({
                 void agentSession.retry({
                   requestId: createId('request'),
                   turnId: createId('turn'),
-                  model: session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel,
+                  model: AGENT_PROVIDER_CONFIG.model,
                   hiddenContext: '',
                 })
               }
@@ -1080,10 +1038,15 @@ export function BubbleView({
           </div>
         ) : null}
 
-        {providerStatus.status === 'ollama_not_running' || providerStatus.status === 'error' ? (
+        {agentSession.snapshot.connectionStatus === 'offline' ||
+        agentSession.snapshot.connectionStatus === 'failed' ? (
           <div className="bubble-error" role="alert">
-            Local AI is offline.
-            <button type="button" className="text-button" onClick={() => void refreshModels()}>
+            Cloud companion is offline.
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => void agentSession.retryConnection()}
+            >
               Retry
             </button>
           </div>
@@ -1094,7 +1057,8 @@ export function BubbleView({
           <TradingBubblePanel
             windowService={windowService}
             localAiOffline={
-              providerStatus.status === 'ollama_not_running' || providerStatus.status === 'error'
+              agentSession.snapshot.connectionStatus === 'offline' ||
+              agentSession.snapshot.connectionStatus === 'failed'
             }
           />
         </details>
@@ -1159,17 +1123,20 @@ function PetSkinThumbnail({ skin }: { skin: PetSkinSelection }) {
   );
 }
 
-function statusLabel(status: LocalAiStatus): string {
-  switch (status.status) {
-    case 'checking':
-      return 'checking local AI';
-    case 'connected':
-      return 'local AI ready';
-    case 'ollama_not_running':
+function statusLabel(status: AgentConnectionStatus): string {
+  switch (status) {
+    case 'stopped':
+      return 'cloud companion stopped';
+    case 'starting':
+    case 'connecting':
+      return 'connecting';
+    case 'ready':
+      return 'DeepSeek ready';
+    case 'reconnecting':
+      return 'reconnecting';
+    case 'offline':
       return 'offline';
-    case 'no_models':
-      return 'no model';
-    case 'error':
+    case 'failed':
       return 'needs attention';
   }
 }

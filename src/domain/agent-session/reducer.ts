@@ -73,7 +73,7 @@ function reduceAcceptedEvent(
         connectionStatus: 'reconnecting',
         recoverableError: {
           code: 'request_interrupted',
-          userMessage: 'Buddy lost the local agent connection. Your message was not resubmitted.',
+          userMessage: 'Buddy lost the companion connection. Your message was not resubmitted.',
           retryable: true,
         },
         diagnostics: {

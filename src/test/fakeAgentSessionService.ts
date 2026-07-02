@@ -11,12 +11,13 @@ import type {
 interface FakeAgentSessionOptions {
   responseText?: string;
   holdResponse?: boolean;
+  connectionStatus?: AgentSessionSnapshot['connectionStatus'];
 }
 
 export function createFakeAgentSessionService(options: FakeAgentSessionOptions = {}) {
   let snapshot: AgentSessionSnapshot = {
     ...INITIAL_AGENT_SESSION_SNAPSHOT,
-    connectionStatus: 'ready',
+    connectionStatus: options.connectionStatus ?? 'ready',
   };
   const listeners = new Set<(value: AgentSessionSnapshot) => void>();
   let release: (() => void) | undefined;

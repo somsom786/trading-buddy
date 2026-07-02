@@ -62,7 +62,7 @@ export const tauriAgentSessionService: AgentSessionService = {
     ensureTauri();
     const value = await invoke<unknown>('agent_runtime_status');
     if (!isRuntimeDiagnostics(value)) {
-      throw new Error('Invalid local agent diagnostics response.');
+      throw new Error('Invalid companion runtime diagnostics response.');
     }
     return value;
   },
@@ -97,7 +97,7 @@ export const tauriAgentSessionService: AgentSessionService = {
     ensureTauri();
     const value = await invoke<unknown>('agent_session_purge_conversation', { conversationId });
     if (typeof value !== 'boolean') {
-      throw new Error('Invalid local agent cleanup response.');
+      throw new Error('Invalid companion cleanup response.');
     }
     return value;
   },
@@ -105,7 +105,7 @@ export const tauriAgentSessionService: AgentSessionService = {
     ensureTauri();
     const value = await invoke<unknown>('agent_session_purge_all');
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
-      throw new Error('Invalid local agent cleanup response.');
+      throw new Error('Invalid companion cleanup response.');
     }
     return value;
   },
@@ -149,7 +149,7 @@ async function invokeSnapshot(
 
 function ensureTauri(): void {
   if (!hasTauri()) {
-    throw new Error('The shared local agent session is available in the desktop application.');
+    throw new Error('The shared companion session is available in the desktop application.');
   }
 }
 

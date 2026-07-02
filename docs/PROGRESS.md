@@ -6,6 +6,23 @@ Trading Buddy is currently in active development under the label **BETA v0.3**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### July 2, 2026 - Task 12D DeepSeek cloud provider and public vision
+
+- Pinned visible companion conversation to NVIDIA-hosted DeepSeek V4 Flash while keeping
+  transcripts, journal, memory, preferences, and read-only trading snapshots local.
+- Added private credential loading with no key in generated YAML, SQLite, React state, diagnostics,
+  or Git.
+- Replaced primary Ollama/model-selection UI with a cloud-provider status and explicit data-boundary
+  disclosure; Ollama remains optional for embeddings and background extraction.
+- Added top-level [`VISION.md`](../VISION.md), project-owned concept/pose images, and a Vision-first
+  README with a concrete north-star interaction example.
+- Verified authenticated model discovery in 211 ms, but direct and full app-path generation did not
+  return within 90–180 seconds, so first-token/completion speed remains unverified.
+- Passed 183 frontend tests, 99 non-network Rust tests, formatting, lint, strict TypeScript, Clippy,
+  frontend build, and a Tauri release build.
+- Detailed handoff report:
+  [`docs/reports/TASK-012D-deepseek-cloud-vision.md`](reports/TASK-012D-deepseek-cloud-vision.md)
+
 ### July 1, 2026 - Task 12C shared companion session checkpoint
 
 - Connected the project-owned Bubble and Companion Home to one Rust-owned Hermes-derived session

@@ -20,14 +20,13 @@ import {
   validateMessageInput,
 } from '../../domain/conversation/session';
 import { LOCAL_AI_CONFIG } from '../../domain/local-ai/config';
-import { selectPreferredModel } from '../../domain/local-ai/modelSelection';
 import { COMPANION_SYSTEM_PROMPT } from '../../domain/local-ai/systemPrompt';
 import {
-  normalizeLocalAiError,
   type LocalAiError,
   type LocalAiStatus,
   type LocalChatEvent,
 } from '../../domain/local-ai/types';
+import { AGENT_PROVIDER_CONFIG } from '../../domain/agent-session/provider';
 import {
   normalizeStorageError,
   storedMessageToChatMessage,
@@ -71,9 +70,8 @@ import { MemoryLab } from '../local-ai/MemoryLab';
 import { StorageLab } from '../local-ai/StorageLab';
 import { TradingLab } from '../local-ai/TradingLab';
 import { ChatComposer } from './ChatComposer';
-import { LocalAiStatusPanel } from './LocalAiStatusPanel';
+import { AgentProviderPanel } from './AgentProviderPanel';
 import { MessageList } from './MessageList';
-import { ModelSelector } from './ModelSelector';
 import { MemoryPanel } from '../memory/MemoryPanel';
 import { MemoryProposalCard } from '../memory/MemoryProposalCard';
 import { JournalPanel } from '../journal/JournalPanel';
@@ -138,7 +136,10 @@ export function ChatWorkspace({
   const [session, dispatch] = useReducer(conversationReducer, undefined, () =>
     createConversationSession(),
   );
-  const [providerStatus, setProviderStatus] = useState<LocalAiStatus>({ status: 'checking' });
+  const providerStatus: LocalAiStatus = {
+    status: 'connected',
+    models: [{ name: AGENT_PROVIDER_CONFIG.model }],
+  };
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [storageDiagnostics, setStorageDiagnostics] = useState<StorageDiagnostics | null>(null);
   const [memoryDiagnostics, setMemoryDiagnostics] = useState<MemoryDiagnostics | null>(null);
@@ -152,7 +153,6 @@ export function ChatWorkspace({
   const [mode, setMode] = useState<PersistenceMode>('persistent');
   const [loadingStorage, setLoadingStorage] = useState(true);
   const [input, setInput] = useState('');
-  const [thinking, setThinking] = useState(false);
   const [buddyState, setBuddyStateValue] = useState<BuddyState>('idle');
   const [retentionPolicy, setRetentionPolicyState] = useState<RetentionPolicy>('keep_until_delete');
   const [lastExport, setLastExport] = useState<ExportResult | null>(null);
@@ -165,7 +165,7 @@ export function ChatWorkspace({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const activeRequestRef = useRef<string | null>(null);
   const nativeRequestInFlightRef = useRef(false);
-  const selectedModelRef = useRef<string | null>(null);
+  const selectedModelRef = useRef<string | null>(AGENT_PROVIDER_CONFIG.model);
   const requestKindRef = useRef<'real' | 'mock' | null>(null);
   const mockRunRef = useRef<{ requestId: string; cancelled: boolean } | null>(null);
   const errorTimerRef = useRef<number | null>(null);
@@ -177,6 +177,11 @@ export function ChatWorkspace({
     activeRequestRef.current = agentSession.snapshot.activeRequestId ?? session.activeRequestId;
     selectedModelRef.current = session.selectedModel;
   }, [agentSession.snapshot.activeRequestId, session.activeRequestId, session.selectedModel]);
+
+  useEffect(() => {
+    selectedModelRef.current = AGENT_PROVIDER_CONFIG.model;
+    dispatch({ type: 'provider_ready', selectedModel: AGENT_PROVIDER_CONFIG.model });
+  }, []);
 
   useEffect(() => {
     void agentSessionService.start().catch(() => undefined);
@@ -330,7 +335,7 @@ export function ChatWorkspace({
         await storageService.setLastOpenedConversation(conversationId);
         await agentSessionService.open({
           localConversationId: conversationId,
-          model: selectedModelRef.current ?? LOCAL_AI_CONFIG.recommendedModel,
+          model: AGENT_PROVIDER_CONFIG.model,
           temporary: false,
         });
       } catch (error) {
@@ -357,10 +362,6 @@ export function ChatWorkspace({
         }
         const settings = await storageService.getSettings();
         setRetentionPolicyState(settings.conversationRetentionPolicy);
-        if (settings.selectedLocalModel) {
-          selectedModelRef.current = settings.selectedLocalModel;
-          dispatch({ type: 'select_model', model: settings.selectedLocalModel });
-        }
         const { active } = await refreshConversationLists();
         const target =
           active.find((conversation) => conversation.id === settings.lastOpenedConversationId) ??
@@ -378,7 +379,7 @@ export function ChatWorkspace({
           await storageService.setLastOpenedConversation(target.id);
           await agentSessionService.open({
             localConversationId: target.id,
-            model: settings.selectedLocalModel ?? LOCAL_AI_CONFIG.recommendedModel,
+            model: AGENT_PROVIDER_CONFIG.model,
             temporary: false,
           });
         }
@@ -421,53 +422,6 @@ export function ChatWorkspace({
       cleanup();
     };
   }, [companionService, setBuddyState]);
-
-  const refreshModels = useCallback(async () => {
-    setProviderStatus({ status: 'checking' });
-    dispatch({ type: 'provider_checking' });
-    try {
-      const models = await localAiService.listModels();
-      const persistedSelection =
-        selectedModelRef.current ??
-        (await storageService
-          .getSettings()
-          .then((settings) => settings.selectedLocalModel ?? null)
-          .catch(() => null));
-      const selectedModel = selectPreferredModel(models, persistedSelection);
-      if (!selectedModel) {
-        setProviderStatus({ status: 'no_models' });
-        setBuddyState(buddyStateForLifecycle('provider_unavailable'));
-        return;
-      }
-      setProviderStatus({ status: 'connected', models });
-      dispatch({ type: 'provider_ready', selectedModel });
-      selectedModelRef.current = selectedModel;
-      void storageService.setSelectedModel(selectedModel).catch((error: unknown) => {
-        setStorageError(normalizeStorageError(error));
-      });
-      setBuddyState('idle');
-    } catch (error) {
-      const normalized = normalizeLocalAiError(error);
-      if (normalized.code === 'ollama_not_running') {
-        setProviderStatus({ status: 'ollama_not_running' });
-      } else if (normalized.code === 'no_models_installed') {
-        setProviderStatus({ status: 'no_models' });
-      } else {
-        setProviderStatus({ status: 'error', error: normalized });
-      }
-      dispatch({ type: 'provider_failed', error: normalized });
-      setBuddyState(buddyStateForLifecycle('provider_unavailable'));
-    }
-  }, [localAiService, setBuddyState, storageService]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void refreshModels();
-    }, 0);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [refreshModels]);
 
   const flushCheckpoint = useCallback(
     async (finalStatus?: 'completed' | 'cancelled' | 'failed', errorCode?: string) => {
@@ -588,15 +542,11 @@ export function ChatWorkspace({
         void flushCheckpoint('failed', event.error.code);
         setBuddyState(buddyStateForLifecycle('generation_failed'));
         errorTimerRef.current = window.setTimeout(() => {
-          setBuddyState(
-            providerStatus.status === 'connected'
-              ? 'idle'
-              : buddyStateForLifecycle('provider_unavailable'),
-          );
+          setBuddyState('idle');
         }, 1_200);
       }
     },
-    [flushCheckpoint, providerStatus.status, scheduleCheckpoint, setBuddyState],
+    [flushCheckpoint, scheduleCheckpoint, setBuddyState],
   );
 
   const startGeneration = useCallback(
@@ -609,7 +559,7 @@ export function ChatWorkspace({
         return;
       }
       const requestId = createId('request');
-      const selectedModel = session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel;
+      const selectedModel = AGENT_PROVIDER_CONFIG.model;
       let conversationId = session.id;
       const userMessage = createChatMessage('user', content);
       const assistantMessage = createChatMessage('assistant', '');
@@ -763,7 +713,7 @@ export function ChatWorkspace({
         { type: 'started', requestId },
         { type: 'content_delta', requestId, content: 'This is a ' },
         { type: 'content_delta', requestId, content: 'local mock stream. ' },
-        { type: 'content_delta', requestId, content: 'No Ollama request was made.' },
+        { type: 'content_delta', requestId, content: 'No cloud request was made.' },
         { type: 'completed', requestId },
       ];
       for (const event of mockEvents) {
@@ -886,10 +836,7 @@ export function ChatWorkspace({
     setBuddyState(
       value.trim()
         ? buddyStateForLifecycle('input_started')
-        : buddyStateForLifecycle(
-            'input_cleared',
-            providerStatus.status === 'connected' ? 'idle' : 'concerned',
-          ),
+        : buddyStateForLifecycle('input_cleared', 'idle'),
     );
   };
 
@@ -1205,7 +1152,6 @@ export function ChatWorkspace({
     }
   };
 
-  const models = providerStatus.status === 'connected' ? providerStatus.models : [];
   const sharedMessages = agentSession.snapshot.messages.map(agentMessageToChatMessage);
   const displayedMessages = sharedMessages.length > 0 ? sharedMessages : session.messages;
   const sharedGenerating = agentSession.snapshot.activeRequestId !== null;
@@ -1294,7 +1240,11 @@ export function ChatWorkspace({
       </aside>
 
       <section className="chat-workspace">
-        <LocalAiStatusPanel status={providerStatus} onRetry={() => void refreshModels()} />
+        <AgentProviderPanel
+          status={agentSession.snapshot.connectionStatus}
+          error={agentSession.error}
+          onRetry={() => void agentSession.retryConnection()}
+        />
 
         <div className="conversation-toolbar">
           <div>
@@ -1347,25 +1297,6 @@ export function ChatWorkspace({
             </div>
           )}
         </div>
-
-        {providerStatus.status === 'connected' ? (
-          <ModelSelector
-            models={models}
-            selectedModel={session.selectedModel}
-            thinking={thinking}
-            disabled={sharedGenerating || session.status === 'generating'}
-            onSelect={(model) => {
-              dispatch({ type: 'select_model', model });
-              if (model) {
-                selectedModelRef.current = model;
-                void storageService.setSelectedModel(model).catch((error: unknown) => {
-                  setStorageError(normalizeStorageError(error));
-                });
-              }
-            }}
-            onThinkingChange={setThinking}
-          />
-        ) : null}
 
         {storageError ? (
           <div className="chat-error storage-error" role="alert">
@@ -1449,7 +1380,7 @@ export function ChatWorkspace({
                 void agentSession.retry({
                   requestId: createId('request'),
                   turnId: createId('turn'),
-                  model: session.selectedModel ?? LOCAL_AI_CONFIG.recommendedModel,
+                  model: AGENT_PROVIDER_CONFIG.model,
                   hiddenContext: '',
                 })
               }

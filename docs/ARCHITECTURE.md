@@ -44,8 +44,9 @@ conversation surfaces
     -> narrow Tauri commands/events
       -> one Rust AgentSessionRuntime
         -> typed JSON-RPC over private stdio
-          -> pinned Trading Buddy Hermes gateway -> Ollama on loopback
+          -> pinned backend/session fork -> NVIDIA hosted DeepSeek V4 Flash
       -> Rust storage service -> SQLite in app-local data
+      -> optional Ollama loopback service -> embeddings/background extraction
       -> optional read-only skills -> allowlisted provider clients
 ```
 
@@ -68,6 +69,23 @@ recoverably failed, restart is bounded to 250 ms, 1 second, and 3 seconds, and a
 is resumed where possible. Missing backend state creates a continuation session whose next prompt
 receives bounded local context. Temporary chats use an explicit ephemeral gateway option and never
 create a durable SQLite mapping.
+
+## Cloud inference boundary
+
+Visible companion turns are pinned in Rust to `deepseek-ai/deepseek-v4-flash` through NVIDIA's
+OpenAI-compatible hosted endpoint. React-supplied model values are ignored at the native boundary,
+so frontend state cannot redirect prompts to a different model or provider.
+
+The NVIDIA credential is resolved at process start from `NVIDIA_API_KEY`, an explicitly configured
+private file, an app-local private file, or the ignored development `nvidia-api.txt`. Rust extracts
+one validated token and passes it only to the private backend subprocess environment. The generated
+runtime YAML references the environment variable and contains no credential. The key is not sent
+to React, SQLite, diagnostics, or logs.
+
+Local-first now applies to application ownership and durable user data, not to inference transport.
+Messages plus selected bounded companion context leave the device. The UI and README disclose this
+boundary. Ollama remains optional for local embeddings and background memory extraction; its
+availability does not gate visible chat.
 
 The product hierarchy is companion-first:
 

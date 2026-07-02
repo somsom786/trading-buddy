@@ -234,7 +234,7 @@ describe('BubbleView', () => {
     localStorage.clear();
   });
 
-  it('sends through the persistent storage and local AI pipeline', async () => {
+  it('sends through the persistent storage and shared cloud-agent pipeline', async () => {
     const user = userEvent.setup();
     const { service: storageService, prepareGeneration } = createStorageService();
     const agent = createFakeAgentSessionService({ responseText: 'Desk hello' });
@@ -259,7 +259,7 @@ describe('BubbleView', () => {
       />,
     );
 
-    await screen.findByText('local AI ready');
+    await screen.findByText('DeepSeek ready');
     await user.type(screen.getByRole('textbox', { name: 'Message Buddy' }), 'hello bubble');
     await user.keyboard('{Enter}');
 
@@ -287,7 +287,7 @@ describe('BubbleView', () => {
       />,
     );
 
-    await screen.findByText('local AI ready');
+    await screen.findByText('DeepSeek ready');
     await user.keyboard('{Escape}');
     expect(controlBubble).toHaveBeenCalledWith('hide');
 
@@ -297,7 +297,7 @@ describe('BubbleView', () => {
     });
   });
 
-  it('starts and explicitly saves a desktop journal session without calling local AI', async () => {
+  it('starts and explicitly saves a desktop journal session without calling inference', async () => {
     const user = userEvent.setup();
     const { service: storageService, createJournalEntry } = createStorageService();
     const streamChat = vi.fn();
@@ -315,7 +315,7 @@ describe('BubbleView', () => {
       />,
     );
 
-    await screen.findByText('local AI ready');
+    await screen.findByText('DeepSeek ready');
     await user.type(screen.getByRole('textbox', { name: 'Message Buddy' }), "let's journal");
     await user.keyboard('{Enter}');
 

@@ -327,7 +327,7 @@ describe('ChatWorkspace', () => {
     expect(getConversation).toHaveBeenCalledOnce();
   });
 
-  it('lists models and streams a response into the assistant placeholder', async () => {
+  it('uses the pinned cloud model and streams a response into the assistant placeholder', async () => {
     const user = userEvent.setup();
     const { service: storageService, prepareGeneration } = createStorageService();
     const agent = createFakeAgentSessionService({ responseText: 'Local hello' });
@@ -352,7 +352,7 @@ describe('ChatWorkspace', () => {
       />,
     );
 
-    await screen.findByText('Ollama connected');
+    await screen.findByText('Cloud companion ready');
     const input = screen.getByRole('textbox', { name: 'Message' });
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     await user.type(input, 'Hello');
@@ -390,7 +390,7 @@ describe('ChatWorkspace', () => {
         agentSessionService={agent.service}
       />,
     );
-    await screen.findByText('Ollama connected');
+    await screen.findByText('Cloud companion ready');
     await user.type(screen.getByRole('textbox', { name: 'Message' }), 'One request');
     await user.click(screen.getByRole('button', { name: 'Send' }));
     expect(screen.getByRole('button', { name: 'Stop generation' })).toBeInTheDocument();
@@ -402,7 +402,7 @@ describe('ChatWorkspace', () => {
     }
   });
 
-  it('shows an offline state without exposing a raw error as the heading', async () => {
+  it('shows a cloud-offline state without depending on Ollama discovery', async () => {
     const { service: storageService } = createStorageService();
     const service: LocalAiService = {
       listModels: vi.fn().mockRejectedValue({
@@ -420,16 +420,16 @@ describe('ChatWorkspace', () => {
         storageService={storageService}
         companionService={companionService}
         windowService={windowService}
-        agentSessionService={createFakeAgentSessionService().service}
+        agentSessionService={createFakeAgentSessionService({ connectionStatus: 'failed' }).service}
       />,
     );
     await waitFor(() => {
-      expect(screen.getByText('Local AI is offline')).toBeInTheDocument();
+      expect(screen.getByText('Cloud companion offline')).toBeInTheDocument();
     });
-    expect(screen.getByText(/127.0.0.1:11434/)).toBeInTheDocument();
+    expect(screen.queryByText(/127.0.0.1:11434/)).not.toBeInTheDocument();
   });
 
-  it('runs the Buddy Lab mock stream without Ollama or a selected model', async () => {
+  it('runs the Buddy Lab mock stream without making a cloud request', async () => {
     const user = userEvent.setup();
     const { service: storageService } = createStorageService();
     const streamChat = vi.fn();
@@ -451,9 +451,9 @@ describe('ChatWorkspace', () => {
         agentSessionService={createFakeAgentSessionService().service}
       />,
     );
-    await screen.findByText('Local AI is offline');
+    await screen.findByText('Cloud companion ready');
     await user.click(screen.getByRole('button', { name: 'Mock stream' }));
-    await screen.findByText('This is a local mock stream. No Ollama request was made.', undefined, {
+    await screen.findByText('This is a local mock stream. No cloud request was made.', undefined, {
       timeout: 2_000,
     });
     expect(streamChat).not.toHaveBeenCalled();
@@ -484,7 +484,7 @@ describe('ChatWorkspace', () => {
       />,
     );
 
-    await screen.findByText('Ollama connected');
+    await screen.findByText('Cloud companion ready');
     await user.click(screen.getByRole('button', { name: 'Temporary chat' }));
     expect(screen.getByText(/Temporary mode is in-memory only/)).toBeInTheDocument();
     await user.type(screen.getByRole('textbox', { name: 'Message' }), 'Do not save this');
@@ -519,7 +519,7 @@ describe('ChatWorkspace', () => {
       />,
     );
 
-    await screen.findByText('Ollama connected');
+    await screen.findByText('Cloud companion ready');
     await user.click(screen.getByText('Privacy and storage'));
     await user.click(screen.getByRole('button', { name: 'Export conversations' }));
 

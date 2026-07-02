@@ -15,6 +15,7 @@ use crate::{
     },
     hermes_process::{
         GatewayLaunchConfig, HermesProcessDiagnostics, HermesProcessManager, HermesRuntimeStatus,
+        COMPANION_MODEL, COMPANION_PROVIDER,
     },
     hermes_rpc::{GatewayEvent, HermesMethod},
     storage::{
@@ -39,14 +40,12 @@ pub struct AgentSessionRuntime {
     storage: StorageService,
     snapshot: Arc<Mutex<AgentSessionSnapshot>>,
     persistence: Arc<Mutex<Option<ActivePersistence>>>,
-    active_model: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct OpenSessionRequest {
     #[serde(rename = "localConversationId")]
     local_conversation_id: Option<String>,
-    model: String,
     temporary: bool,
 }
 
@@ -57,7 +56,6 @@ struct SubmitSessionRequest {
     request_id: String,
     turn_id: String,
     text: String,
-    model: String,
     temporary: bool,
     #[serde(default)]
     hidden_context: String,
@@ -68,7 +66,6 @@ struct SubmitSessionRequest {
 struct RetrySessionRequest {
     request_id: String,
     turn_id: String,
-    model: String,
     #[serde(default)]
     hidden_context: String,
 }
@@ -96,7 +93,6 @@ impl AgentSessionRuntime {
             storage,
             snapshot: Arc::new(Mutex::new(AgentSessionSnapshot::default())),
             persistence: Arc::new(Mutex::new(None)),
-            active_model: Arc::new(Mutex::new(None)),
         };
         runtime.spawn_monitors();
         Ok(runtime)
@@ -150,8 +146,6 @@ impl AgentSessionRuntime {
     }
 
     async fn open(&self, request: OpenSessionRequest) -> Result<AgentSessionSnapshot, String> {
-        validate_model(&request.model)?;
-        *self.active_model.lock().await = Some(request.model.clone());
         if let Some(conversation_id) = request.local_conversation_id.as_deref() {
             validate_identifier(conversation_id)?;
         }
@@ -223,8 +217,8 @@ impl AgentSessionRuntime {
                             json!({
                                 "cols": 80,
                                 "source": "trading_buddy",
-                                "model": request.model,
-                                "provider": "custom",
+                                "model": COMPANION_MODEL,
+                                "provider": COMPANION_PROVIDER,
                                 "close_on_disconnect": false,
                                 "trading_buddy_ephemeral": false,
                             }),
@@ -241,8 +235,8 @@ impl AgentSessionRuntime {
                     json!({
                         "cols": 80,
                         "source": "trading_buddy",
-                        "model": request.model,
-                        "provider": "custom",
+                        "model": COMPANION_MODEL,
+                        "provider": COMPANION_PROVIDER,
                         "close_on_disconnect": request.temporary,
                         "trading_buddy_ephemeral": request.temporary,
                     }),
@@ -287,7 +281,7 @@ impl AgentSessionRuntime {
             snapshot.recoverable_error = recovered_missing_session.then(|| AgentSessionError {
                 code: "session_not_found".to_owned(),
                 user_message:
-                    "Buddy safely continued this saved chat in a fresh local agent session."
+                    "Buddy safely continued this saved chat in a fresh companion session."
                         .to_owned(),
                 retryable: false,
             });
@@ -299,7 +293,6 @@ impl AgentSessionRuntime {
     async fn submit(&self, request: SubmitSessionRequest) -> Result<AgentSessionSnapshot, String> {
         validate_identifier(&request.request_id)?;
         validate_identifier(&request.turn_id)?;
-        validate_model(&request.model)?;
         let text = request.text.trim().to_owned();
         if text.is_empty() || text.len() > MAX_USER_MESSAGE_CHARS {
             return Err("Message is empty or too long.".to_owned());
@@ -354,7 +347,7 @@ impl AgentSessionRuntime {
                 request_id: request.request_id.clone(),
                 turn_id: request.turn_id.clone(),
                 user_content: text.clone(),
-                model_name: request.model.clone(),
+                model_name: COMPANION_MODEL.to_owned(),
                 support_mode: support_mode.as_str().to_owned(),
             };
             let prepared = self
@@ -401,7 +394,6 @@ impl AgentSessionRuntime {
             if let Err(error) = self
                 .open(OpenSessionRequest {
                     local_conversation_id: Some(conversation_id.clone()),
-                    model: request.model,
                     temporary: request.temporary,
                 })
                 .await
@@ -430,7 +422,7 @@ impl AgentSessionRuntime {
             .await
             .hermes_session_id
             .clone()
-            .ok_or_else(|| "No active local agent session.".to_owned())?;
+            .ok_or_else(|| "No active companion session.".to_owned())?;
         if let Err(error) = self
             .process
             .request(
@@ -530,7 +522,7 @@ impl AgentSessionRuntime {
                             AgentStreamEventType::Failed,
                             Some(AgentSessionError {
                                 code: "internal_error".to_owned(),
-                                user_message: "The local model could not complete this response."
+                                user_message: "The cloud model could not complete this response."
                                     .to_owned(),
                                 retryable: true,
                             }),
@@ -544,7 +536,7 @@ impl AgentSessionRuntime {
                     AgentStreamEventType::Failed,
                     Some(AgentSessionError {
                         code: "internal_error".to_owned(),
-                        user_message: "The local agent reported an error.".to_owned(),
+                        user_message: "The companion runtime reported an error.".to_owned(),
                         retryable: true,
                     }),
                 )
@@ -557,7 +549,6 @@ impl AgentSessionRuntime {
     async fn retry(&self, request: RetrySessionRequest) -> Result<AgentSessionSnapshot, String> {
         validate_identifier(&request.request_id)?;
         validate_identifier(&request.turn_id)?;
-        validate_model(&request.model)?;
         if request.hidden_context.len() > MAX_HIDDEN_CONTEXT_CHARS {
             return Err("Hidden companion context is too large.".to_owned());
         }
@@ -573,7 +564,6 @@ impl AgentSessionRuntime {
             current = self
                 .open(OpenSessionRequest {
                     local_conversation_id: Some(conversation_id.clone()),
-                    model: request.model.clone(),
                     temporary: current.temporary,
                 })
                 .await?;
@@ -605,7 +595,7 @@ impl AgentSessionRuntime {
                 conversation_id: conversation_id.clone(),
                 request_id: request.request_id.clone(),
                 turn_id: request.turn_id.clone(),
-                model_name: request.model.clone(),
+                model_name: COMPANION_MODEL.to_owned(),
                 support_mode: support_mode.as_str().to_owned(),
             };
             let prepared = self
@@ -649,7 +639,7 @@ impl AgentSessionRuntime {
         self.set_buddy_state("listening");
         let session_id = current
             .hermes_session_id
-            .ok_or_else(|| "The local agent session could not be reopened.".to_owned())?;
+            .ok_or_else(|| "The companion session could not be reopened.".to_owned())?;
         if let Err(error) = self
             .process
             .request(
@@ -695,7 +685,7 @@ impl AgentSessionRuntime {
                     Some(AgentSessionError {
                         code: "request_interrupted".to_owned(),
                         user_message:
-                            "Buddy lost the local agent connection. Your message was not resubmitted."
+                            "Buddy lost the companion connection. Your message was not resubmitted."
                                 .to_owned(),
                         retryable: true,
                     }),
@@ -712,29 +702,22 @@ impl AgentSessionRuntime {
                 )
                 .await;
             }
-            let recovery = {
+            let (conversation_id, temporary) = {
                 let mut snapshot = self.snapshot.lock().await;
                 snapshot.hermes_session_id = None;
                 snapshot.hermes_session_key = None;
                 snapshot.diagnostics.reconnect_count =
                     snapshot.diagnostics.reconnect_count.saturating_add(1);
-                (
-                    snapshot.local_conversation_id.clone(),
-                    snapshot.temporary,
-                    self.active_model.lock().await.clone(),
-                )
+                (snapshot.local_conversation_id.clone(), snapshot.temporary)
             };
             if self.process.recover_bounded().await.is_ok() {
-                if let (Some(conversation_id), Some(model)) = (recovery.0, recovery.2) {
-                    if !recovery.1 {
-                        let _ = self
-                            .open(OpenSessionRequest {
-                                local_conversation_id: Some(conversation_id),
-                                model,
-                                temporary: false,
-                            })
-                            .await;
-                    }
+                if let Some(conversation_id) = conversation_id.filter(|_| !temporary) {
+                    let _ = self
+                        .open(OpenSessionRequest {
+                            local_conversation_id: Some(conversation_id),
+                            temporary: false,
+                        })
+                        .await;
                 }
                 self.snapshot.lock().await.connection_status = AgentConnectionStatus::Ready;
             } else {
@@ -743,7 +726,7 @@ impl AgentSessionRuntime {
                 snapshot.recoverable_error = Some(AgentSessionError {
                     code: "backend_unavailable".to_owned(),
                     user_message:
-                        "Buddy could not restart the local agent. Use Retry connection when ready."
+                        "Buddy could not restart the companion runtime. Use Retry connection when ready."
                             .to_owned(),
                     retryable: true,
                 });
@@ -907,7 +890,7 @@ impl AgentSessionRuntime {
             .await
             .hermes_session_id
             .clone()
-            .ok_or_else(|| "No active local agent session.".to_owned())?;
+            .ok_or_else(|| "No active companion session.".to_owned())?;
         self.process
             .request(
                 HermesMethod::SessionInterrupt,
@@ -1133,7 +1116,7 @@ pub async fn agent_session_open(
     request: Value,
 ) -> Result<AgentSessionSnapshot, String> {
     let request: OpenSessionRequest = serde_json::from_value(request)
-        .map_err(|_| "Invalid local agent session request.".to_owned())?;
+        .map_err(|_| "Invalid companion session request.".to_owned())?;
     runtime.open(request).await
 }
 
@@ -1143,7 +1126,7 @@ pub async fn agent_session_submit(
     request: Value,
 ) -> Result<AgentSessionSnapshot, String> {
     let request: SubmitSessionRequest = serde_json::from_value(request)
-        .map_err(|_| "Invalid local agent submit request.".to_owned())?;
+        .map_err(|_| "Invalid companion submit request.".to_owned())?;
     runtime.submit(request).await
 }
 
@@ -1153,7 +1136,7 @@ pub async fn agent_session_retry(
     request: Value,
 ) -> Result<AgentSessionSnapshot, String> {
     let request: RetrySessionRequest = serde_json::from_value(request)
-        .map_err(|_| "Invalid local agent retry request.".to_owned())?;
+        .map_err(|_| "Invalid companion retry request.".to_owned())?;
     runtime.retry(request).await
 }
 
@@ -1224,19 +1207,6 @@ fn validate_identifier(value: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err("Invalid local conversation ID.".to_owned())
-    }
-}
-
-fn validate_model(value: &str) -> Result<(), String> {
-    if !value.is_empty()
-        && value.len() <= 128
-        && value
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || "-_:.@/".contains(character))
-    {
-        Ok(())
-    } else {
-        Err("Invalid local model name.".to_owned())
     }
 }
 

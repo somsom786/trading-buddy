@@ -23,6 +23,37 @@ use crate::hermes_rpc::{
     MAX_GATEWAY_LINE_BYTES, RPC_TIMEOUT_SECONDS,
 };
 
+pub const COMPANION_MODEL: &str = "deepseek-ai/deepseek-v4-flash";
+pub const COMPANION_PROVIDER: &str = "custom:trading-buddy-nvidia";
+const NVIDIA_API_KEY_ENV: &str = "NVIDIA_API_KEY";
+const NVIDIA_API_KEY_FILE_ENV: &str = "TRADING_BUDDY_NVIDIA_API_KEY_FILE";
+const COMPANION_CONFIG: &str = r#"_config_version: 32
+custom_providers:
+  - name: trading-buddy-nvidia
+    provider_key: trading-buddy-nvidia
+    base_url: https://integrate.api.nvidia.com/v1
+    key_env: NVIDIA_API_KEY
+    api_mode: chat_completions
+    model: deepseek-ai/deepseek-v4-flash
+    max_output_tokens: 16384
+    extra_body:
+      temperature: 1
+      top_p: 0.95
+      chat_template_kwargs:
+        thinking: true
+        reasoning_effort: high
+model:
+  default: deepseek-ai/deepseek-v4-flash
+  provider: custom:trading-buddy-nvidia
+  context_length: 1000000
+  max_tokens: 16384
+fallback_providers: []
+toolsets:
+  - trading-buddy-companion
+display:
+  interface: cli
+"#;
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum HermesRuntimeStatus {
@@ -50,6 +81,7 @@ pub struct GatewayLaunchConfig {
     pub agent_root: PathBuf,
     pub python: PathBuf,
     pub hermes_home: PathBuf,
+    credential_file_candidates: Vec<PathBuf>,
 }
 
 impl GatewayLaunchConfig {
@@ -62,6 +94,10 @@ impl GatewayLaunchConfig {
         let agent_root = project_root.join("next").join("agent");
         let python = agent_root.join("venv").join("Scripts").join("python.exe");
         Ok(Self {
+            credential_file_candidates: vec![
+                app_data_dir.join("nvidia-api.txt"),
+                project_root.join("nvidia-api.txt"),
+            ],
             project_root,
             agent_root,
             python,
@@ -86,24 +122,7 @@ impl GatewayLaunchConfig {
         }
         std::fs::create_dir_all(&self.hermes_home).map_err(|error| error.to_string())?;
         let config_path = self.hermes_home.join("config.yaml");
-        if !config_path.exists() {
-            std::fs::write(
-                &config_path,
-                "_config_version: 32\n\
-model:\n\
-  default: qwen3:4b\n\
-  provider: custom\n\
-  base_url: http://127.0.0.1:11434/v1\n\
-  context_length: 65536\n\
-  ollama_num_ctx: 65536\n\
-fallback_providers: []\n\
-toolsets:\n\
-  - trading-buddy-companion\n\
-display:\n\
-  interface: cli\n",
-            )
-            .map_err(|error| error.to_string())?;
-        }
+        std::fs::write(&config_path, COMPANION_CONFIG).map_err(|error| error.to_string())?;
         let soul_target = self.hermes_home.join("SOUL.md");
         if !soul_target.exists() {
             let soul_source = self
@@ -115,6 +134,57 @@ display:\n\
             std::fs::copy(soul_source, soul_target).map_err(|error| error.to_string())?;
         }
         Ok(())
+    }
+
+    fn load_nvidia_api_key(&self) -> Result<String, String> {
+        if let Ok(value) = std::env::var(NVIDIA_API_KEY_ENV) {
+            return extract_nvidia_api_key(&value);
+        }
+        if let Ok(value) = std::env::var(NVIDIA_API_KEY_FILE_ENV) {
+            let path = PathBuf::from(value);
+            return read_nvidia_api_key(&path);
+        }
+        for path in &self.credential_file_candidates {
+            if path.is_file() {
+                return read_nvidia_api_key(path);
+            }
+        }
+        Err(
+            "NVIDIA API key is not configured. Set NVIDIA_API_KEY or use the ignored nvidia-api.txt development file."
+                .to_owned(),
+        )
+    }
+}
+
+fn read_nvidia_api_key(path: &Path) -> Result<String, String> {
+    let contents = std::fs::read_to_string(path)
+        .map_err(|_| "The configured NVIDIA API key file could not be read.".to_owned())?;
+    extract_nvidia_api_key(&contents)
+}
+
+fn extract_nvidia_api_key(contents: &str) -> Result<String, String> {
+    let mut candidates = Vec::new();
+    let mut remainder = contents;
+    while let Some(offset) = remainder.find("nvapi-") {
+        let candidate = &remainder[offset..];
+        let end = candidate
+            .find(|character: char| {
+                !(character.is_ascii_alphanumeric() || character == '-' || character == '_')
+            })
+            .unwrap_or(candidate.len());
+        let token = &candidate[..end];
+        if (16..=512).contains(&token.len()) && !candidates.contains(&token) {
+            candidates.push(token);
+        }
+        remainder = &candidate[end..];
+        if end == 0 {
+            break;
+        }
+    }
+    match candidates.as_slice() {
+        [token] => Ok((*token).to_owned()),
+        [] => Err("The NVIDIA API key is missing or malformed.".to_owned()),
+        _ => Err("The NVIDIA API key file contains multiple credentials.".to_owned()),
     }
 }
 
@@ -210,6 +280,7 @@ impl HermesProcessManager {
         }
         state.sender = None;
         self.config.prepare_home()?;
+        let nvidia_api_key = self.config.load_nvidia_api_key()?;
         let _ = self.status.send(HermesRuntimeStatus::Starting);
 
         let mut command = Command::new(&self.config.python);
@@ -220,6 +291,7 @@ impl HermesProcessManager {
             .env("HERMES_HOME", &self.config.hermes_home)
             .env("HERMES_TUI_TOOLSETS", "trading-buddy-companion")
             .env("TRADING_BUDDY_COMPANION", "1")
+            .env(NVIDIA_API_KEY_ENV, nvidia_api_key)
             .env_remove("HERMES_TUI_SIDECAR_URL")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -231,7 +303,7 @@ impl HermesProcessManager {
             command.as_std_mut().creation_flags(0x0800_0000);
         }
         let mut child = command.spawn().map_err(|error| {
-            let message = format!("Could not start the local agent gateway: {error}");
+            let message = format!("Could not start the companion runtime: {error}");
             let _ = self.status.send(HermesRuntimeStatus::Failed);
             message
         })?;
@@ -288,10 +360,10 @@ impl HermesProcessManager {
                 Ok(())
             }
             Err(_) => {
-                self.record_failure("Local agent gateway did not become ready in time.")
+                self.record_failure("Companion runtime did not become ready in time.")
                     .await;
                 let _ = self.stop().await;
-                Err("Local agent gateway did not become ready in time.".to_owned())
+                Err("Companion runtime did not become ready in time.".to_owned())
             }
         }
     }
@@ -590,6 +662,22 @@ mod tests {
     use super::{GatewayLaunchConfig, HermesProcessManager, HermesRuntimeStatus};
 
     #[test]
+    fn extracts_one_nvidia_key_without_persisting_it() {
+        let token = format!("{}{}", "nvapi-", "development-token-123456");
+        let source = format!("client = Example(api_key = \"{token}\")");
+        let key = super::extract_nvidia_api_key(&source).expect("one credential");
+        assert_eq!(key, token);
+    }
+
+    #[test]
+    fn rejects_missing_or_ambiguous_nvidia_keys() {
+        assert!(super::extract_nvidia_api_key("not a credential").is_err());
+        let first = format!("{}{}", "nvapi-", "development-token-123456");
+        let second = format!("{}{}", "nvapi-", "second-token-123456");
+        assert!(super::extract_nvidia_api_key(&format!("{first} {second}")).is_err());
+    }
+
+    #[test]
     fn locates_the_pinned_development_gateway_without_network_discovery() {
         let data = TempDir::new().expect("temp");
         let config = GatewayLaunchConfig::development(data.path()).expect("pinned gateway");
@@ -604,6 +692,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn launches_one_real_gateway_handshakes_and_shuts_it_down() {
         let data = TempDir::new().expect("temp");
+        let token = format!("{}{}", "nvapi-", "development-token-123456");
+        std::fs::write(data.path().join("nvidia-api.txt"), token).expect("test credential");
         let config = GatewayLaunchConfig::development(data.path()).expect("pinned gateway");
         let manager = HermesProcessManager::new(config);
 
@@ -618,8 +708,8 @@ mod tests {
                 json!({
                     "cols": 80,
                     "source": "trading_buddy_test",
-                    "model": "qwen3:4b",
-                    "provider": "custom",
+                    "model": super::COMPANION_MODEL,
+                    "provider": super::COMPANION_PROVIDER,
                     "close_on_disconnect": true,
                 }),
             )
@@ -645,8 +735,8 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "requires a running local Ollama with qwen3:8b installed"]
-    async fn streams_one_real_companion_turn_through_ollama() {
+    #[ignore = "requires an NVIDIA API key and network access"]
+    async fn streams_one_real_companion_turn_through_nvidia() {
         let data = TempDir::new().expect("temp");
         let config = GatewayLaunchConfig::development(data.path()).expect("pinned gateway");
         let manager = HermesProcessManager::new(config);
@@ -661,8 +751,8 @@ mod tests {
                 json!({
                     "cols": 80,
                     "source": "trading_buddy",
-                    "model": "qwen3:8b",
-                    "provider": "custom",
+                    "model": super::COMPANION_MODEL,
+                    "provider": super::COMPANION_PROVIDER,
                     "close_on_disconnect": true,
                     "trading_buddy_ephemeral": true,
                 }),
@@ -681,10 +771,10 @@ mod tests {
                 HermesMethod::PromptSubmit,
                 json!({
                     "session_id": session_id,
-                    "text": "Reply with one short calm sentence confirming the local test.",
+                    "text": "Reply with one short calm sentence confirming the companion test.",
                     "support_mode": "presence",
-                    "client_request_id": "real-ollama-smoke-1",
-                    "companion_context": "This is a bounded local integration smoke test.",
+                    "client_request_id": "real-nvidia-smoke-1",
+                    "companion_context": "This is a bounded cloud integration smoke test.",
                 }),
             )
             .await
@@ -713,12 +803,21 @@ mod tests {
                     break (visible_text, first_token);
                 }
                 if event.event_type == "error" {
-                    panic!("gateway reported a sanitized prompt error");
+                    let message = event
+                        .payload
+                        .as_ref()
+                        .and_then(|payload| payload.get("message"))
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("unknown gateway error");
+                    panic!(
+                        "gateway reported: {}",
+                        crate::hermes_rpc::sanitize_error_message(message)
+                    );
                 }
             }
         })
         .await
-        .expect("real local model response timed out");
+        .expect("real cloud model response timed out");
         assert!(!visible_text.trim().is_empty());
         println!(
             "gateway_ready_ms={} session_create_ms={} accepted_ms={} first_token_ms={} completed_ms={}",

@@ -30,7 +30,10 @@ export function MessageList({ messages, generating }: MessageListProps) {
         <div className="conversation-welcome">
           <span aria-hidden="true">◇</span>
           <h2>What’s on your mind?</h2>
-          <p>Your conversation stays on this device and is sent only to local Ollama.</p>
+          <p>
+            Your transcript stays on this device. Messages and selected context are sent to DeepSeek
+            through NVIDIA for inference.
+          </p>
         </div>
       ) : (
         messages.map((message) => (

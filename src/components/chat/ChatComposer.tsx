@@ -36,7 +36,7 @@ export function ChatComposer({
         value={input}
         maxLength={maxLength}
         rows={3}
-        placeholder="Talk to your local companion…"
+        placeholder="Talk to your companion…"
         aria-label="Message"
         onChange={(event) => {
           onInput(event.target.value);

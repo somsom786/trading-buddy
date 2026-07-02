@@ -5,5 +5,8 @@ coverage/
 .idea/
 .vscode/
 *.log
+nvidia-api.txt
+*.api-key
+.env.local
 src-tauri/target/
 src-tauri/gen/

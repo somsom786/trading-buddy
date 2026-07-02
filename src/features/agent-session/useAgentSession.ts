@@ -97,5 +97,5 @@ export function useAgentSession(
 }
 
 function errorMessage(value: unknown): string {
-  return value instanceof Error ? value.message : 'The local agent session is unavailable.';
+  return value instanceof Error ? value.message : 'The companion session is unavailable.';
 }

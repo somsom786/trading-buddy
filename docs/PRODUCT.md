@@ -5,11 +5,11 @@
 Task 12 keeps the current product promise while strengthening the existing Tauri body/runtime
 architecture:
 
-- Trading Buddy remains local-first and private by default.
+- Trading Buddy remains local-first for durable user data and transparent about cloud inference.
 - The buddy is still the primary product surface.
 - The full application window remains secondary.
 - Crypto-trader context is emotional/process support first, not order execution.
-- No private keys, seed phrases, exchange secrets, wallet signing, cloud account, telemetry, or
+- No private keys, seed phrases, exchange secrets, wallet signing, product account, telemetry, or
   autonomous trading are introduced.
 
 The project-owned Tauri/React application is the canonical frontend. The `next/agent` Hermes fork
@@ -18,7 +18,7 @@ read-only manifest boundary.
 
 Task 12B is making the Tauri application more pet-first: the detached buddy starts near the
 taskbar, opens a compact attached bubble, sleeps after inactivity, and offers optional Petdex skins
-without replacing the local offline buddy.
+without replacing the project-owned offline-capable buddy body.
 
 Task 12C connects that project-owned experience to one shared Hermes-derived execution runtime.
 The compact Bubble and Companion Home display the same Rust-authoritative conversation, support
@@ -27,7 +27,7 @@ not launch or embed Hermes Desktop.
 
 **Current development label:** BETA v0.3
 
-Trading Buddy is a private local AI creature that lives on the user's desktop, develops continuity
+Trading Buddy is a local-first AI creature that lives on the user's desktop, develops continuity
 through inspectable local memory, understands ordinary life and emotion, and speaks crypto
 natively without reducing the user to a wallet or PnL.
 
@@ -38,7 +38,7 @@ The north star is:
 ## Product principles
 
 - The creature is the product; the large application is secondary.
-- Local-first and useful without an account or a running model.
+- Local-first storage and useful as a desktop creature without an account or available inference.
 - Conversation should feel like talking to the creature, not operating a chat page.
 - Long-term continuity matters more than feature count.
 - Memory is inspectable, editable, correctable, exportable, and deletable.
@@ -56,7 +56,7 @@ The desktop creature is the primary product surface:
 ```text
 1. Living desktop creature
 2. Companion identity and emotional presence
-3. Natural local conversation
+3. Natural companion conversation
 4. Long-term personal continuity
 5. Journal, reminders, and shared routines
 6. Optional crypto and trading skills
@@ -67,14 +67,15 @@ The desktop creature is the primary product surface:
   can breathe, blink, look around, rest, sleep, wake, listen, think, and talk using deterministic
   visual states. In the Hermes/Petdex preview, the creature's skin is user-choosable through the
   canonical Petdex gallery.
-- **Attached conversation bubble:** a lightweight desktop bubble for everyday local conversation
+- **Attached conversation bubble:** a lightweight desktop bubble for everyday conversation
   without opening the full application.
 - **Companion Home:** the normal application window for history, privacy, storage, deeper
   conversations, development labs, and future journal/review/settings work.
 
 The buddy's physical presence, drag behavior, and deterministic ambient state do not depend on
-Ollama. Local conversation uses a loopback-only Ollama instance and Rust-owned SQLite persistence.
-Temporary chat remains available for in-memory-only sessions.
+inference. Conversation uses NVIDIA-hosted DeepSeek V4 Flash while Rust-owned SQLite remains
+authoritative for the transcript. Messages and selected bounded context leave the device; this is
+disclosed in the UI. Temporary chat remains available for in-memory-only sessions.
 
 Task 11 adds the first real body runtime: fixed-timestep movement, gravity, safe landing,
 out-of-bounds recovery, bounded autonomous actions, and a guaranteed Bring Buddy Back path. The

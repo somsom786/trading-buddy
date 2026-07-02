@@ -1621,6 +1621,31 @@ button {
   margin-left: auto;
 }
 
+.agent-provider-panel {
+  flex-wrap: wrap;
+}
+
+.agent-provider-panel > div {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-provider-panel > small {
+  flex-basis: 100%;
+  padding-left: 17px;
+  line-height: 1.4;
+}
+
+.agent-provider-panel--failed .connection-dot,
+.agent-provider-panel--offline .connection-dot {
+  background: #f28f86;
+  box-shadow: 0 0 9px rgb(242 143 134 / 35%);
+}
+
+.agent-provider-panel__error {
+  color: #f1a49d;
+}
+
 .setup-panel {
   padding: 18px;
   color: #a9b3c7;
