@@ -106,3 +106,42 @@ without overstating automated evidence.
 ## A2–A9
 
 Status: not started. Do not infer completion from automated baseline evidence.
+
+## A6 — Latency instrumentation and provider benchmark
+
+Status: implementation complete; native measurement pending the human walkthrough.
+
+Implemented content-free spans for:
+
+- Tauri application setup;
+- gateway spawn and readiness;
+- client context retrieval, budget construction, and hidden prompt construction;
+- Rust turn preparation, session open/resume, prompt dispatch, and acceptance;
+- first backend event, exact provider-request start, first visible content, and completion;
+- SQLite finalization;
+- cross-window event emission and frontend event-to-next-paint.
+
+The pinned fork emits `provider.request` immediately before `agent.run_conversation`. The event
+contains only the existing validated client request ID. Fork commit: `74a12b5aa`.
+
+Real DeepSeek V4 Pro samples:
+
+| Sample   | Gateway ready | Session | Accepted | First visible |  Complete |
+| -------- | ------------: | ------: | -------: | ------------: | --------: |
+| Baseline |        307 ms |  146 ms |    <1 ms |     12,725 ms | 13,028 ms |
+| A6-1     |        375 ms |  197 ms |    <1 ms |      7,541 ms |  7,804 ms |
+| A6-2     |        377 ms |  200 ms |    <1 ms |      5,172 ms |  5,755 ms |
+| A6-3     |        412 ms |  204 ms |    <1 ms |      5,791 ms |  6,056 ms |
+
+Median first-visible time across all four current-provider samples is 6,666 ms. This is below the
+historical approximately 17-second warm `qwen3:8b` result, but provider/network variation is real
+and the instrumentation is not presented as the cause.
+
+Focused verification completed:
+
+- 192 frontend tests passed across 54 files.
+- 102 Rust tests passed; one real-network test remains ignored by default.
+- Real NVIDIA application gateway test passed three times after instrumentation.
+- Focused provider-marker Python test passed.
+- Strict TypeScript, ESLint, Prettier, Rust format, and Clippy passed after replacing a helper newer
+  than the project's Rust 1.77.2 MSRV.

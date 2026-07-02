@@ -69,6 +69,27 @@ pub struct AgentSessionDiagnostics {
     pub duplicate_event_count: u64,
     pub stale_event_count: u64,
     pub reconnect_count: u64,
+    pub latency: AgentLatencyDiagnostics,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentLatencyDiagnostics {
+    pub client_context_retrieval_ms: Option<u64>,
+    pub client_context_budget_ms: Option<u64>,
+    pub client_prompt_construction_ms: Option<u64>,
+    pub rust_turn_preparation_ms: Option<u64>,
+    pub session_open_ms: Option<u64>,
+    pub prompt_dispatch_ms: Option<u64>,
+    pub prompt_accepted_at_ms: Option<u64>,
+    pub first_provider_event_at_ms: Option<u64>,
+    pub provider_request_started_at_ms: Option<u64>,
+    pub first_visible_content_at_ms: Option<u64>,
+    pub completion_received_at_ms: Option<u64>,
+    pub sqlite_finalization_ms: Option<u64>,
+    pub cross_window_broadcast_micros: Option<u64>,
+    pub frontend_render_ms: Option<u64>,
+    pub total_turn_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -108,6 +129,7 @@ impl Default for AgentSessionSnapshot {
                 duplicate_event_count: 0,
                 stale_event_count: 0,
                 reconnect_count: 0,
+                latency: AgentLatencyDiagnostics::default(),
             },
         }
     }

@@ -578,6 +578,7 @@ export function BubbleView({
     const tradingContext: string | null = preparedTradingContext;
     let memoryOptedOutForRequest = conversationMemoryOptOut;
     let memoryNotice: string | null = null;
+    const contextRetrievalStartedAt = performance.now();
 
     if (mode === 'persistent') {
       conversationId = activeConversationId ?? conversationId;
@@ -653,6 +654,8 @@ export function BubbleView({
       setUsedContinuity([]);
     }
 
+    const contextRetrievalMs = elapsedMilliseconds(contextRetrievalStartedAt);
+    const contextBudgetStartedAt = performance.now();
     const detectedMode = detectConversationMode(validation.content);
     const identityState = identityStateForMode(detectedMode.mode, Date.now());
     const supplementalContext = [tradingContext ? READ_ONLY_TRADING_RULES : null, tradingContext]
@@ -671,11 +674,14 @@ export function BubbleView({
       currentUserMessage: validation.content,
       recentMessageLimit: 12,
     });
+    const contextBudgetMs = elapsedMilliseconds(contextBudgetStartedAt);
+    const promptConstructionStartedAt = performance.now();
     const hiddenContext = buildHiddenCompanionContext(
       budget.messages
         .slice(0, -1)
         .map((message) => `${message.role.toUpperCase()}:\n${message.content}`),
     );
+    const promptConstructionMs = elapsedMilliseconds(promptConstructionStartedAt);
 
     activeRequestRef.current = requestId;
     setInput('');
@@ -700,6 +706,11 @@ export function BubbleView({
         model: selectedModel,
         temporary: mode === 'temporary',
         hiddenContext,
+        clientTimings: {
+          contextRetrievalMs,
+          contextBudgetMs,
+          promptConstructionMs,
+        },
       });
       setActiveConversationId(next.temporary ? null : next.localConversationId);
     } catch (error) {
@@ -1105,6 +1116,10 @@ export function BubbleView({
       </section>
     </main>
   );
+}
+
+function elapsedMilliseconds(startedAt: number): number {
+  return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
 function PetSkinThumbnail({ skin }: { skin: PetSkinSelection }) {

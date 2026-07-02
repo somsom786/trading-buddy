@@ -12,6 +12,7 @@ import {
   type AgentSessionService,
   type AgentSessionSubmitRequest,
 } from '../../services/tauri/agentSessionService';
+import { recordAgentRenderDuration } from '../../services/diagnostics/frontendTiming';
 
 export interface AgentSessionController {
   snapshot: AgentSessionSnapshot;
@@ -41,7 +42,11 @@ export function useAgentSession(
         dispatch({ type: 'replace_snapshot', snapshot: next });
       }),
       service.subscribeStream((event) => {
+        const receivedAt = performance.now();
         dispatch({ type: 'stream_event', event });
+        window.requestAnimationFrame(() => {
+          recordAgentRenderDuration(receivedAt, performance.now());
+        });
       }),
       service.snapshot(),
     ])

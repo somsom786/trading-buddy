@@ -2,6 +2,7 @@ import { isAgentSessionError } from './events';
 import { isCompanionSupportMode } from './supportMode';
 import type {
   AgentConnectionStatus,
+  AgentLatencyDiagnostics,
   AgentMessageStatus,
   AgentSessionDiagnostics,
   AgentSessionMessage,
@@ -88,12 +89,38 @@ function isAgentSessionDiagnostics(value: unknown): value is AgentSessionDiagnos
     isRecord(value) &&
     isCounter(value.duplicateEventCount) &&
     isCounter(value.staleEventCount) &&
-    isCounter(value.reconnectCount)
+    isCounter(value.reconnectCount) &&
+    isAgentLatencyDiagnostics(value.latency)
+  );
+}
+
+function isAgentLatencyDiagnostics(value: unknown): value is AgentLatencyDiagnostics {
+  return (
+    isRecord(value) &&
+    isNullableCounter(value.clientContextRetrievalMs) &&
+    isNullableCounter(value.clientContextBudgetMs) &&
+    isNullableCounter(value.clientPromptConstructionMs) &&
+    isNullableCounter(value.rustTurnPreparationMs) &&
+    isNullableCounter(value.sessionOpenMs) &&
+    isNullableCounter(value.promptDispatchMs) &&
+    isNullableCounter(value.promptAcceptedAtMs) &&
+    isNullableCounter(value.firstProviderEventAtMs) &&
+    isNullableCounter(value.providerRequestStartedAtMs) &&
+    isNullableCounter(value.firstVisibleContentAtMs) &&
+    isNullableCounter(value.completionReceivedAtMs) &&
+    isNullableCounter(value.sqliteFinalizationMs) &&
+    isNullableCounter(value.crossWindowBroadcastMicros) &&
+    isNullableCounter(value.frontendRenderMs) &&
+    isNullableCounter(value.totalTurnMs)
   );
 }
 
 function isCounter(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function isNullableCounter(value: unknown): value is number | null {
+  return value === null || isCounter(value);
 }
 
 function isIdentifier(value: unknown): value is string {

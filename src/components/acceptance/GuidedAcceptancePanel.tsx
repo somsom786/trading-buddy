@@ -230,9 +230,16 @@ function DiagnosticsSummary({ diagnostics }: { diagnostics: AcceptanceDiagnostic
       <dd>
         App {diagnostics.appProcessCount} · Gateway {diagnostics.gatewayProcessCount}
       </dd>
+      <dt>Application setup</dt>
+      <dd>{String(diagnostics.applicationSetupMs)} ms</dd>
       <dt>Gateway / provider</dt>
       <dd>
         {diagnostics.gatewayStatus} · {diagnostics.providerStatus} · {diagnostics.providerModel}
+      </dd>
+      <dt>Gateway startup</dt>
+      <dd>
+        spawn {timingValue(diagnostics.gatewaySpawnMs)} ms · ready{' '}
+        {timingValue(diagnostics.gatewayReadyMs)} ms
       </dd>
       <dt>Windows</dt>
       <dd>
@@ -269,8 +276,26 @@ function DiagnosticsSummary({ diagnostics }: { diagnostics: AcceptanceDiagnostic
       </dd>
       <dt>Orphan audit</dt>
       <dd>{diagnostics.orphanProcessResult.replaceAll('_', ' ')}</dd>
+      <dt>Last-turn timing (ms)</dt>
+      <dd>
+        context {timingValue(diagnostics.latency.clientContextRetrievalMs)} · budget{' '}
+        {timingValue(diagnostics.latency.clientContextBudgetMs)} · prepare{' '}
+        {timingValue(diagnostics.latency.rustTurnPreparationMs)} · accepted{' '}
+        {timingValue(diagnostics.latency.promptAcceptedAtMs)} · provider{' '}
+        {timingValue(diagnostics.latency.providerRequestStartedAtMs)} · first visible{' '}
+        {timingValue(diagnostics.latency.firstVisibleContentAtMs)} · complete{' '}
+        {timingValue(diagnostics.latency.totalTurnMs)}
+      </dd>
+      <dt>Cross-window broadcast</dt>
+      <dd>{timingValue(diagnostics.latency.crossWindowBroadcastMicros)} µs</dd>
+      <dt>Frontend event-to-paint</dt>
+      <dd>{timingValue(diagnostics.latency.frontendRenderMs)} ms</dd>
     </dl>
   );
+}
+
+function timingValue(value: number | null): string {
+  return value === null ? 'n/a' : String(value);
 }
 
 function selectStepState(

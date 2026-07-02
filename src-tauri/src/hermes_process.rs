@@ -6,7 +6,7 @@ use std::{
         atomic::{AtomicU32, AtomicU64, Ordering},
         Arc,
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde::{Deserialize, Serialize};
@@ -72,6 +72,8 @@ pub struct HermesProcessDiagnostics {
     pub process_id: Option<u32>,
     pub restart_count: u32,
     pub last_error: Option<String>,
+    pub gateway_spawn_ms: Option<u64>,
+    pub gateway_ready_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -201,6 +203,8 @@ struct ManagerState {
     sender: Option<mpsc::Sender<ActorCommand>>,
     restart_count: u32,
     last_error: Option<String>,
+    gateway_spawn_ms: Option<u64>,
+    gateway_ready_ms: Option<u64>,
 }
 
 enum ActorCommand {
@@ -241,6 +245,8 @@ impl HermesProcessManager {
                 sender: None,
                 restart_count: 0,
                 last_error: None,
+                gateway_spawn_ms: None,
+                gateway_ready_ms: None,
             })),
             status,
             events,
@@ -257,6 +263,8 @@ impl HermesProcessManager {
             process_id: (pid != 0).then_some(pid),
             restart_count: state.restart_count,
             last_error: state.last_error.clone(),
+            gateway_spawn_ms: state.gateway_spawn_ms,
+            gateway_ready_ms: state.gateway_ready_ms,
         }
     }
 
@@ -278,6 +286,9 @@ impl HermesProcessManager {
             return Ok(());
         }
         state.sender = None;
+        state.gateway_spawn_ms = None;
+        state.gateway_ready_ms = None;
+        let gateway_started_at = Instant::now();
         self.config.prepare_home()?;
         let nvidia_api_key = self.config.load_nvidia_api_key()?;
         let _ = self.status.send(HermesRuntimeStatus::Starting);
@@ -307,6 +318,7 @@ impl HermesProcessManager {
             message
         })?;
         let pid = child.id().unwrap_or(0);
+        state.gateway_spawn_ms = Some(duration_millis(gateway_started_at.elapsed()));
         self.process_id.store(pid, Ordering::Relaxed);
         let stdin = child
             .stdin
@@ -355,6 +367,8 @@ impl HermesProcessManager {
         {
             Ok(result) => {
                 result?;
+                self.state.lock().await.gateway_ready_ms =
+                    Some(duration_millis(gateway_started_at.elapsed()));
                 let _ = self.status.send(HermesRuntimeStatus::Ready);
                 Ok(())
             }
@@ -475,6 +489,10 @@ impl HermesProcessManager {
         state.last_error = Some(message.chars().take(500).collect());
         let _ = self.status.send(HermesRuntimeStatus::Failed);
     }
+}
+
+fn duration_millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 async fn run_actor(

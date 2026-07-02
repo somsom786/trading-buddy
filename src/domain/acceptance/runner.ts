@@ -325,7 +325,9 @@ function evidenceLabel(evidence: AcceptanceEvidence): string {
 function diagnosticSummary(diagnostics: AcceptanceDiagnostics): string {
   return [
     `app=${String(diagnostics.appProcessCount)}`,
+    `appSetupMs=${String(diagnostics.applicationSetupMs)}`,
     `gateway=${diagnostics.gatewayStatus}/${String(diagnostics.gatewayProcessCount)}`,
+    `gatewayReadyMs=${timingValue(diagnostics.gatewayReadyMs)}`,
     `windows=${diagnostics.windowStates
       .map((window) => `${window.label}:${window.visible ? 'visible' : 'hidden'}`)
       .join(',')}`,
@@ -335,5 +337,12 @@ function diagnosticSummary(diagnostics: AcceptanceDiagnostics): string {
     `duplicate=${String(diagnostics.duplicateEventCount)}`,
     `stale=${String(diagnostics.staleEventCount)}`,
     `provider=${diagnostics.providerStatus}`,
+    `acceptedMs=${timingValue(diagnostics.latency.promptAcceptedAtMs)}`,
+    `firstVisibleMs=${timingValue(diagnostics.latency.firstVisibleContentAtMs)}`,
+    `totalMs=${timingValue(diagnostics.latency.totalTurnMs)}`,
   ].join('; ');
+}
+
+function timingValue(value: number | null): string {
+  return value === null ? 'n/a' : String(value);
 }

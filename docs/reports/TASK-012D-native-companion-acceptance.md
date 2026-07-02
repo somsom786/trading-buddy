@@ -40,10 +40,13 @@ them explicitly.
 - Safe allowlisted native diagnostics, bounded sanitized notes, unfinished-run resume, reset, and
   Markdown/JSON export.
 - Domain, component, boundary, and native redaction regression coverage.
+- Content-free timing spans across application preparation, gateway/session, exact provider
+  request start, first visible content, persistence, cross-window emission, and frontend paint.
+- Four real current-provider samples with a 6.67-second median first-visible time and sub-420-ms
+  gateway readiness.
 
 ## Remaining deliverables
 
-- Structured latency spans and separated overhead reporting.
 - Recorded native acceptance with failures, fixes, and retests.
 - Updated Task 12B/12C reports, architecture, decisions, tasks, and progress.
 

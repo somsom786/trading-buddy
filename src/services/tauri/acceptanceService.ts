@@ -5,6 +5,7 @@ import {
   type AcceptanceRun,
 } from '../../domain/acceptance/types';
 import { createAcceptanceRun, isAcceptanceRun } from '../../domain/acceptance/runner';
+import { getLatestAgentRenderMs } from '../diagnostics/frontendTiming';
 
 const STORAGE_KEY = 'trading-buddy:task-12d-native-acceptance:v1';
 
@@ -21,7 +22,13 @@ export const tauriAcceptanceService: AcceptanceService = {
     if (!isAcceptanceDiagnostics(value)) {
       throw new Error('Invalid guided acceptance diagnostic response.');
     }
-    return value;
+    return {
+      ...value,
+      latency: {
+        ...value.latency,
+        frontendRenderMs: getLatestAgentRenderMs(),
+      },
+    };
   },
   loadRun() {
     const raw = window.localStorage.getItem(STORAGE_KEY);

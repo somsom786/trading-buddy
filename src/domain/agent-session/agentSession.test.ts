@@ -74,6 +74,22 @@ describe('agent session contract', () => {
     ).toBe(false);
   });
 
+  it('rejects malformed or negative latency diagnostics', () => {
+    const snapshot = activeSnapshot();
+    expect(
+      isAgentSessionSnapshot({
+        ...snapshot,
+        diagnostics: {
+          ...snapshot.diagnostics,
+          latency: {
+            ...snapshot.diagnostics.latency,
+            firstVisibleContentAtMs: -1,
+          },
+        },
+      }),
+    ).toBe(false);
+  });
+
   it('applies ordered deltas once and makes terminal events idempotent', () => {
     let snapshot = activeSnapshot();
     snapshot = agentSessionReducer(snapshot, {

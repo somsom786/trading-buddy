@@ -12,6 +12,7 @@ mod storage;
 mod trading;
 mod window_manager;
 
+use std::time::Instant;
 use tauri::Manager;
 
 #[tauri::command]
@@ -69,13 +70,14 @@ fn get_desktop_world_snapshot(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let application_started_at = Instant::now();
     let local_ai =
         local_ai::LocalAiService::from_environment().expect("valid local Ollama configuration");
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(local_ai)
         .manage(trading::HyperliquidSyncCoordinator::new())
-        .setup(|app| {
+        .setup(move |app| {
             let storage = storage::StorageService::initialize(app.handle());
             let companion_preferences = storage
                 .settings_snapshot()
@@ -107,6 +109,10 @@ pub fn run() {
                 window_manager::apply_startup_preferences(app.handle(), &preferences);
             }
             window_manager::create_tray(app)?;
+            app.manage(acceptance::ApplicationTimingDiagnostics {
+                setup_ms: u64::try_from(application_started_at.elapsed().as_millis())
+                    .unwrap_or(u64::MAX),
+            });
             Ok(())
         })
         .on_window_event(|window, event| {

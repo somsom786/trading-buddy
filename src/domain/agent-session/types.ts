@@ -55,6 +55,25 @@ export interface AgentSessionDiagnostics {
   duplicateEventCount: number;
   staleEventCount: number;
   reconnectCount: number;
+  latency: AgentLatencyDiagnostics;
+}
+
+export interface AgentLatencyDiagnostics {
+  clientContextRetrievalMs: number | null;
+  clientContextBudgetMs: number | null;
+  clientPromptConstructionMs: number | null;
+  rustTurnPreparationMs: number | null;
+  sessionOpenMs: number | null;
+  promptDispatchMs: number | null;
+  promptAcceptedAtMs: number | null;
+  firstProviderEventAtMs: number | null;
+  providerRequestStartedAtMs: number | null;
+  firstVisibleContentAtMs: number | null;
+  completionReceivedAtMs: number | null;
+  sqliteFinalizationMs: number | null;
+  crossWindowBroadcastMicros: number | null;
+  frontendRenderMs: number | null;
+  totalTurnMs: number | null;
 }
 
 export interface AgentSessionSnapshot {
@@ -90,5 +109,22 @@ export const INITIAL_AGENT_SESSION_SNAPSHOT: AgentSessionSnapshot = {
     duplicateEventCount: 0,
     staleEventCount: 0,
     reconnectCount: 0,
+    latency: {
+      clientContextRetrievalMs: null,
+      clientContextBudgetMs: null,
+      clientPromptConstructionMs: null,
+      rustTurnPreparationMs: null,
+      sessionOpenMs: null,
+      promptDispatchMs: null,
+      promptAcceptedAtMs: null,
+      firstProviderEventAtMs: null,
+      providerRequestStartedAtMs: null,
+      firstVisibleContentAtMs: null,
+      completionReceivedAtMs: null,
+      sqliteFinalizationMs: null,
+      crossWindowBroadcastMicros: null,
+      frontendRenderMs: null,
+      totalTurnMs: null,
+    },
   },
 };

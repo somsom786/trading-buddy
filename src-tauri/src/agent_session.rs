@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Instant};
 
 use chrono::Utc;
 use serde::Deserialize;
@@ -9,9 +9,10 @@ use uuid::Uuid;
 
 use crate::{
     agent_events::{
-        AgentConnectionStatus, AgentSessionError, AgentSessionMessage, AgentSessionSnapshot,
-        AgentStreamEvent, AgentStreamEventType, AgentTurnStatus, CompanionSupportMode,
-        AGENT_RUNTIME_STATUS_EVENT, AGENT_SESSION_SNAPSHOT_EVENT, AGENT_STREAM_EVENT,
+        AgentConnectionStatus, AgentLatencyDiagnostics, AgentSessionError, AgentSessionMessage,
+        AgentSessionSnapshot, AgentStreamEvent, AgentStreamEventType, AgentTurnStatus,
+        CompanionSupportMode, AGENT_RUNTIME_STATUS_EVENT, AGENT_SESSION_SNAPSHOT_EVENT,
+        AGENT_STREAM_EVENT,
     },
     hermes_process::{
         GatewayLaunchConfig, HermesProcessDiagnostics, HermesProcessManager, HermesRuntimeStatus,
@@ -40,6 +41,7 @@ pub struct AgentSessionRuntime {
     storage: StorageService,
     snapshot: Arc<Mutex<AgentSessionSnapshot>>,
     persistence: Arc<Mutex<Option<ActivePersistence>>>,
+    turn_started_at: Arc<Mutex<Option<Instant>>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,6 +61,8 @@ struct SubmitSessionRequest {
     temporary: bool,
     #[serde(default)]
     hidden_context: String,
+    #[serde(default)]
+    client_timings: Option<ClientTimingSpans>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,6 +72,14 @@ struct RetrySessionRequest {
     turn_id: String,
     #[serde(default)]
     hidden_context: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ClientTimingSpans {
+    context_retrieval_ms: u64,
+    context_budget_ms: u64,
+    prompt_construction_ms: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -93,6 +105,7 @@ impl AgentSessionRuntime {
             storage,
             snapshot: Arc::new(Mutex::new(AgentSessionSnapshot::default())),
             persistence: Arc::new(Mutex::new(None)),
+            turn_started_at: Arc::new(Mutex::new(None)),
         };
         runtime.spawn_monitors();
         Ok(runtime)
@@ -310,6 +323,9 @@ impl AgentSessionRuntime {
             }
             snapshot.support_mode.clone()
         };
+        validate_client_timings(request.client_timings.as_ref())?;
+        self.begin_turn_timing(request.client_timings.as_ref())
+            .await;
 
         let (conversation_id, messages, assistant_message_id) = if request.temporary {
             let conversation_id = request
@@ -387,10 +403,15 @@ impl AgentSessionRuntime {
             last_checkpoint_characters: 0,
             persistent: !request.temporary,
         });
+        self.update_turn_latency(|latency, elapsed| {
+            latency.rust_turn_preparation_ms = Some(elapsed);
+        })
+        .await;
         let must_open = prior_session.hermes_session_id.is_none()
             || prior_session.local_conversation_id.as_deref() != Some(conversation_id.as_str())
             || prior_session.temporary != request.temporary;
         if must_open {
+            let session_open_started_at = Instant::now();
             if let Err(error) = self
                 .open(OpenSessionRequest {
                     local_conversation_id: Some(conversation_id.clone()),
@@ -409,6 +430,16 @@ impl AgentSessionRuntime {
                 .await;
                 return Err(error);
             }
+            let session_open_ms = duration_millis(session_open_started_at.elapsed());
+            self.update_turn_latency(|latency, _| {
+                latency.session_open_ms = Some(session_open_ms);
+            })
+            .await;
+        } else {
+            self.update_turn_latency(|latency, _| {
+                latency.session_open_ms = Some(0);
+            })
+            .await;
         }
         self.publish_lifecycle(AgentStreamEventType::Accepted, None, None)
             .await;
@@ -423,6 +454,7 @@ impl AgentSessionRuntime {
             .hermes_session_id
             .clone()
             .ok_or_else(|| "No active companion session.".to_owned())?;
+        let prompt_dispatch_started_at = Instant::now();
         if let Err(error) = self
             .process
             .request(
@@ -448,6 +480,12 @@ impl AgentSessionRuntime {
             .await;
             return Err(error.message);
         }
+        let prompt_dispatch_ms = duration_millis(prompt_dispatch_started_at.elapsed());
+        self.update_turn_latency(|latency, elapsed| {
+            latency.prompt_dispatch_ms = Some(prompt_dispatch_ms);
+            latency.prompt_accepted_at_ms = Some(elapsed);
+        })
+        .await;
         Ok(self.snapshot().await)
     }
 
@@ -470,7 +508,17 @@ impl AgentSessionRuntime {
                 snapshot.diagnostics.stale_event_count.saturating_add(1);
             return;
         }
+        self.update_turn_latency(|latency, elapsed| {
+            latency.first_provider_event_at_ms.get_or_insert(elapsed);
+        })
+        .await;
         match event.event_type.as_str() {
+            "provider.request" => {
+                self.update_turn_latency(|latency, elapsed| {
+                    latency.provider_request_started_at_ms = Some(elapsed);
+                })
+                .await;
+            }
             "message.start" => {
                 self.publish_lifecycle(AgentStreamEventType::Thinking, None, None)
                     .await;
@@ -489,6 +537,10 @@ impl AgentSessionRuntime {
                 self.apply_delta(content).await;
             }
             "message.complete" => {
+                self.update_turn_latency(|latency, elapsed| {
+                    latency.completion_received_at_ms = Some(elapsed);
+                })
+                .await;
                 let status = payload
                     .and_then(|value| value.get("status"))
                     .and_then(Value::as_str)
@@ -556,6 +608,7 @@ impl AgentSessionRuntime {
         if current.active_request_id.is_some() {
             return Err("A companion response is already active.".to_owned());
         }
+        self.begin_turn_timing(None).await;
         let conversation_id = current
             .local_conversation_id
             .clone()
@@ -632,6 +685,11 @@ impl AgentSessionRuntime {
             last_checkpoint_characters: 0,
             persistent,
         });
+        self.update_turn_latency(|latency, elapsed| {
+            latency.rust_turn_preparation_ms = Some(elapsed);
+            latency.session_open_ms = Some(0);
+        })
+        .await;
         self.publish_lifecycle(AgentStreamEventType::Accepted, None, None)
             .await;
         self.publish_lifecycle(AgentStreamEventType::Listening, None, None)
@@ -640,6 +698,7 @@ impl AgentSessionRuntime {
         let session_id = current
             .hermes_session_id
             .ok_or_else(|| "The companion session could not be reopened.".to_owned())?;
+        let prompt_dispatch_started_at = Instant::now();
         if let Err(error) = self
             .process
             .request(
@@ -665,6 +724,12 @@ impl AgentSessionRuntime {
             .await;
             return Err(error.message);
         }
+        let prompt_dispatch_ms = duration_millis(prompt_dispatch_started_at.elapsed());
+        self.update_turn_latency(|latency, elapsed| {
+            latency.prompt_dispatch_ms = Some(prompt_dispatch_ms);
+            latency.prompt_accepted_at_ms = Some(elapsed);
+        })
+        .await;
         Ok(self.snapshot().await)
     }
 
@@ -736,6 +801,7 @@ impl AgentSessionRuntime {
     }
 
     async fn apply_delta(&self, content: &str) {
+        let bridge_started_at = Instant::now();
         let (bounded_delta, checkpoint) = {
             let mut persistence = self.persistence.lock().await;
             let Some(persistence) = persistence.as_mut() else {
@@ -758,8 +824,18 @@ impl AgentSessionRuntime {
         if bounded_delta.is_empty() {
             return;
         }
+        let first_visible_content_at_ms = self.elapsed_turn_ms().await;
         {
             let mut snapshot = self.snapshot.lock().await;
+            if snapshot
+                .diagnostics
+                .latency
+                .first_visible_content_at_ms
+                .is_none()
+            {
+                snapshot.diagnostics.latency.first_visible_content_at_ms =
+                    first_visible_content_at_ms;
+            }
             snapshot.turn_status = AgentTurnStatus::Streaming;
             let active_request_id = snapshot.active_request_id.clone();
             if let Some(message) = snapshot.messages.iter_mut().find(|message| {
@@ -787,6 +863,16 @@ impl AgentSessionRuntime {
             None,
         )
         .await;
+        let bridge_micros = duration_micros(bridge_started_at.elapsed());
+        self.update_turn_latency(|latency, _| {
+            latency.cross_window_broadcast_micros = Some(
+                latency
+                    .cross_window_broadcast_micros
+                    .unwrap_or(0)
+                    .max(bridge_micros),
+            );
+        })
+        .await;
         self.set_buddy_state("talking");
     }
 
@@ -802,6 +888,7 @@ impl AgentSessionRuntime {
                 snapshot.diagnostics.duplicate_event_count.saturating_add(1);
             return;
         };
+        let sqlite_started_at = Instant::now();
         if persistence.persistent {
             let update = AssistantMessageUpdate {
                 message_id: persistence.assistant_message_id.clone(),
@@ -840,6 +927,11 @@ impl AgentSessionRuntime {
                 return;
             }
         }
+        let sqlite_finalization_ms = duration_millis(sqlite_started_at.elapsed());
+        self.update_turn_latency(|latency, _| {
+            latency.sqlite_finalization_ms = Some(sqlite_finalization_ms);
+        })
+        .await;
         {
             let mut snapshot = self.snapshot.lock().await;
             let request_id = snapshot.active_request_id.clone();
@@ -867,6 +959,10 @@ impl AgentSessionRuntime {
         self.publish_terminal(event_type.clone(), &persistence, error)
             .await;
         self.broadcast_snapshot().await;
+        self.update_turn_latency(|latency, elapsed| {
+            latency.total_turn_ms = Some(elapsed);
+        })
+        .await;
         self.set_buddy_state(if matches!(event_type, AgentStreamEventType::Failed) {
             "concerned"
         } else {
@@ -988,6 +1084,7 @@ impl AgentSessionRuntime {
     }
 
     async fn broadcast_snapshot(&self) {
+        let started_at = Instant::now();
         let snapshot = self.snapshot.lock().await.clone();
         let _ = self
             .app
@@ -995,6 +1092,16 @@ impl AgentSessionRuntime {
         let _ = self
             .app
             .emit_to("main", AGENT_SESSION_SNAPSHOT_EVENT, snapshot);
+        let broadcast_micros = duration_micros(started_at.elapsed());
+        self.update_turn_latency(|latency, _| {
+            latency.cross_window_broadcast_micros = Some(
+                latency
+                    .cross_window_broadcast_micros
+                    .unwrap_or(0)
+                    .max(broadcast_micros),
+            );
+        })
+        .await;
     }
 
     async fn publish_lifecycle(
@@ -1079,6 +1186,31 @@ impl AgentSessionRuntime {
             "trading-buddy://companion-command",
             json!({"type": "set_state", "state": state}),
         );
+    }
+
+    async fn begin_turn_timing(&self, client: Option<&ClientTimingSpans>) {
+        *self.turn_started_at.lock().await = Some(Instant::now());
+        self.snapshot.lock().await.diagnostics.latency = AgentLatencyDiagnostics {
+            client_context_retrieval_ms: client.map(|timing| timing.context_retrieval_ms),
+            client_context_budget_ms: client.map(|timing| timing.context_budget_ms),
+            client_prompt_construction_ms: client.map(|timing| timing.prompt_construction_ms),
+            ..AgentLatencyDiagnostics::default()
+        };
+    }
+
+    async fn elapsed_turn_ms(&self) -> Option<u64> {
+        self.turn_started_at
+            .lock()
+            .await
+            .as_ref()
+            .map(|started_at| duration_millis(started_at.elapsed()))
+    }
+
+    async fn update_turn_latency(&self, update: impl FnOnce(&mut AgentLatencyDiagnostics, u64)) {
+        let Some(elapsed) = self.elapsed_turn_ms().await else {
+            return;
+        };
+        update(&mut self.snapshot.lock().await.diagnostics.latency, elapsed);
     }
 }
 
@@ -1210,6 +1342,29 @@ fn validate_identifier(value: &str) -> Result<(), String> {
     }
 }
 
+fn validate_client_timings(value: Option<&ClientTimingSpans>) -> Result<(), String> {
+    const MAX_CLIENT_TIMING_MS: u64 = 10 * 60 * 1_000;
+    let Some(timing) = value else {
+        return Ok(());
+    };
+    if timing.context_retrieval_ms <= MAX_CLIENT_TIMING_MS
+        && timing.context_budget_ms <= MAX_CLIENT_TIMING_MS
+        && timing.prompt_construction_ms <= MAX_CLIENT_TIMING_MS
+    {
+        Ok(())
+    } else {
+        Err("Invalid client timing diagnostics.".to_owned())
+    }
+}
+
+fn duration_millis(duration: std::time::Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
+fn duration_micros(duration: std::time::Duration) -> u64 {
+    u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
+}
+
 fn is_session_not_found(message: &str) -> bool {
     let normalized = message.to_ascii_lowercase();
     normalized.contains("session") && normalized.contains("not found")
@@ -1246,5 +1401,31 @@ fn agent_message(message: &StoredMessage) -> AgentSessionMessage {
         request_id: message.request_id.clone(),
         source_user_message_id: None,
         attempt: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{validate_client_timings, ClientTimingSpans};
+
+    #[test]
+    fn accepts_bounded_content_free_client_timings() {
+        assert!(validate_client_timings(None).is_ok());
+        assert!(validate_client_timings(Some(&ClientTimingSpans {
+            context_retrieval_ms: 25,
+            context_budget_ms: 2,
+            prompt_construction_ms: 1,
+        }))
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_implausible_client_timings() {
+        assert!(validate_client_timings(Some(&ClientTimingSpans {
+            context_retrieval_ms: 600_001,
+            context_budget_ms: 0,
+            prompt_construction_ms: 0,
+        }))
+        .is_err());
     }
 }

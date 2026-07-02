@@ -3,10 +3,13 @@ import { isAcceptanceDiagnostics } from './types';
 
 const validDiagnostics = {
   capturedAtMs: 1,
+  applicationSetupMs: 82,
   appProcessCount: 1,
   gatewayProcessCount: 1,
   gatewayStatus: 'ready',
   gatewayRestartCount: 0,
+  gatewaySpawnMs: 45,
+  gatewayReadyMs: 307,
   windowStates: [
     {
       label: 'buddy',
@@ -38,6 +41,23 @@ const validDiagnostics = {
   providerStatus: 'ready',
   providerModel: 'deepseek-ai/deepseek-v4-pro',
   orphanProcessResult: 'not_measurable_while_application_is_running',
+  latency: {
+    clientContextRetrievalMs: null,
+    clientContextBudgetMs: null,
+    clientPromptConstructionMs: null,
+    rustTurnPreparationMs: null,
+    sessionOpenMs: null,
+    promptDispatchMs: null,
+    promptAcceptedAtMs: null,
+    firstProviderEventAtMs: null,
+    providerRequestStartedAtMs: null,
+    firstVisibleContentAtMs: null,
+    completionReceivedAtMs: null,
+    sqliteFinalizationMs: null,
+    crossWindowBroadcastMicros: null,
+    frontendRenderMs: null,
+    totalTurnMs: null,
+  },
 };
 
 describe('acceptance diagnostics boundary', () => {

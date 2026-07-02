@@ -30,10 +30,13 @@ export interface AcceptanceMonitorState {
 
 export interface AcceptanceDiagnostics {
   capturedAtMs: number;
+  applicationSetupMs: number;
   appProcessCount: number;
   gatewayProcessCount: number;
   gatewayStatus: string;
   gatewayRestartCount: number;
+  gatewaySpawnMs: number | null;
+  gatewayReadyMs: number | null;
   windowStates: AcceptanceWindowState[];
   monitors: AcceptanceMonitorState[];
   buddyRect: AcceptanceRect;
@@ -50,6 +53,25 @@ export interface AcceptanceDiagnostics {
   providerStatus: string;
   providerModel: string;
   orphanProcessResult: string;
+  latency: AcceptanceLatencyDiagnostics;
+}
+
+export interface AcceptanceLatencyDiagnostics {
+  clientContextRetrievalMs: number | null;
+  clientContextBudgetMs: number | null;
+  clientPromptConstructionMs: number | null;
+  rustTurnPreparationMs: number | null;
+  sessionOpenMs: number | null;
+  promptDispatchMs: number | null;
+  promptAcceptedAtMs: number | null;
+  firstProviderEventAtMs: number | null;
+  providerRequestStartedAtMs: number | null;
+  firstVisibleContentAtMs: number | null;
+  completionReceivedAtMs: number | null;
+  sqliteFinalizationMs: number | null;
+  crossWindowBroadcastMicros: number | null;
+  frontendRenderMs: number | null;
+  totalTurnMs: number | null;
 }
 
 export interface AcceptanceStepDefinition {
@@ -83,10 +105,13 @@ export function isAcceptanceDiagnostics(value: unknown): value is AcceptanceDiag
   }
   return (
     isSafeNonNegativeInteger(value.capturedAtMs) &&
+    isSafeNonNegativeInteger(value.applicationSetupMs) &&
     isSafeNonNegativeInteger(value.appProcessCount) &&
     isSafeNonNegativeInteger(value.gatewayProcessCount) &&
     typeof value.gatewayStatus === 'string' &&
     isSafeNonNegativeInteger(value.gatewayRestartCount) &&
+    (value.gatewaySpawnMs === null || isSafeNonNegativeInteger(value.gatewaySpawnMs)) &&
+    (value.gatewayReadyMs === null || isSafeNonNegativeInteger(value.gatewayReadyMs)) &&
     Array.isArray(value.windowStates) &&
     value.windowStates.every(isWindowState) &&
     Array.isArray(value.monitors) &&
@@ -104,7 +129,35 @@ export function isAcceptanceDiagnostics(value: unknown): value is AcceptanceDiag
     isSafeNonNegativeInteger(value.staleEventCount) &&
     isBoundedString(value.providerStatus, 32) &&
     isBoundedString(value.providerModel, 128) &&
-    isBoundedString(value.orphanProcessResult, 80)
+    isBoundedString(value.orphanProcessResult, 80) &&
+    isLatencyDiagnostics(value.latency)
+  );
+}
+
+function isLatencyDiagnostics(value: unknown): value is AcceptanceLatencyDiagnostics {
+  return (
+    isRecord(value) &&
+    [
+      'clientContextRetrievalMs',
+      'clientContextBudgetMs',
+      'clientPromptConstructionMs',
+      'rustTurnPreparationMs',
+      'sessionOpenMs',
+      'promptDispatchMs',
+      'promptAcceptedAtMs',
+      'firstProviderEventAtMs',
+      'providerRequestStartedAtMs',
+      'firstVisibleContentAtMs',
+      'completionReceivedAtMs',
+      'sqliteFinalizationMs',
+      'crossWindowBroadcastMicros',
+      'totalTurnMs',
+    ].every((key) => value[key] === null || isSafeNonNegativeInteger(value[key])) &&
+    (value.frontendRenderMs === null ||
+      (typeof value.frontendRenderMs === 'number' &&
+        Number.isFinite(value.frontendRenderMs) &&
+        value.frontendRenderMs >= 0 &&
+        value.frontendRenderMs <= 60_000))
   );
 }
 

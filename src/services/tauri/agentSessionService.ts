@@ -23,6 +23,11 @@ export interface AgentSessionSubmitRequest {
   model: string;
   temporary: boolean;
   hiddenContext: string;
+  clientTimings: {
+    contextRetrievalMs: number;
+    contextBudgetMs: number;
+    promptConstructionMs: number;
+  };
 }
 
 export interface AgentSessionRetryRequest {
@@ -37,6 +42,8 @@ export interface AgentRuntimeDiagnostics {
   processId: number | null;
   restartCount: number;
   lastError: string | null;
+  gatewaySpawnMs: number | null;
+  gatewayReadyMs: number | null;
 }
 
 export interface AgentSessionService {
@@ -172,6 +179,12 @@ function isRuntimeDiagnostics(value: unknown): value is AgentRuntimeDiagnostics 
     Number.isSafeInteger(diagnostics.restartCount) &&
     (diagnostics.restartCount as number) >= 0 &&
     (diagnostics.lastError === null ||
-      (typeof diagnostics.lastError === 'string' && diagnostics.lastError.length <= 500))
+      (typeof diagnostics.lastError === 'string' && diagnostics.lastError.length <= 500)) &&
+    isNullableCounter(diagnostics.gatewaySpawnMs) &&
+    isNullableCounter(diagnostics.gatewayReadyMs)
   );
+}
+
+function isNullableCounter(value: unknown): boolean {
+  return value === null || (Number.isSafeInteger(value) && (value as number) >= 0);
 }

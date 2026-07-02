@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 use crate::{
+    agent_events::AgentLatencyDiagnostics,
     agent_session::AgentSessionRuntime,
     desktop_world::{self, SurfaceRect},
     hermes_process::{HermesRuntimeStatus, COMPANION_MODEL},
@@ -13,10 +14,13 @@ const ALLOWED_WINDOW_LABELS: [&str; 3] = ["buddy", "bubble", "main"];
 #[serde(rename_all = "camelCase")]
 pub struct AcceptanceDiagnostics {
     captured_at_ms: u64,
+    application_setup_ms: u64,
     app_process_count: u32,
     gateway_process_count: u32,
     gateway_status: HermesRuntimeStatus,
     gateway_restart_count: u32,
+    gateway_spawn_ms: Option<u64>,
+    gateway_ready_ms: Option<u64>,
     window_states: Vec<AcceptanceWindowState>,
     monitors: Vec<AcceptanceMonitorState>,
     buddy_rect: SurfaceRect,
@@ -33,6 +37,11 @@ pub struct AcceptanceDiagnostics {
     provider_status: String,
     provider_model: &'static str,
     orphan_process_result: &'static str,
+    latency: AgentLatencyDiagnostics,
+}
+
+pub struct ApplicationTimingDiagnostics {
+    pub setup_ms: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -58,6 +67,7 @@ struct AcceptanceMonitorState {
 pub async fn get_acceptance_diagnostics(
     app: AppHandle,
     runtime: tauri::State<'_, AgentSessionRuntime>,
+    application_timing: tauri::State<'_, ApplicationTimingDiagnostics>,
 ) -> Result<AcceptanceDiagnostics, String> {
     if !cfg!(debug_assertions) {
         return Err(
@@ -107,10 +117,13 @@ pub async fn get_acceptance_diagnostics(
 
     Ok(AcceptanceDiagnostics {
         captured_at_ms: world.captured_at_ms,
+        application_setup_ms: application_timing.setup_ms,
         app_process_count: count_current_executable_processes(),
         gateway_process_count: u32::from(process.process_id.is_some()),
         gateway_status: process.status,
         gateway_restart_count: process.restart_count,
+        gateway_spawn_ms: process.gateway_spawn_ms,
+        gateway_ready_ms: process.gateway_ready_ms,
         window_states,
         monitors,
         buddy_rect: world.buddy_rect,
@@ -127,6 +140,7 @@ pub async fn get_acceptance_diagnostics(
         provider_status: format!("{:?}", session.connection_status).to_ascii_lowercase(),
         provider_model: COMPANION_MODEL,
         orphan_process_result: "not_measurable_while_application_is_running",
+        latency: session.diagnostics.latency,
     })
 }
 

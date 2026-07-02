@@ -118,6 +118,11 @@ export function createFakeAgentSessionService(options: FakeAgentSessionOptions =
         model: request.model,
         temporary: snapshot.temporary,
         hiddenContext: request.hiddenContext,
+        clientTimings: {
+          contextRetrievalMs: 0,
+          contextBudgetMs: 0,
+          promptConstructionMs: 0,
+        },
       }),
     ),
     setSupportMode: vi.fn((supportMode) => {

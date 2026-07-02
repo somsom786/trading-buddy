@@ -569,6 +569,7 @@ export function ChatWorkspace({
       let continuityItems: ContinuityRetrievalItem[] = [];
       let memoryOptedOutForRequest = conversationMemoryOptOut;
       let memoryNotice: string | null = null;
+      const contextRetrievalStartedAt = performance.now();
 
       if (requestMode === 'real' && mode === 'persistent') {
         conversationId = activeConversationId ?? conversationId;
@@ -644,6 +645,8 @@ export function ChatWorkspace({
         setUsedContinuity([]);
       }
 
+      const contextRetrievalMs = elapsedMilliseconds(contextRetrievalStartedAt);
+      const contextBudgetStartedAt = performance.now();
       const detectedMode = detectConversationMode(content);
       const identityState = identityStateForMode(detectedMode.mode, Date.now());
       const budget = buildContextBudget({
@@ -659,12 +662,15 @@ export function ChatWorkspace({
         currentUserMessage: content,
         recentMessageLimit: 12,
       });
+      const contextBudgetMs = elapsedMilliseconds(contextBudgetStartedAt);
       if (requestMode === 'real') {
+        const promptConstructionStartedAt = performance.now();
         const hiddenContext = buildHiddenCompanionContext(
           budget.messages
             .slice(0, -1)
             .map((message) => `${message.role.toUpperCase()}:\n${message.content}`),
         );
+        const promptConstructionMs = elapsedMilliseconds(promptConstructionStartedAt);
         activeRequestRef.current = requestId;
         setInput('');
         setStorageError(null);
@@ -686,6 +692,11 @@ export function ChatWorkspace({
             model: selectedModel,
             temporary: mode === 'temporary',
             hiddenContext,
+            clientTimings: {
+              contextRetrievalMs,
+              contextBudgetMs,
+              promptConstructionMs,
+            },
           });
           setActiveConversationId(next.temporary ? null : next.localConversationId);
           await refreshConversationLists();
@@ -1615,6 +1626,10 @@ export function ChatWorkspace({
       </section>
     </div>
   );
+}
+
+function elapsedMilliseconds(startedAt: number): number {
+  return Math.max(0, Math.round(performance.now() - startedAt));
 }
 
 function simulatedError(): LocalAiError {
