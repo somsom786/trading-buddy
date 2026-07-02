@@ -220,6 +220,9 @@ enum ActorCommand {
     Stop {
         reply: oneshot::Sender<()>,
     },
+    Crash {
+        reply: oneshot::Sender<()>,
+    },
 }
 
 enum ReaderMessage {
@@ -459,6 +462,23 @@ impl HermesProcessManager {
         self.start().await
     }
 
+    pub async fn simulate_crash(&self) -> Result<(), String> {
+        let sender = {
+            let state = self.state.lock().await;
+            state.sender.clone()
+        }
+        .ok_or_else(|| "Local agent gateway is not running.".to_owned())?;
+        let (reply, receiver) = oneshot::channel();
+        sender
+            .send(ActorCommand::Crash { reply })
+            .await
+            .map_err(|_| "Local agent gateway is not running.".to_owned())?;
+        timeout(Duration::from_secs(3), receiver)
+            .await
+            .map_err(|_| "Timed out while simulating the gateway crash.".to_owned())?
+            .map_err(|_| "Gateway crash simulation ended unexpectedly.".to_owned())
+    }
+
     pub async fn recover_bounded(&self) -> Result<(), String> {
         const BACKOFFS: [Duration; 3] = [
             Duration::from_millis(250),
@@ -552,6 +572,12 @@ async fn run_actor(
                             let _ = child.kill().await;
                             let _ = child.wait().await;
                         }
+                        let _ = reply.send(());
+                        break;
+                    }
+                    Some(ActorCommand::Crash { reply }) => {
+                        let _ = child.kill().await;
+                        let _ = child.wait().await;
                         let _ = reply.send(());
                         break;
                     }
@@ -748,6 +774,38 @@ mod tests {
         let diagnostics = manager.diagnostics().await;
         assert_eq!(diagnostics.status, HermesRuntimeStatus::Stopped);
         assert_eq!(diagnostics.process_id, None);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn development_crash_simulation_reports_the_owned_gateway_offline() {
+        let data = TempDir::new().expect("temp");
+        let token = format!("{}{}", "nvapi-", "development-token-123456");
+        std::fs::write(data.path().join("nvidia-api.txt"), token).expect("test credential");
+        let config = GatewayLaunchConfig::development(data.path()).expect("pinned gateway");
+        let manager = HermesProcessManager::new(config);
+        let mut statuses = manager.subscribe_status();
+
+        manager.start().await.expect("gateway ready");
+        manager
+            .simulate_crash()
+            .await
+            .expect("simulate owned gateway crash");
+        timeout(Duration::from_secs(3), async {
+            loop {
+                statuses.changed().await.expect("gateway status");
+                if *statuses.borrow_and_update() == HermesRuntimeStatus::Offline {
+                    break;
+                }
+            }
+        })
+        .await
+        .expect("offline status");
+
+        let diagnostics = manager.diagnostics().await;
+        assert_eq!(diagnostics.status, HermesRuntimeStatus::Offline);
+        assert_eq!(diagnostics.process_id, None);
+        manager.stop().await.expect("clean stopped state");
     }
 
     #[cfg(target_os = "windows")]

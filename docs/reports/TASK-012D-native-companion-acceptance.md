@@ -32,6 +32,10 @@ Task 12D is not complete. No human-observed 25-step result is recorded yet. Moni
 focus, tray, and shutdown claims remain unverified until the development-only guided runner records
 them explicitly.
 
+The first native run found a real drag failure: Tauri rejected native window dragging because the
+capability was absent. A Buddy-only capability and regression test now cover the root cause; direct
+drag/drop/fall/land/recover retest is still required.
+
 ## Completed checkpoint
 
 - Development-only guided native acceptance runner.
@@ -44,6 +48,8 @@ them explicitly.
   request start, first visible content, persistence, cross-window emission, and frontend paint.
 - Four real current-provider samples with a 6.67-second median first-visible time and sub-420-ms
   gateway readiness.
+- Safe development gateway-crash control that exercises the real bounded recovery path.
+- Aggregate transcript/mapping diagnostics and explicit no-tools/RPC privacy regression coverage.
 
 ## Remaining deliverables
 

@@ -384,6 +384,8 @@ fn position_file_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::{clamp_i32, SavedWindowPosition};
 
     #[test]
@@ -402,5 +404,17 @@ mod tests {
         assert_eq!(clamp_i32(500, 20, 10), 20);
         assert_eq!(clamp_i32(5, 10, 20), 10);
         assert_eq!(clamp_i32(30, 10, 20), 20);
+    }
+
+    #[test]
+    fn buddy_alone_receives_the_native_drag_capability() {
+        let capability: Value =
+            serde_json::from_str(include_str!("../capabilities/buddy-drag.json"))
+                .expect("buddy drag capability should be valid JSON");
+        assert_eq!(capability["windows"], serde_json::json!(["buddy"]));
+        assert_eq!(
+            capability["permissions"],
+            serde_json::json!(["core:window:allow-start-dragging"])
+        );
     }
 }

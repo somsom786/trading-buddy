@@ -46,6 +46,7 @@ function service(snapshot = readySnapshot()): {
       purgeConversation: vi.fn().mockResolvedValue(false),
       purgeAll: vi.fn().mockResolvedValue(0),
       stop: vi.fn().mockResolvedValue(undefined),
+      simulateGatewayCrash: vi.fn().mockResolvedValue(undefined),
       subscribeSnapshot: vi.fn().mockResolvedValue(() => undefined),
       subscribeStream: vi.fn().mockResolvedValue(() => undefined),
     },

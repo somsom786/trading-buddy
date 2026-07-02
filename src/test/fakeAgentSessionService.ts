@@ -152,6 +152,7 @@ export function createFakeAgentSessionService(options: FakeAgentSessionOptions =
     purgeConversation: vi.fn().mockResolvedValue(true),
     purgeAll: vi.fn().mockResolvedValue(0),
     stop: vi.fn().mockResolvedValue(undefined),
+    simulateGatewayCrash: vi.fn().mockResolvedValue(undefined),
     subscribeSnapshot: vi.fn((handler: (value: AgentSessionSnapshot) => void) => {
       listeners.add(handler);
       return Promise.resolve(() => {

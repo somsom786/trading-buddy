@@ -145,3 +145,74 @@ Focused verification completed:
 - Focused provider-marker Python test passed.
 - Strict TypeScript, ESLint, Prettier, Rust format, and Clippy passed after replacing a helper newer
   than the project's Rust 1.77.2 MSRV.
+
+## A2 — Native body and Bubble
+
+Status: in progress; direct human retest pending.
+
+Automatic native startup evidence:
+
+- one responsive `trading-buddy.exe`;
+- one logical private gateway rooted under that process;
+- Companion Home hidden;
+- one visible 140-by-140 Buddy at `(1902, 958)`, inside the primary 2048-by-1104 work area;
+- the 300-by-220 Bubble existed hidden and was positioned next to Buddy;
+- no owned TCP listening socket.
+
+Native failure:
+
+| Field      | Evidence                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Observed   | Moving past the drag threshold produced `window.start_dragging not allowed` in the live Tauri log. |
+| Expected   | The Buddy window hands the intentional drag to the native window manager once.                     |
+| Root cause | Tauri 2 capability configuration did not grant `core:window:allow-start-dragging`.                 |
+| Fix        | Added a dedicated `buddy-drag` capability scoped only to the `buddy` window.                       |
+| Regression | `buddy_alone_receives_the_native_drag_capability` passes.                                          |
+| Retest     | Pending direct drag, drop, fall, land, and recover observation.                                    |
+
+No later log entry has repeated the permission failure, but absence of a repeated log is not
+substituted for the pending human retest.
+
+## A4 — Provider and gateway recovery
+
+Status: development recovery path implemented; direct turn-level walkthrough pending.
+
+- Added **Crash backend safely** to the development Agent Session Lab.
+- The command kills only the owned gateway child and intentionally follows the real Offline,
+  bounded reconnect, interrupted-turn, and no-blind-resubmit path.
+- The existing Stop control remains an intentional stop and is no longer presented as crash
+  evidence.
+- Development action failures are rendered as bounded errors rather than unhandled promise
+  rejections.
+- Native process-manager crash simulation test passed.
+- Agent Session Lab action and error tests passed.
+
+## A5 — Temporary sessions, deletion, and privacy
+
+Status: fixture and boundary evidence complete; native walkthrough pending.
+
+- Acceptance diagnostics now expose only aggregate local conversation, message, and session-mapping
+  counts for before/after verification.
+- Rust repository coverage passes for ephemeral preparation, retry without duplicate user text,
+  mapping cascade, conversation deletion, and delete-all isolation.
+- Hermes ephemeral-session coverage confirms no gateway database row is created.
+- The companion toolset is asserted to contain zero tools and zero included toolsets.
+- The parent typed RPC allowlist is asserted to exclude shell, filesystem, browser, clipboard,
+  screen, wallet, and signing methods.
+- Reasoning events are not mapped into the project-owned transcript event vocabulary.
+
+These are fixture/boundary results, not human-observed deletion or Temporary-mode results.
+
+## A7 — Monitor, idle, and native process observations
+
+Status: automatic evidence captured; pointer/tray/DPI walkthrough pending.
+
+- Two real monitors are available.
+- The secondary monitor has negative coordinates: `(-1920, 156)` with a 1920-by-1032 work area.
+- Primary work area: `(0, 0)` with 2048-by-1104 usable pixels.
+- Five-second owned-process idle sample: Tauri 0.0156 CPU seconds; all gateway descendants combined
+  0.0156 CPU seconds.
+- Owned listening TCP sockets: zero.
+
+Negative-coordinate fixtures pass, but cross-monitor drag and scaling remain unverified until the
+human walkthrough records them.

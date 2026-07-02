@@ -60,6 +60,7 @@ export interface AgentSessionService {
   purgeConversation(conversationId: string): Promise<boolean>;
   purgeAll(): Promise<number>;
   stop(): Promise<void>;
+  simulateGatewayCrash(): Promise<void>;
   subscribeSnapshot(handler: (snapshot: AgentSessionSnapshot) => void): Promise<UnlistenFn>;
   subscribeStream(handler: (event: AgentStreamEvent) => void): Promise<UnlistenFn>;
 }
@@ -119,6 +120,10 @@ export const tauriAgentSessionService: AgentSessionService = {
   async stop() {
     ensureTauri();
     await invoke('agent_runtime_stop');
+  },
+  async simulateGatewayCrash() {
+    ensureTauri();
+    await invoke('agent_runtime_simulate_gateway_crash');
   },
   async subscribeSnapshot(handler) {
     if (!hasTauri()) {

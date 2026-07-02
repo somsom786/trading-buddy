@@ -138,7 +138,8 @@ export const ACCEPTANCE_STEPS: readonly AcceptanceStepDefinition[] = [
   {
     id: '22-gateway-recovery',
     title: 'Verify gateway recovery',
-    instruction: 'Use the development backend Stop/Restart controls during a bounded test turn.',
+    instruction:
+      'Use Crash backend safely in the development Agent Session Lab during a bounded test turn.',
     expected: 'No blind resubmit occurs; ambiguous work becomes recoverable; restart is bounded.',
   },
   {
@@ -337,6 +338,9 @@ function diagnosticSummary(diagnostics: AcceptanceDiagnostics): string {
     `duplicate=${String(diagnostics.duplicateEventCount)}`,
     `stale=${String(diagnostics.staleEventCount)}`,
     `provider=${diagnostics.providerStatus}`,
+    `conversations=${String(diagnostics.conversationCount)}`,
+    `messages=${String(diagnostics.messageCount)}`,
+    `mappings=${String(diagnostics.agentSessionLinkCount)}`,
     `acceptedMs=${timingValue(diagnostics.latency.promptAcceptedAtMs)}`,
     `firstVisibleMs=${timingValue(diagnostics.latency.firstVisibleContentAtMs)}`,
     `totalMs=${timingValue(diagnostics.latency.totalTurnMs)}`,

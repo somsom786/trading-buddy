@@ -162,6 +162,7 @@ pub fn run() {
             agent_session::agent_session_purge_conversation,
             agent_session::agent_session_purge_all,
             agent_session::agent_runtime_stop,
+            agent_session::agent_runtime_simulate_gateway_crash,
             petdex::list_featured_petdex_skins,
             commands::storage::get_storage_status,
             commands::storage::get_storage_diagnostics,

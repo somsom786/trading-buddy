@@ -58,6 +58,9 @@ const validDiagnostics = {
     frontendRenderMs: null,
     totalTurnMs: null,
   },
+  conversationCount: 2,
+  messageCount: 8,
+  agentSessionLinkCount: 2,
 };
 
 describe('acceptance diagnostics boundary', () => {

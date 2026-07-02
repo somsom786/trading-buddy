@@ -1077,6 +1077,13 @@ impl AgentSessionRuntime {
         Ok(())
     }
 
+    async fn simulate_gateway_crash(&self) -> Result<(), String> {
+        if !cfg!(debug_assertions) {
+            return Err("Gateway crash simulation is available only in development builds.".into());
+        }
+        self.process.simulate_crash().await
+    }
+
     async fn update_connection(&self, status: HermesRuntimeStatus) {
         self.snapshot.lock().await.connection_status = status.into();
         let _ = self.app.emit(AGENT_RUNTIME_STATUS_EVENT, status);
@@ -1314,6 +1321,13 @@ pub async fn agent_runtime_stop(
     runtime: tauri::State<'_, AgentSessionRuntime>,
 ) -> Result<(), String> {
     runtime.stop().await
+}
+
+#[tauri::command]
+pub async fn agent_runtime_simulate_gateway_crash(
+    runtime: tauri::State<'_, AgentSessionRuntime>,
+) -> Result<(), String> {
+    runtime.simulate_gateway_crash().await
 }
 
 fn required_string(value: &Value, key: &str) -> Result<String, String> {

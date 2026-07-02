@@ -12,6 +12,7 @@ interface AgentSessionLabProps {
 
 export function AgentSessionLab({ snapshot, service }: AgentSessionLabProps) {
   const [diagnostics, setDiagnostics] = useState<AgentRuntimeDiagnostics | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const refresh = () => {
     void service
       .diagnostics()
@@ -22,6 +23,21 @@ export function AgentSessionLab({ snapshot, service }: AgentSessionLabProps) {
   };
 
   useEffect(refresh, [service]);
+
+  const runAction = async (action: () => Promise<unknown>) => {
+    setActionError(null);
+    try {
+      await action();
+    } catch (error) {
+      setActionError(
+        error instanceof Error
+          ? error.message.slice(0, 500)
+          : 'The development runtime action failed.',
+      );
+    } finally {
+      refresh();
+    }
+  };
 
   return (
     <details className="diagnostic-panel">
@@ -54,17 +70,21 @@ export function AgentSessionLab({ snapshot, service }: AgentSessionLabProps) {
         <dt>Last sanitized error</dt>
         <dd>{diagnostics?.lastError ?? snapshot.recoverableError?.userMessage ?? 'none'}</dd>
       </dl>
+      {actionError ? <p role="alert">{actionError}</p> : null}
       <div className="button-row">
-        <button type="button" onClick={() => void service.start().then(refresh)}>
+        <button type="button" onClick={() => void runAction(() => service.start())}>
           Start backend
         </button>
-        <button type="button" onClick={() => void service.stop().then(refresh)}>
+        <button type="button" onClick={() => void runAction(() => service.stop())}>
           Stop backend
         </button>
-        <button type="button" onClick={() => void service.retryConnection().then(refresh)}>
+        <button type="button" onClick={() => void runAction(() => service.simulateGatewayCrash())}>
+          Crash backend safely
+        </button>
+        <button type="button" onClick={() => void runAction(() => service.retryConnection())}>
           Restart backend
         </button>
-        <button type="button" onClick={() => void service.interrupt().then(refresh)}>
+        <button type="button" onClick={() => void runAction(() => service.interrupt())}>
           Interrupt
         </button>
         <button type="button" onClick={refresh}>

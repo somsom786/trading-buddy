@@ -180,6 +180,25 @@ mod tests {
     }
 
     #[test]
+    fn companion_rpc_allowlist_excludes_side_effect_and_capture_methods() {
+        let methods = HermesMethod::ALL.map(HermesMethod::as_str);
+        for prohibited in [
+            "shell",
+            "filesystem",
+            "browser",
+            "clipboard",
+            "screen",
+            "wallet",
+            "sign",
+        ] {
+            assert!(
+                methods.iter().all(|method| !method.contains(prohibited)),
+                "prohibited companion RPC method: {prohibited}"
+            );
+        }
+    }
+
+    #[test]
     fn parses_responses_and_events_without_raw_passthrough() {
         let response = br#"{"jsonrpc":"2.0","id":"rpc-1","result":{"session_id":"live-1"}}"#;
         assert!(matches!(

@@ -6,6 +6,7 @@ use crate::{
     agent_session::AgentSessionRuntime,
     desktop_world::{self, SurfaceRect},
     hermes_process::{HermesRuntimeStatus, COMPANION_MODEL},
+    storage::{repository, StorageService},
 };
 
 const ALLOWED_WINDOW_LABELS: [&str; 3] = ["buddy", "bubble", "main"];
@@ -38,6 +39,9 @@ pub struct AcceptanceDiagnostics {
     provider_model: &'static str,
     orphan_process_result: &'static str,
     latency: AgentLatencyDiagnostics,
+    conversation_count: u32,
+    message_count: u32,
+    agent_session_link_count: u32,
 }
 
 pub struct ApplicationTimingDiagnostics {
@@ -68,6 +72,7 @@ pub async fn get_acceptance_diagnostics(
     app: AppHandle,
     runtime: tauri::State<'_, AgentSessionRuntime>,
     application_timing: tauri::State<'_, ApplicationTimingDiagnostics>,
+    storage: tauri::State<'_, StorageService>,
 ) -> Result<AcceptanceDiagnostics, String> {
     if !cfg!(debug_assertions) {
         return Err(
@@ -78,6 +83,23 @@ pub async fn get_acceptance_diagnostics(
     let world = desktop_world::snapshot(&app, false)?;
     let process = runtime.diagnostics().await;
     let session = runtime.snapshot().await;
+    let (conversation_count, message_count, agent_session_link_count) = storage
+        .run(|connection, database_path| {
+            let file_name = database_path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("trading-buddy.db")
+                .to_owned();
+            let diagnostics = repository::diagnostics(connection, file_name, None)?;
+            let links = repository::all_agent_session_links(connection)?;
+            Ok((
+                diagnostics.conversation_count,
+                diagnostics.message_count,
+                u32::try_from(links.len()).unwrap_or(u32::MAX),
+            ))
+        })
+        .await
+        .map_err(|error| error.to_string())?;
     let window_states = ALLOWED_WINDOW_LABELS
         .iter()
         .filter_map(|label| {
@@ -141,6 +163,9 @@ pub async fn get_acceptance_diagnostics(
         provider_model: COMPANION_MODEL,
         orphan_process_result: "not_measurable_while_application_is_running",
         latency: session.diagnostics.latency,
+        conversation_count,
+        message_count,
+        agent_session_link_count,
     })
 }
 

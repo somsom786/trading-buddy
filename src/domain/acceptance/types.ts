@@ -54,6 +54,9 @@ export interface AcceptanceDiagnostics {
   providerModel: string;
   orphanProcessResult: string;
   latency: AcceptanceLatencyDiagnostics;
+  conversationCount: number;
+  messageCount: number;
+  agentSessionLinkCount: number;
 }
 
 export interface AcceptanceLatencyDiagnostics {
@@ -130,7 +133,10 @@ export function isAcceptanceDiagnostics(value: unknown): value is AcceptanceDiag
     isBoundedString(value.providerStatus, 32) &&
     isBoundedString(value.providerModel, 128) &&
     isBoundedString(value.orphanProcessResult, 80) &&
-    isLatencyDiagnostics(value.latency)
+    isLatencyDiagnostics(value.latency) &&
+    isSafeNonNegativeInteger(value.conversationCount) &&
+    isSafeNonNegativeInteger(value.messageCount) &&
+    isSafeNonNegativeInteger(value.agentSessionLinkCount)
   );
 }
 

@@ -261,6 +261,11 @@ function DiagnosticsSummary({ diagnostics }: { diagnostics: AcceptanceDiagnostic
         {diagnostics.activeLocalConversationId ?? 'none'} ·{' '}
         {diagnostics.redactedSessionId ?? 'none'}
       </dd>
+      <dt>Local transcript / mapping counts</dt>
+      <dd>
+        {String(diagnostics.conversationCount)} conversations · {String(diagnostics.messageCount)}{' '}
+        messages · {String(diagnostics.agentSessionLinkCount)} mappings
+      </dd>
       <dt>Request / turn</dt>
       <dd>
         {diagnostics.activeRequestId ?? 'none'} · {diagnostics.activeTurnId ?? 'none'}
