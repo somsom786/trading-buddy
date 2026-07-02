@@ -4,6 +4,9 @@
 
 **Status:** Implementation complete; generation endpoint did not complete during live verification
 
+**Follow-up:** Task 12E switched the active route to working V4 Pro. See
+[`TASK-012E-deepseek-v4-pro-switch.md`](TASK-012E-deepseek-v4-pro-switch.md).
+
 ## Outcome
 
 Trading Buddy's visible companion conversation is now pinned to

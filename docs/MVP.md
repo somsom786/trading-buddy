@@ -11,7 +11,7 @@ direction:
 - pet click opens the composer;
 - existing Petdex skin selection is reachable from the buddy bubble, pet menu, and tray;
 - the project-owned Bubble and Companion Home share one Rust-owned session and local transcript;
-- NVIDIA-hosted DeepSeek V4 Flash output is routed through the private backend/session gateway;
+- NVIDIA-hosted DeepSeek V4 Pro output is routed through the private backend/session gateway;
 - stop, retry without duplicate user messages, explicit copy, five support modes, transcript
   restoration, temporary sessions, and bounded reconnect are implemented;
 - default companion mode uses zero tools;

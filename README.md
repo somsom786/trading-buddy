@@ -24,7 +24,7 @@ optional skills support that presence; Companion Home is a secondary inspection 
 surface.
 
 Conversations, memories, journal entries, and optional read-only skill data are stored in a local
-SQLite database owned by Rust/Tauri. Conversation inference currently uses DeepSeek V4 Flash
+SQLite database owned by Rust/Tauri. Conversation inference currently uses DeepSeek V4 Pro
 through NVIDIA's hosted OpenAI-compatible API, so messages and selected bounded context leave the
 device for inference. The app has no wallet signing, telemetry, authentication system, or trading
 execution functionality.
@@ -78,7 +78,7 @@ The latest Task 12B checkpoint report is
 - Rust stable
 - Microsoft C++ Build Tools with the Desktop development with C++ workload
 - Microsoft Edge WebView2 Runtime
-- An NVIDIA API key with access to `deepseek-ai/deepseek-v4-flash`
+- An NVIDIA API key with access to `deepseek-ai/deepseek-v4-pro`
 - Internet access for conversation inference
 - Optional: [Ollama](https://ollama.com) for local embeddings and background memory extraction
 
@@ -116,9 +116,9 @@ No Hermes Desktop or public gateway port is launched by the canonical app.
 
 ## Cloud AI setup
 
-The visible companion conversation is pinned to `deepseek-ai/deepseek-v4-flash` at
+The visible companion conversation is pinned to `deepseek-ai/deepseek-v4-pro` at
 `https://integrate.api.nvidia.com/v1`. See the
-[official NVIDIA model page](https://build.nvidia.com/deepseek-ai/deepseek-v4-flash). Never commit
+[official NVIDIA model page](https://build.nvidia.com/deepseek-ai/deepseek-v4-pro). Never commit
 an API key.
 
 For development, choose one credential source:
@@ -531,7 +531,7 @@ application config directory. Conversations are stored separately in the app-loc
 
 ## Known limitations
 
-- Visible conversation currently depends on NVIDIA's hosted DeepSeek V4 Flash endpoint.
+- Visible conversation currently depends on NVIDIA's hosted DeepSeek V4 Pro endpoint.
 - Exactly one generation may run per conversation.
 - API-key provisioning remains a manual development step; OS credential storage is not implemented.
 - Thinking content is never rendered as normal chat output.

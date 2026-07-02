@@ -23,7 +23,7 @@ use crate::hermes_rpc::{
     MAX_GATEWAY_LINE_BYTES, RPC_TIMEOUT_SECONDS,
 };
 
-pub const COMPANION_MODEL: &str = "deepseek-ai/deepseek-v4-flash";
+pub const COMPANION_MODEL: &str = "deepseek-ai/deepseek-v4-pro";
 pub const COMPANION_PROVIDER: &str = "custom:trading-buddy-nvidia";
 const NVIDIA_API_KEY_ENV: &str = "NVIDIA_API_KEY";
 const NVIDIA_API_KEY_FILE_ENV: &str = "TRADING_BUDDY_NVIDIA_API_KEY_FILE";
@@ -34,16 +34,15 @@ custom_providers:
     base_url: https://integrate.api.nvidia.com/v1
     key_env: NVIDIA_API_KEY
     api_mode: chat_completions
-    model: deepseek-ai/deepseek-v4-flash
+    model: deepseek-ai/deepseek-v4-pro
     max_output_tokens: 16384
     extra_body:
       temperature: 1
       top_p: 0.95
       chat_template_kwargs:
-        thinking: true
-        reasoning_effort: high
+        thinking: false
 model:
-  default: deepseek-ai/deepseek-v4-flash
+  default: deepseek-ai/deepseek-v4-pro
   provider: custom:trading-buddy-nvidia
   context_length: 1000000
   max_tokens: 16384

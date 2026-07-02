@@ -817,3 +817,16 @@ background memory extraction.
 The credential is never stored in repository files, generated YAML, SQLite, frontend state, or
 diagnostics. Development supports an environment variable or ignored private file. OS credential
 storage is required before production distribution.
+
+## 094 - Use DeepSeek V4 Pro after the hosted Flash route failed live checks
+
+**Status:** Accepted for BETA v0.3 development
+
+NVIDIA authentication and model discovery succeeded, but `deepseek-ai/deepseek-v4-flash` returned
+no response headers during repeated 90–180 second direct and full-app tests. A control model and
+`deepseek-ai/deepseek-v4-pro` responded normally with the same credential and endpoint.
+
+Visible conversation is therefore pinned to V4 Pro using NVIDIA's documented non-thinking request
+shape. The full Rust → private gateway → NVIDIA path produced its first visible token in 5.9 seconds
+and completed in 8.9 seconds. V4 Flash remains unavailable rather than silently delaying every
+conversation or introducing an untested automatic fallback.

@@ -73,7 +73,7 @@ The desktop creature is the primary product surface:
   conversations, development labs, and future journal/review/settings work.
 
 The buddy's physical presence, drag behavior, and deterministic ambient state do not depend on
-inference. Conversation uses NVIDIA-hosted DeepSeek V4 Flash while Rust-owned SQLite remains
+inference. Conversation uses NVIDIA-hosted DeepSeek V4 Pro while Rust-owned SQLite remains
 authoritative for the transcript. Messages and selected bounded context leave the device; this is
 disclosed in the UI. Temporary chat remains available for in-memory-only sessions.
 

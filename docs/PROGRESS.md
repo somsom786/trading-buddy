@@ -6,6 +6,19 @@ Trading Buddy is currently in active development under the label **BETA v0.3**. 
 records meaningful product and engineering milestones without pretending the application is
 production-ready.
 
+### July 2, 2026 - Task 12E operational DeepSeek V4 Pro switch
+
+- Replaced the unresponsive hosted V4 Flash route with NVIDIA-hosted DeepSeek V4 Pro using the same
+  private credential boundary.
+- Verified the direct V4 Pro stream in 1.8 seconds and the complete Rust → private gateway → NVIDIA
+  application path with first visible token at 5.9 seconds and completion at 8.9 seconds.
+- Updated the native provider pin, project-owned UI identity, README/Vision, product architecture,
+  and provider decision record.
+- Passed 183 frontend tests, 99 non-network Rust tests, the real cloud integration test, formatting,
+  lint, strict TypeScript, Clippy, and the Tauri release build.
+- Detailed handoff report:
+  [`docs/reports/TASK-012E-deepseek-v4-pro-switch.md`](reports/TASK-012E-deepseek-v4-pro-switch.md)
+
 ### July 2, 2026 - Task 12D DeepSeek cloud provider and public vision
 
 - Pinned visible companion conversation to NVIDIA-hosted DeepSeek V4 Flash while keeping

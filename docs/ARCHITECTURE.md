@@ -44,7 +44,7 @@ conversation surfaces
     -> narrow Tauri commands/events
       -> one Rust AgentSessionRuntime
         -> typed JSON-RPC over private stdio
-          -> pinned backend/session fork -> NVIDIA hosted DeepSeek V4 Flash
+          -> pinned backend/session fork -> NVIDIA hosted DeepSeek V4 Pro
       -> Rust storage service -> SQLite in app-local data
       -> optional Ollama loopback service -> embeddings/background extraction
       -> optional read-only skills -> allowlisted provider clients
@@ -72,7 +72,7 @@ create a durable SQLite mapping.
 
 ## Cloud inference boundary
 
-Visible companion turns are pinned in Rust to `deepseek-ai/deepseek-v4-flash` through NVIDIA's
+Visible companion turns are pinned in Rust to `deepseek-ai/deepseek-v4-pro` through NVIDIA's
 OpenAI-compatible hosted endpoint. React-supplied model values are ignored at the native boundary,
 so frontend state cannot redirect prompts to a different model or provider.
 

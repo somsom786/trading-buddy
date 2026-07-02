@@ -39,7 +39,7 @@ interaction design.
 - Local-first storage: transcripts, journal entries, preferences, memories, and trading snapshots
   stay in Rust-owned SQLite on the device.
 - Cloud inference is explicit: messages and selected bounded context are sent to NVIDIA's hosted
-  API for DeepSeek V4 Flash. The credential is supplied locally and never committed.
+  API for DeepSeek V4 Pro. The credential is supplied locally and never committed.
 - No private keys, seed phrases, wallet signing, trade execution, or autonomous trading.
 - Read-only crypto integrations come first.
 - Model output is untrusted. Deterministic validation and native boundaries remain authoritative.
@@ -64,7 +64,7 @@ Buddy is asleep above the taskbar.
 
 The Tauri companion, project-owned bubble, shared transcript, support modes, streaming controls,
 local persistence, deterministic pet movement, taskbar/edge placement, five-second development
-sleep, and Petdex skin picker exist. DeepSeek V4 Flash is wired through NVIDIA's hosted
+sleep, and Petdex skin picker exist. DeepSeek V4 Pro is wired through NVIDIA's hosted
 OpenAI-compatible endpoint.
 
 This is still a development build. Original production animation, polished onboarding, secure
