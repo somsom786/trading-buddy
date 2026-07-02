@@ -1,3 +1,4 @@
+mod acceptance;
 mod agent_events;
 mod agent_session;
 mod commands;
@@ -138,6 +139,7 @@ pub fn run() {
             persist_current_buddy_position,
             get_os_idle_seconds,
             get_desktop_world_snapshot,
+            acceptance::get_acceptance_diagnostics,
             commands::local_ai::list_local_models,
             commands::local_ai::stream_local_chat,
             commands::local_ai::cancel_local_chat,

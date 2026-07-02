@@ -77,6 +77,7 @@ import { MemoryProposalCard } from '../memory/MemoryProposalCard';
 import { JournalPanel } from '../journal/JournalPanel';
 import { TradingPanel } from '../trading/TradingPanel';
 import { ContinuityPanel } from '../continuity/ContinuityPanel';
+import { GuidedAcceptancePanel } from '../acceptance/GuidedAcceptancePanel';
 import type { JournalDiagnostics, JournalEntrySummary } from '../../domain/journal/types';
 import type { Memory, MemoryDiagnostics, RetrievedMemory } from '../../domain/memory/types';
 import {
@@ -1541,6 +1542,7 @@ export function ChatWorkspace({
 
         {import.meta.env.DEV ? (
           <>
+            <GuidedAcceptancePanel />
             <AgentSessionLab snapshot={agentSession.snapshot} service={agentSessionService} />
             <StorageLab
               diagnostics={storageDiagnostics}
